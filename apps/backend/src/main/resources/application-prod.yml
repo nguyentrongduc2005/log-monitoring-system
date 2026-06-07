@@ -1,0 +1,28 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+#   datasource:
+#     url: ${POSTGRES_URL}
+#     username: ${POSTGRES_USER}
+#     password: ${POSTGRES_PASSWORD}
+
+#   kafka:
+#     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+
+#   data:
+#     redis:
+#       host: ${REDIS_HOST}
+#       port: ${REDIS_PORT:6379}
+#       password: ${REDIS_PASSWORD:}
+
+# clickhouse:
+#   url: ${CLICKHOUSE_URL}
+#   username: ${CLICKHOUSE_USER}
+#   password: ${CLICKHOUSE_PASSWORD}
+
+logging:
+  level:
+    root: INFO
+    com.vdt.log_monitoring: INFO

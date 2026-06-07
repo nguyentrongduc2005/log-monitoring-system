@@ -1,0 +1,26 @@
+spring:
+  config:
+    activate:
+      on-profile: local
+
+#   datasource:
+#     url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/log_monitoring}
+#     username: ${POSTGRES_USER:log_user}
+#     password: ${POSTGRES_PASSWORD:change-me}
+
+#   kafka:
+#     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+
+#   data:
+#     redis:
+#       host: ${REDIS_HOST:localhost}
+#       port: ${REDIS_PORT:6379}
+
+# clickhouse:
+#   url: ${CLICKHOUSE_URL:jdbc:clickhouse://localhost:8123/log_monitoring}
+#   username: ${CLICKHOUSE_USER:log_user}
+#   password: ${CLICKHOUSE_PASSWORD:change-me}
+
+logging:
+  level:
+    com.vdt.log_monitoring: DEBUG
