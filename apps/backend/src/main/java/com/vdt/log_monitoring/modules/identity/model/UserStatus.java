@@ -1,4 +1,4 @@
-package com.vdt.log_monitoring.identity.model;
+package com.vdt.log_monitoring.modules.identity.model;
 
 public enum UserStatus {
 	ACTIVE,
