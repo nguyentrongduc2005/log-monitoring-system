@@ -1,4 +1,6 @@
-CREATE TABLE users (
+CREATE SCHEMA IF NOT EXISTS identity;
+
+CREATE TABLE identity.users (
     id UUID NOT NULL,
     email VARCHAR(320) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
@@ -23,7 +25,7 @@ CREATE TABLE users (
 );
 
 CREATE UNIQUE INDEX uk_users_email
-    ON users (LOWER(email));
+    ON identity.users (LOWER(email));
 
 CREATE INDEX idx_users_status
-    ON users (status);
+    ON identity.users (status);
