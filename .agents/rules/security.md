@@ -27,7 +27,8 @@ implemented.
 - Validate all HTTP, event, and WebSocket input.
 - Use structured APIs and parameterized queries.
 - Do not expose stack traces, internal paths, or security decisions.
-- Apply request and batch limits before production ingestion.
+- Apply request-size, batch-count, and per-credential rate limits before
+  production ingestion.
 
 ## Log Data
 
@@ -38,6 +39,8 @@ Treat ingested logs as potentially sensitive.
 - Do not copy sensitive payloads into application logs, errors, alerts, or
   test fixtures.
 - Define retention and deletion behavior before production use.
+- Redact sensitive fields before writing logs to ClickHouse or forwarding them
+  through events and realtime delivery.
 
 ## Dependencies And Configuration
 

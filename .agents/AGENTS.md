@@ -3,18 +3,29 @@
 ## Project
 
 Log Monitoring System is a monorepo for real-time log ingestion, monitoring,
-alerting, and analytics.
+alerting, incident management, analytics, and retention.
+
+The backend target is one deployable Spring Boot Modular Monolith. Implement
+`identity`, `logs`, `alerting`, and `realtime` first. Add `incidents`,
+`analytics`, `retention`, and `ai` only when their use cases begin.
+
+PostgreSQL owns transactional/configuration data. ClickHouse owns high-volume
+logs and analytical data. Both are part of the backend solution.
 
 Current state: the Spring Boot application, React shell, local infrastructure,
-Docker images, and OpenAPI generation workflow are scaffolded. Persistence,
-ingestion, processing, live streaming, authentication, alerting, and analytics
-are roadmap work unless current source code proves otherwise.
+Docker images, and OpenAPI generation workflow are scaffolded. JPA, Flyway,
+PostgreSQL, an early `identity` model/repository, and a `users` migration exist.
+Most use cases, internal events, authentication, log processing, live
+streaming, alerting, incidents, analytics, AI, and retention remain roadmap
+work unless current source code proves otherwise.
 
 Stack:
 
 - Backend: Java 21, Spring Boot 3.5, Maven
 - Frontend: React 19, TypeScript 5, Vite 8
-- Infrastructure: PostgreSQL 17, ClickHouse 25.3, Kafka 4, Redis 8, Docker
+- Data: PostgreSQL 17 and ClickHouse 25.3
+- Optional infrastructure adapters: Kafka 4 and Redis 8
+- Runtime: one Spring Boot application, Docker-based local infrastructure
 
 ## Load Context
 
@@ -23,16 +34,20 @@ Read only files relevant to the current task:
 - `.agents/context/project-overview.md`: purpose, users, scope, and current
   implementation status
 - `.agents/context/architecture-overview.md`: components, ownership, and
-  target data flow
+  approved Modular Monolith structure and communication rules
 - `.agents/context/glossary.md`: domain terminology and naming
 
 Repository sources remain authoritative:
 
-- `README.md`: setup, target architecture, and roadmap
+- `README.md`: setup, commands, and legacy roadmap context
 - `Makefile`: common commands
 - `compose.yml`: local infrastructure
 - `apps/backend/pom.xml`: backend dependencies
 - `apps/frontend/package.json`: frontend dependencies and scripts
+
+For approved backend architecture, `.agents/context/architecture-overview.md`
+and `.agents/rules/architecture.md` take precedence over stale roadmap
+diagrams or package examples.
 
 ## Load Rules
 
@@ -55,7 +70,8 @@ Before changing files:
 
 1. Inspect the relevant implementation and working tree.
 2. Read only the applicable context and rules.
-3. Distinguish implemented behavior from target architecture and roadmap.
+3. Distinguish implemented behavior from approved target architecture and
+   roadmap.
 4. Use a workflow skill when its trigger conditions are met.
 5. Do not implement work that requires an approved specification or plan
    until those artifacts exist and implementation is requested.
@@ -102,8 +118,12 @@ Local endpoints:
 ## Constraints
 
 - Keep changes scoped and preserve unrelated user work.
-- Follow existing code structure and conventions.
+- Move new backend work toward module-local API adapters under
+  `modules/<module>/api` and technical code under `shared`; do not extend known
+  legacy package or public-schema drift.
 - Treat source code and executable configuration as the source of truth.
+- Treat `.agents/context/architecture-overview.md` and
+  `.agents/rules/architecture.md` as the approved target architecture.
 - Never hardcode, expose, log, or commit secrets.
 - Never edit generated OpenAPI or TypeScript API artifacts manually.
 - Do not claim verification passed unless it was run.

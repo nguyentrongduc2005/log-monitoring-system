@@ -21,6 +21,11 @@ When applicable, cover:
 - Duplicate or retry behavior for events
 - External dependency failures
 - Regression for the reported defect
+- Module dependency and forbidden-import rules
+- Ingestion payload, batch, rate-limit, duplicate, and backpressure boundaries
+- PostgreSQL/ClickHouse consistency and retry behavior where both stores are
+  involved
+- Operational metrics for critical ingestion and alert failure paths
 
 Tests must be deterministic and independent. Avoid sleeps, order dependence,
 production services, and shared mutable state. Never weaken, skip, or delete a
