@@ -14,24 +14,24 @@ Apply to all source and test changes.
 ## Java
 
 - Target Java 21 and package code under `com.vdt.log_monitoring`.
-- Make the business capability the first package boundary, for example
-  `ingestion`, `logsearch`, or `alerting`.
-- Keep simple capabilities compact; use feature-local classes or small
-  subpackages without forcing DDD layers.
-- For complex domain capabilities, use `api`, `application`, `domain`, and
-  `infrastructure` where those boundaries add value.
-- Do not create top-level technical buckets that group unrelated capabilities
-  by class role.
+- Put business code under `modules`, module-local transport adapters under
+  `modules.<module>.api`, and technical building blocks under `shared`.
+- Implement `identity`, `logs`, `alerting`, and `realtime` first; do not create
+  empty future modules.
+- Add `domain` and `integrationevents` only when real behavior requires them.
+- Never import another module's entity, repository, persistence model, or
+  infrastructure class.
+- Keep controllers thin inside the owning module's `api` package.
 - Use `PascalCase` for types, `camelCase` for methods and variables, and
   `UPPER_SNAKE_CASE` for constants.
 - Use constructor injection for required dependencies.
 - Use request and response DTOs at HTTP boundaries.
 - Validate external input with Bean Validation.
-- Keep HTTP classes inside their owning capability and do not return
-  persistence entities from them.
-- In DDD-oriented capabilities, keep domain types framework-free.
-- Avoid empty interfaces, pass-through services, and mechanical layer-to-layer
-  mappings.
+- Do not return persistence or domain entities from controllers.
+- Keep DDD domain types framework-free.
+- Keep integration events immutable and named in the past tense.
+- Avoid empty interfaces, pass-through services, speculative ports, and
+  mechanical layer-to-layer mappings.
 - Follow Maven's existing compiler and Spring Boot configuration.
 
 ## TypeScript And React

@@ -32,6 +32,14 @@ Do not document planned behavior as implemented.
 - Use fake credentials in examples.
 - Remove placeholders and empty sections.
 - Keep Mermaid diagrams and terminology consistent with code.
+- Clearly label differences between current implementation and the approved
+  Modular Monolith target.
+- Use `module` for internal business boundaries; do not describe modules as
+  independently deployed services.
+- State that backend modules use PostgreSQL for transactional/configuration
+  data and ClickHouse for logs/analytics.
+- Do not apply backend module package rules to the existing frontend
+  architecture.
 
 ## Review
 
