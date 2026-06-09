@@ -1,24 +1,38 @@
 # Storage Requirements
 
+> **Draft planning note:** File này chỉ dùng để định hướng storage trong quá
+> trình thiết kế. Đây không phải nguồn dữ liệu/kiến trúc chính thức và agent chỉ
+> được sử dụng khi người dùng yêu cầu trực tiếp file này. `DETAI.md`, migration,
+> source code và cấu hình thực thi có độ ưu tiên cao hơn.
+
 ## 1. Mục tiêu
 
-Tài liệu này mô tả thiết kế lưu trữ đã chốt cho Log Monitoring System.
-Thiết kế gồm:
+Tài liệu này là storage blueprint tổng thể, liệt kê cả thành phần bắt buộc và
+điểm cộng/tương lai của Log Monitoring System. Thiết kế gồm:
 
-- 10 bảng PostgreSQL cho dữ liệu quản trị, phân quyền và cấu hình.
-- 3 bảng ClickHouse cho log, AI insight và thống kê sức khỏe ứng dụng.
-- Redis cho khóa chống cảnh báo trùng và cache dữ liệu API.
-- 5 Kafka topic cho luồng xử lý bất đồng bộ.
+- 10 bảng PostgreSQL dự kiến cho dữ liệu giao dịch và cấu hình.
+- 3 bảng/dataset ClickHouse dự kiến cho log, AI insight và health analytics.
+- Redis bắt buộc cho khóa chống cảnh báo trùng; cache API là tùy chọn.
+- 4 Kafka topic bắt buộc cho pipeline log và 1 topic điểm cộng cho AI.
 
 Đây là yêu cầu thiết kế, chưa phải mô tả schema đã được triển khai. Mọi thay
 đổi schema sau này phải được thực hiện bằng migration và đồng bộ lại tài liệu.
+
+Phân loại:
+
+- **Implemented:** `public.users` hiện có migration, nhưng chưa được chuyển vào
+  schema/module đích.
+- **Required:** identity, ingestion, processing, ClickHouse logs, alerting,
+  Redis deduplication, realtime và Telegram.
+- **Bonus/Future:** incidents nâng cao, retention, AI và health analytics.
 
 ## 2. Nguyên tắc lưu trữ
 
 - PostgreSQL không được nằm trên đường ghi log tốc độ cao.
 - API tiếp nhận log phải đẩy log thô vào Kafka thay vì `INSERT` trực tiếp.
+- API chỉ trả accepted sau khi Kafka xác nhận đã nhận event.
 - Worker ghi log đã chuẩn hóa vào ClickHouse theo batch.
-- Redis chỉ giữ dữ liệu tạm thời có TTL, không phải nguồn dữ liệu chính.
+- Redis bắt buộc cho alert deduplication nhưng không phải nguồn dữ liệu chính.
 - Kafka là lớp truyền sự kiện, không thay thế database truy vấn.
 - Tất cả timestamp lưu theo UTC.
 - Không lưu mật khẩu, API key, token Telegram hoặc secret ở dạng thô.
@@ -30,12 +44,30 @@ Thiết kế gồm:
 
 | Hệ thống | Trách nhiệm |
 | --- | --- |
-| PostgreSQL 17 | User, application, quyền truy cập, API key, alert, retention |
-| ClickHouse 25.3 | Log đã chuẩn hóa, AI insight, health analytics |
-| Redis 8 | Alert deduplication và cache API |
-| Kafka 4 | Buffer log thô và truyền event giữa các worker |
+| PostgreSQL 17 | Identity, alert occurrence/configuration và dữ liệu bonus/future |
+| ClickHouse 25.3 | Log bắt buộc; AI insight và health analytics tương lai |
+| Redis 8 | Alert deduplication bắt buộc; cache API tùy chọn |
+| Kafka 4 | Buffer bắt buộc cho raw log và pipeline xử lý bất đồng bộ |
 
-## 4. Quy ước chung
+## 4. Data ownership
+
+| Schema/dataset | Module sở hữu | Phạm vi |
+| --- | --- | --- |
+| PostgreSQL `identity` | `identity` | Required |
+| PostgreSQL `alerting` | `alerting` | Required |
+| PostgreSQL `incidents` | `incidents` | Bonus/Future workflow mở rộng |
+| PostgreSQL `retention` | `retention` | Bonus/Future |
+| ClickHouse `logs` | `logs` | Required |
+| ClickHouse `incident_ai_insights` | `ai` | Bonus/Future |
+| ClickHouse `application_health_hourly` | `analytics` | Bonus/Future |
+| Redis alert keys | `alerting` | Required |
+| Kafka log topics | Producer/consumer module tương ứng | Required/Bonus |
+
+Module không được truy cập repository hoặc storage adapter của module khác.
+Cross-module ID là logical reference, không tạo ORM relationship hoặc
+cross-schema foreign key.
+
+## 5. Quy ước chung
 
 ### PostgreSQL
 
@@ -49,6 +81,7 @@ Thiết kế gồm:
   `apps/backend/src/main/resources/db/migration/postgresql/`.
 - Migration đã chạy không được chỉnh sửa.
 - Foreign key phải chỉ rõ hành vi `ON DELETE`.
+- Foreign key chỉ dùng trong cùng schema/module.
 
 ### ClickHouse
 
@@ -58,9 +91,9 @@ Thiết kế gồm:
 - Không cập nhật trạng thái từng log bằng mutation liên tục.
 - Partition, sorting key và TTL phải được kiểm tra bằng dữ liệu tải thực tế.
 
-## 5. PostgreSQL
+## 6. PostgreSQL
 
-### 5.1. `users`
+### 6.1. `identity.users` — Required
 
 Quản lý tài khoản đăng nhập và vai trò hệ thống.
 
@@ -82,7 +115,7 @@ Index và ràng buộc:
 - `CHECK` cho `role` và `status`.
 - Không xóa cứng user đã có lịch sử thao tác; chuyển `status`.
 
-### 5.2. `applications`
+### 6.2. `identity.applications` — Required
 
 Quản lý các ứng dụng nguồn gửi log.
 
@@ -93,7 +126,7 @@ Quản lý các ứng dụng nguồn gửi log.
 | `display_name` | `VARCHAR(150)` | Không | Tên hiển thị |
 | `description` | `TEXT` | Có | Mô tả ứng dụng |
 | `status` | `VARCHAR(32)` | Không | `ACTIVE`, `INACTIVE` |
-| `created_by` | `UUID` | Không | FK đến `users.id` |
+| `created_by` | `UUID` | Không | FK nội bộ đến `identity.users.id` |
 | `created_at` | `TIMESTAMPTZ` | Không | |
 | `updated_at` | `TIMESTAMPTZ` | Không | |
 
@@ -104,16 +137,16 @@ Index và ràng buộc:
 - `created_by` dùng `ON DELETE RESTRICT`.
 - Không tái sử dụng `id` hoặc `name` cho một ứng dụng khác.
 
-### 5.3. `user_application_access`
+### 6.3. `identity.user_application_access` — Required
 
 Xác định kỹ sư được xem hoặc quản lý ứng dụng nào.
 
 | Cột | Kiểu dữ liệu | Null | Ràng buộc/Ghi chú |
 | --- | --- | --- | --- |
-| `user_id` | `UUID` | Không | FK đến `users.id` |
-| `application_id` | `UUID` | Không | FK đến `applications.id` |
+| `user_id` | `UUID` | Không | FK nội bộ đến `identity.users.id` |
+| `application_id` | `UUID` | Không | FK nội bộ đến `identity.applications.id` |
 | `access_level` | `VARCHAR(32)` | Không | `VIEW` hoặc `MANAGE` |
-| `granted_by` | `UUID` | Không | FK đến `users.id` |
+| `granted_by` | `UUID` | Không | FK nội bộ đến `identity.users.id` |
 | `created_at` | `TIMESTAMPTZ` | Không | |
 | `updated_at` | `TIMESTAMPTZ` | Không | |
 
@@ -125,21 +158,21 @@ Index và ràng buộc:
   từng application.
 - Xóa user hoặc application phải xóa các quyền liên quan bằng cascade.
 
-### 5.4. `application_api_keys`
+### 6.4. `identity.application_api_keys` — Required
 
 Quản lý API key dùng để xác thực ứng dụng gửi log.
 
 | Cột | Kiểu dữ liệu | Null | Ràng buộc/Ghi chú |
 | --- | --- | --- | --- |
 | `id` | `UUID` | Không | Primary key |
-| `application_id` | `UUID` | Không | FK đến `applications.id` |
+| `application_id` | `UUID` | Không | FK nội bộ đến `identity.applications.id` |
 | `name` | `VARCHAR(100)` | Không | Tên gợi nhớ của key |
 | `key_prefix` | `VARCHAR(32)` | Không | Phần công khai để nhận diện |
 | `key_hash` | `VARCHAR(255)` | Không | Hash của API key |
 | `status` | `VARCHAR(32)` | Không | `ACTIVE`, `REVOKED`, `EXPIRED` |
 | `expires_at` | `TIMESTAMPTZ` | Có | Null nếu không hết hạn |
 | `last_used_at` | `TIMESTAMPTZ` | Có | Cập nhật có kiểm soát |
-| `created_by` | `UUID` | Không | FK đến `users.id` |
+| `created_by` | `UUID` | Không | FK nội bộ đến `identity.users.id` |
 | `created_at` | `TIMESTAMPTZ` | Không | |
 | `revoked_at` | `TIMESTAMPTZ` | Có | |
 
@@ -152,21 +185,21 @@ Index và ràng buộc:
 - Việc cập nhật `last_used_at` không được tạo write load cho mỗi log; nên cập
   nhật theo khoảng thời gian hoặc bất đồng bộ.
 
-### 5.5. `alert_rules`
+### 6.5. `alerting.alert_rules` — Required
 
 Cấu hình điều kiện tạo cảnh báo.
 
 | Cột | Kiểu dữ liệu | Null | Ràng buộc/Ghi chú |
 | --- | --- | --- | --- |
 | `id` | `UUID` | Không | Primary key |
-| `application_id` | `UUID` | Có | Null nếu áp dụng toàn hệ thống |
+| `application_id` | `UUID` | Có | Logical reference đến `identity` |
 | `name` | `VARCHAR(150)` | Không | |
 | `levels` | `VARCHAR(16)[]` | Không | Tập `ERROR`, `CRITICAL` hoặc level khác |
-| `threshold_count` | `INTEGER` | Không | Số lần xuất hiện để tạo incident |
+| `threshold_count` | `INTEGER` | Không | Số lần xuất hiện để đủ điều kiện gửi alert |
 | `window_seconds` | `INTEGER` | Không | Cửa sổ đếm sự kiện |
 | `dedup_seconds` | `INTEGER` | Không | TTL chống cảnh báo trùng |
 | `enabled` | `BOOLEAN` | Không | |
-| `created_by` | `UUID` | Không | FK đến `users.id` |
+| `created_by` | `UUID` | Không | Logical reference đến user |
 | `created_at` | `TIMESTAMPTZ` | Không | |
 | `updated_at` | `TIMESTAMPTZ` | Không | |
 
@@ -177,14 +210,14 @@ Index và ràng buộc:
 - Mặc định có thể cảnh báo ngay từ lỗi đầu tiên và dedup trong 60 giây.
 - Quy tắc fingerprint phải được xác định ổn định để gom lỗi giống nhau.
 
-### 5.6. `notification_channels`
+### 6.6. `alerting.notification_channels` — Required
 
 Quản lý kênh gửi thông báo. Phiên bản đầu hỗ trợ Telegram.
 
 | Cột | Kiểu dữ liệu | Null | Ràng buộc/Ghi chú |
 | --- | --- | --- | --- |
 | `id` | `UUID` | Không | Primary key |
-| `application_id` | `UUID` | Có | Null nếu dùng chung toàn hệ thống |
+| `application_id` | `UUID` | Có | Logical reference; null nếu dùng chung |
 | `name` | `VARCHAR(100)` | Không | |
 | `type` | `VARCHAR(32)` | Không | Hiện tại là `TELEGRAM` |
 | `configuration` | `JSONB` | Không | Ví dụ `chat_id`, template, options |
@@ -200,15 +233,17 @@ Lưu ý:
 - Nếu sau này một rule cần nhiều channel, có thể bổ sung bảng liên kết. Trong
   thiết kế hiện tại, channel được chọn theo application hoặc cấu hình mặc định.
 
-### 5.7. `alert_incidents`
+### 6.7. `alerting.alert_occurrences` — Required
 
-Gom các lỗi trùng thành một sự cố để theo dõi và phân tích.
+Gom lỗi trùng thành occurrence bền vững để theo dõi dedup và gửi notification.
+Bảng này không cung cấp workflow acknowledge, resolve hoặc assignment của
+module `incidents` tương lai.
 
 | Cột | Kiểu dữ liệu | Null | Ràng buộc/Ghi chú |
 | --- | --- | --- | --- |
 | `id` | `UUID` | Không | Primary key |
-| `application_id` | `UUID` | Không | FK đến `applications.id` |
-| `alert_rule_id` | `UUID` | Có | FK đến `alert_rules.id` |
+| `application_id` | `UUID` | Không | Logical reference đến `identity` |
+| `alert_rule_id` | `UUID` | Có | FK nội bộ đến `alerting.alert_rules.id` |
 | `fingerprint` | `VARCHAR(128)` | Không | Hash ổn định của nhóm lỗi |
 | `level` | `VARCHAR(16)` | Không | `ERROR` hoặc `CRITICAL` |
 | `title` | `VARCHAR(255)` | Không | Tiêu đề ngắn |
@@ -217,33 +252,31 @@ Gom các lỗi trùng thành một sự cố để theo dõi và phân tích.
 | `occurrence_count` | `BIGINT` | Không | Tổng số lần xuất hiện |
 | `first_seen_at` | `TIMESTAMPTZ` | Không | |
 | `last_seen_at` | `TIMESTAMPTZ` | Không | |
-| `status` | `VARCHAR(32)` | Không | `OPEN`, `ACKNOWLEDGED`, `RESOLVED` |
-| `ai_status` | `VARCHAR(32)` | Không | `NOT_REQUESTED`, `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED` |
-| `acknowledged_by` | `UUID` | Có | FK đến `users.id` |
-| `acknowledged_at` | `TIMESTAMPTZ` | Có | |
-| `resolved_at` | `TIMESTAMPTZ` | Có | |
+| `last_notification_at` | `TIMESTAMPTZ` | Có | Lần gần nhất dedup cho phép gửi |
 | `created_at` | `TIMESTAMPTZ` | Không | |
 | `updated_at` | `TIMESTAMPTZ` | Không | |
 
 Index và ràng buộc:
 
-- Index trên `(application_id, status, last_seen_at DESC)`.
 - Index trên `(application_id, fingerprint, last_seen_at DESC)`.
 - `occurrence_count` phải lớn hơn hoặc bằng `1`.
-- AI chỉ bổ sung insight vào incident, không phát thêm một alert độc lập.
 - ClickHouse không có foreign key; `representative_event_id` được kiểm tra ở
   application level.
+- Incident tương lai tham chiếu `occurrence.id` qua logical reference/public
+  contract, không bổ sung incident workflow trực tiếp vào bảng này.
 
-### 5.8. `alert_deliveries`
+### 6.8. `alerting.alert_deliveries` — Required
 
-Theo dõi kết quả gửi cảnh báo qua WebSocket hoặc Telegram.
+Theo dõi kết quả gửi cảnh báo qua provider cần retry bền vững. MVP chỉ lưu
+Telegram delivery; WebSocket session/delivery thuộc `realtime` và được theo dõi
+bằng metric thay vì bảng của `alerting`.
 
 | Cột | Kiểu dữ liệu | Null | Ràng buộc/Ghi chú |
 | --- | --- | --- | --- |
 | `id` | `UUID` | Không | Primary key |
-| `incident_id` | `UUID` | Không | FK đến `alert_incidents.id` |
-| `channel_id` | `UUID` | Có | FK đến `notification_channels.id` |
-| `delivery_type` | `VARCHAR(32)` | Không | `WEBSOCKET`, `TELEGRAM` |
+| `occurrence_id` | `UUID` | Không | FK nội bộ đến `alerting.alert_occurrences.id` |
+| `channel_id` | `UUID` | Có | FK nội bộ đến `alerting.notification_channels.id` |
+| `delivery_type` | `VARCHAR(32)` | Không | MVP là `TELEGRAM` |
 | `status` | `VARCHAR(32)` | Không | `PENDING`, `SENT`, `FAILED`, `RETRYING` |
 | `attempt_count` | `INTEGER` | Không | Mặc định `0` |
 | `provider_message_id` | `VARCHAR(255)` | Có | ID phản hồi từ provider |
@@ -255,23 +288,23 @@ Theo dõi kết quả gửi cảnh báo qua WebSocket hoặc Telegram.
 
 Index và ràng buộc:
 
-- Index trên `(incident_id, delivery_type)`.
+- Index trên `(occurrence_id, delivery_type)`.
 - Index trên `(status, updated_at)` để worker tìm bản ghi cần retry.
 - Dùng idempotency để tránh gửi lại cùng một notification ngoài ý muốn.
 
-### 5.9. `retention_policies`
+### 6.9. `retention.retention_policies` — Bonus/Future
 
 Cấu hình nén và xóa log theo level hoặc application.
 
 | Cột | Kiểu dữ liệu | Null | Ràng buộc/Ghi chú |
 | --- | --- | --- | --- |
 | `id` | `UUID` | Không | Primary key |
-| `application_id` | `UUID` | Có | Null là policy mặc định |
+| `application_id` | `UUID` | Có | Logical reference; null là policy mặc định |
 | `log_level` | `VARCHAR(16)` | Không | `INFO`, `WARN`, `ERROR`, `CRITICAL` |
 | `compress_after_days` | `INTEGER` | Có | Null nếu không nén |
 | `delete_after_days` | `INTEGER` | Có | Null nếu không tự xóa |
 | `enabled` | `BOOLEAN` | Không | |
-| `created_by` | `UUID` | Không | FK đến `users.id` |
+| `created_by` | `UUID` | Không | Logical reference đến user |
 | `created_at` | `TIMESTAMPTZ` | Không | |
 | `updated_at` | `TIMESTAMPTZ` | Không | |
 
@@ -283,14 +316,14 @@ Yêu cầu mặc định:
 - Chỉ có một policy đang bật cho mỗi cặp application/level.
 - Policy riêng của application ưu tiên hơn policy mặc định.
 
-### 5.10. `retention_runs`
+### 6.10. `retention.retention_runs` — Bonus/Future
 
 Theo dõi tiến trình và kết quả của retention background job.
 
 | Cột | Kiểu dữ liệu | Null | Ràng buộc/Ghi chú |
 | --- | --- | --- | --- |
 | `id` | `UUID` | Không | Primary key |
-| `policy_id` | `UUID` | Không | FK đến `retention_policies.id` |
+| `policy_id` | `UUID` | Không | FK nội bộ đến `retention.retention_policies.id` |
 | `run_type` | `VARCHAR(32)` | Không | `COMPRESS`, `DELETE`, `VERIFY` |
 | `status` | `VARCHAR(32)` | Không | `RUNNING`, `SUCCEEDED`, `FAILED`, `PARTIALLY_SUCCEEDED` |
 | `worker_instance` | `VARCHAR(150)` | Có | Instance thực thi job |
@@ -311,9 +344,9 @@ Index và ràng buộc:
 - Job phải phát hiện lần chạy `RUNNING` quá thời gian cho phép.
 - Không ghi secret hoặc toàn bộ câu lệnh chứa credential vào `metadata`.
 
-## 6. ClickHouse
+## 7. ClickHouse
 
-### 6.1. `logs`
+### 7.1. `logs` — Required
 
 Lưu log đã chuẩn hóa. Đây là bảng có lưu lượng ghi và dung lượng lớn nhất.
 
@@ -348,7 +381,10 @@ Lưu ý:
 
 - `application_name` là snapshot phục vụ tìm kiếm; `application_id` vẫn là
   định danh chính.
-- `event_id` phải giữ nguyên khi Kafka retry để hỗ trợ idempotency.
+- `event_id` phải giữ nguyên khi Kafka retry.
+- `event_id` không tự tạo unique constraint trong MergeTree; phải chốt thêm
+  chiến lược dedup như ingestion token, dedup window, ReplacingMergeTree hoặc
+  query-time dedup phù hợp với benchmark.
 - Worker ghi theo batch, không ghi từng row.
 - `attributes` phải giới hạn số key, chiều dài key/value và tổng kích thước.
 - Không dùng `Nullable` tùy tiện vì làm tăng chi phí lưu và truy vấn.
@@ -369,18 +405,25 @@ Không tạo bảng trạng thái riêng và không update liên tục trong Cli
 Nếu sau này cần audit từng transition, phải bổ sung một append-only event table
 thay vì mutation trên `logs`.
 
+Trong MVP, đây là trạng thái vận hành nội bộ, không phải API cho người dùng truy
+vấn từng transition. API ingestion trả `202` khi đạt `RAW_RECEIVED`; log search
+chỉ trả bản ghi đã `STORED`; Operations quan sát `FAILED` qua `logs.dlq`.
+Nếu yêu cầu UI/API theo dõi trạng thái từng `event_id` xuất hiện, phải bổ sung
+projection append-only trước khi công bố contract đó.
+
 #### Retention
 
 - ClickHouse native TTL/background merge thực hiện nén hoặc xóa dữ liệu.
-- Retention scheduler đọc `retention_policies`, áp dụng/kiểm tra policy và ghi
-  kết quả vào `retention_runs`.
+- Retention scheduler đọc `retention_policies`, gọi public contract của
+  `logs`; module `logs` áp dụng/kiểm tra TTL hoặc partition operation và
+  retention ghi kết quả vào `retention_runs`.
 - Không chạy job Java xóa từng row.
 - INFO quá 7 ngày phải được nén hoặc xóa.
 - Delete mutation theo application chỉ dùng khi thực sự cần vì chi phí cao.
 - Policy theo level toàn hệ thống nên được ưu tiên; override theo application
   cần được benchmark trước.
 
-### 6.2. `incident_ai_insights`
+### 7.2. `incident_ai_insights` — Bonus/Future
 
 Lưu kết quả AI phân tích incident, không phân tích và lưu kết quả cho từng log.
 
@@ -416,7 +459,7 @@ Lưu ý:
 - Prompt và dữ liệu gửi AI phải được redaction.
 - Kết quả AI chỉ là gợi ý, không tự động thay đổi trạng thái incident.
 
-### 6.3. `application_health_hourly`
+### 7.3. `application_health_hourly` — Bonus/Future
 
 Lưu số liệu tổng hợp theo ứng dụng và giờ cho dashboard.
 
@@ -459,12 +502,12 @@ Lưu ý:
 - Khi cần thay đổi công thức health score, API phải trả về phiên bản công thức.
 - Không dùng tỷ lệ lỗi đơn lẻ để tự động kết luận nguyên nhân sự cố.
 
-## 7. Redis
+## 8. Redis
 
 Redis chỉ chứa dữ liệu có thể tái tạo từ PostgreSQL, ClickHouse hoặc event
 pipeline.
 
-### 7.1. Alert deduplication
+### 8.1. Alert deduplication — Required
 
 Key:
 
@@ -476,7 +519,7 @@ Giá trị đề xuất:
 
 ```json
 {
-  "incidentId": "uuid",
+  "occurrenceId": "uuid",
   "count": 100,
   "firstSeenAt": "UTC timestamp",
   "lastSeenAt": "UTC timestamp"
@@ -490,8 +533,10 @@ Yêu cầu:
 - Không đưa `timestamp` hoặc `trace_id` vào fingerprint vì sẽ phá dedup.
 - Khi 100 lỗi giống nhau xuất hiện trong một phút, chỉ gửi một cảnh báo nhưng
   vẫn cập nhật `occurrence_count`.
+- Lỗi đầu tiên được phép gửi ngay khi rule threshold mặc định là `1`; dedup
+  không được hiểu là phải đợi đủ 100 lỗi mới cảnh báo.
 
-### 7.2. Application cache
+### 8.2. Application cache — Optional
 
 ```text
 cache:application:{application_id}
@@ -502,7 +547,7 @@ cache:application:list
 - Xóa cache khi application thay đổi trạng thái hoặc thông tin.
 - Danh sách application phải được lọc theo quyền trước khi trả cho client.
 
-### 7.3. User và access cache
+### 8.3. User và access cache — Optional
 
 ```text
 cache:user:{user_id}
@@ -516,7 +561,7 @@ cache:access:{user_id}:{application_id}
 - Cache miss phải đọc lại PostgreSQL; cache không được quyết định quyền khi dữ
   liệu đã hết hạn.
 
-### 7.4. Quy ước Redis
+### 8.4. Quy ước Redis
 
 - Key phải có namespace rõ ràng.
 - Mọi cache key phải có TTL.
@@ -524,72 +569,107 @@ cache:access:{user_id}:{application_id}
 - Không dùng lệnh quét blocking như `KEYS` trong production.
 - Cần metric cho hit rate, miss rate, eviction và memory usage.
 
-## 8. Kafka topics
+## 9. Kafka topics
 
 Kafka topic không phải bảng database nhưng là một phần của yêu cầu lưu chuyển
 dữ liệu.
 
 | Topic | Key đề xuất | Nội dung | Lưu ý |
 | --- | --- | --- | --- |
-| `logs.raw` | `application_id` | Log thô đã được ingestion chấp nhận | Buffer chính, không ghi DB trực tiếp |
-| `logs.live` | `application_id` | Log đã chuẩn hóa cho live viewer | Retention ngắn |
-| `logs.dlq` | `application_id` | Log không parse hoặc xử lý được | Giữ lỗi và lý do đã lọc |
-| `alerts.critical` | `fingerprint` | Event `ERROR`/`CRITICAL` | Dùng cho dedup và tạo incident |
-| `incidents.ai` | `incident_id` | Yêu cầu AI phân tích incident | Không chặn alert hoặc live log |
+| `logs.raw` | `application_id` | Log thô đã được ingestion chấp nhận | Required; buffer chính |
+| `logs.live` | `application_id` | Log đã chuẩn hóa cho live viewer | Required; retention ngắn |
+| `logs.dlq` | `application_id` | Log không parse hoặc xử lý được | Required; lỗi đã redaction |
+| `alerts.critical` | `fingerprint` | Event `ERROR`/`CRITICAL` | Required; priority consumer riêng, Redis dedup và alert |
+| `incidents.ai` | `incident_id` | Yêu cầu AI phân tích incident | Bonus/Future |
 
 Yêu cầu:
 
 - Event có `event_id`, schema version và timestamp UTC.
 - Producer phải xác định acknowledgment và retry.
+- Ingestion API chỉ trả accepted sau acknowledgment của `logs.raw`.
 - Consumer phải idempotent vì Kafka có thể giao event nhiều lần.
 - Topic phải có retention, partition count và DLQ strategy rõ ràng.
+- `alerts.critical` dùng consumer group, executor và concurrency riêng với
+  `logs.live`; theo dõi p95 alert queue-to-delivery-start, mục tiêu MVP không
+  quá `2 giây`.
+- Kafka không có message priority nội tại; mức ưu tiên đến từ topic/consumer
+  riêng và tài nguyên xử lý được dành riêng.
+- Kafka phải dùng authentication/authorization phù hợp; raw-log topic chỉ cho
+  producer/consumer được cấp quyền truy cập.
+- Lọc các secret nhận diện được trước khi publish; payload raw còn lại vẫn
+  phải được coi là dữ liệu nhạy cảm.
 - Không đặt payload bí mật hoặc dữ liệu chưa redaction vào event AI.
 
-## 9. Luồng lưu trữ
+## 10. Luồng lưu trữ
 
 ```text
 External Application
-    -> Ingestion API
+    -> logs.ingestion component
+    -> Kafka RawLog Producer
     -> Kafka logs.raw
-    -> Parsing Worker
+    -> logs.processing worker
         -> ClickHouse logs
         -> Kafka logs.live
         -> Kafka alerts.critical (ERROR/CRITICAL)
         -> Kafka logs.dlq (parse/store failure)
+        -> commit logs.raw offset only after required acknowledgments
 
 alerts.critical
     -> Redis dedup
-    -> PostgreSQL alert_incidents
-    -> PostgreSQL alert_deliveries
-    -> WebSocket + Telegram
+    -> PostgreSQL alerting.alert_occurrences
+    -> PostgreSQL alerting.alert_deliveries
+    -> Telegram
+    -> realtime alert event
+        -> realtime module
+        -> authorized WebSocket subscribers
+
+Bonus/Future:
     -> Kafka incidents.ai
     -> ClickHouse incident_ai_insights
 
 ClickHouse logs
+    <- logs.query component (read-only)
     -> Materialized View
     -> ClickHouse application_health_hourly
 
 Retention Scheduler
-    -> PostgreSQL retention_policies
-    -> ClickHouse TTL/background operations
-    -> PostgreSQL retention_runs
+    -> PostgreSQL retention.retention_policies
+    -> logs module public contract
+    -> logs-owned ClickHouse TTL/background operations
+    -> PostgreSQL retention.retention_runs
 ```
 
-## 10. Tính nhất quán và lỗi
+## 11. Tính nhất quán và lỗi
 
+- `logs.ingestion`, `logs.processing` và `logs.query` là component trong cùng
+  Spring Boot application; ClickHouse `logs` và Kafka contract do module
+  `logs` sở hữu.
+- Chỉ processing worker được ghi ClickHouse `logs`; query API chỉ đọc và
+  ingestion API không được kết nối ClickHouse.
 - PostgreSQL và ClickHouse không có transaction chung.
-- Các liên kết `application_id`, `incident_id`, `event_id` giữa hai database
+- Các liên kết `application_id`, `occurrence_id`, `incident_id`, `event_id`
+  giữa hai database
   là logical reference.
 - Worker phải hỗ trợ retry và idempotency.
-- Event chỉ được xem là xử lý xong sau khi bước lưu tương ứng thành công.
+- Redis dedup operation phải atomic và có TTL.
+- Raw event chỉ được commit sau khi ClickHouse batch và mọi downstream event
+  bắt buộc đã được Kafka acknowledge.
+- Nếu worker chết sau ClickHouse write nhưng trước offset commit, Kafka giao
+  lại cùng raw event. Writer và consumer dedup theo `event_id`; duplicate
+  delivery không được tạo thêm logical log hoặc notification.
+- Nếu publish `logs.live`/`alerts.critical` thất bại, worker retry và không
+  commit raw offset. Sau retry giới hạn, event vào `logs.dlq` cùng failure stage
+  để replay; phải phát metric và operational alert.
 - Nếu ghi ClickHouse thất bại sau số lần retry cho phép, event chuyển
   `logs.dlq`.
-- Nếu Telegram thất bại, incident vẫn tồn tại và `alert_deliveries` ghi trạng
-  thái để retry.
-- Nếu AI thất bại, alert và incident không bị ảnh hưởng; `ai_status` chuyển
-  `FAILED`.
+- Nếu Telegram thất bại, occurrence vẫn tồn tại và `alert_deliveries` ghi
+  trạng thái để retry.
+- WebSocket delivery failure không ghi vào `alert_deliveries`; `realtime` theo
+  dõi session count, dropped event và delivery failure bằng metrics.
+- Nếu AI thất bại, alert và incident không bị ảnh hưởng; trạng thái AI thuộc
+  module/bảng bonus tương lai, không nằm trong alert occurrence.
 
-## 11. Backup và quan sát
+## 12. Backup và quan sát
 
 ### PostgreSQL
 
@@ -613,8 +693,36 @@ Retention Scheduler
 
 - Theo dõi consumer lag, throughput, under-replicated partition và DLQ rate.
 - Cảnh báo khi worker không theo kịp tốc độ ingestion.
+- Theo dõi riêng HTTP ingestion latency, Kafka producer latency, consumer lag,
+  processing latency và ClickHouse insert/query latency.
+- Worker concurrency hữu ích bị giới hạn bởi partition count.
+- Dùng resource pool riêng cho ingestion, processing và query trong cùng
+  application để hạn chế tranh chấp tài nguyên.
 
-## 12. Quyết định cần benchmark trước production
+## 13. Ingestion contract MVP
+
+| Hạng mục | Quyết định mặc định |
+| --- | --- |
+| Request body | Tối đa `1 MiB` |
+| Batch | Tối đa `500` events/request |
+| Rate limit | `1,000 events/second/application`, burst `2,000`; cấu hình được |
+| Timestamp | Từ `7 ngày trước` đến `5 phút trong tương lai` |
+| Batch validation | Whole-batch: một event lỗi thì không publish event nào |
+| Kafka acknowledgment | Chỉ trả accepted sau broker ack |
+| Kafka publish timeout | `3 giây` |
+| Backpressure | `429` khi vượt rate; `503` khi broker/quá tải không ack |
+| Idempotency | Hỗ trợ `Idempotency-Key`; retry giữ nguyên logical event IDs |
+| Redaction | Lọc secret trước Kafka; redaction lại trước storage/downstream |
+
+Canonical client fields gồm `applicationName`, `level`, `message`, `timestamp`
+và `traceId`. Server sinh `event_id`, `ingestion_id`, `received_at` nếu client
+không cung cấp event ID hợp lệ. Error response phải chỉ ra field/index lỗi,
+không phản chiếu secret hoặc toàn bộ raw message.
+
+Các giá trị trên là baseline MVP để triển khai và benchmark, không phải hằng số
+hardcode. Chỉ thay đổi sau khi có load-test evidence và cập nhật API docs.
+
+## 14. Tiêu chí demo và benchmark
 
 - Batch size và flush interval khi ghi ClickHouse.
 - Số partition của từng Kafka topic.
@@ -623,5 +731,8 @@ Retention Scheduler
 - Giới hạn kích thước message và `attributes`.
 - Công thức fingerprint và health score.
 - TTL cache và chiến lược invalidation.
-- Tải mục tiêu tối thiểu: tiếp nhận 500 log trong 2 giây, không lỗi và live
-  viewer vẫn hoạt động mượt.
+- Tải mục tiêu tối thiểu: tiếp nhận 500 log trong 2 giây, không mất event đã
+  được Kafka acknowledge và live viewer vẫn hoạt động mượt.
+- Kịch bản benchmark phải ghi rõ kích thước log, số request/batch, số
+  application đồng thời, success rate, end-to-end latency percentile và thời
+  gian log xuất hiện trên UI.

@@ -22,7 +22,13 @@ When applicable, cover:
 - External dependency failures
 - Regression for the reported defect
 - Module dependency and forbidden-import rules
+- Top-level API adapters depending only on public module facades
+- Domain packages remaining free of Spring, JPA, Kafka, and provider types
 - Ingestion payload, batch, rate-limit, duplicate, and backpressure boundaries
+- Kafka producer acknowledgment, consumer retry, idempotency, and DLQ behavior
+- Raw offset commit only after ClickHouse and downstream Kafka acknowledgments
+- Dedicated `alerts.critical` consumer latency and isolation from live delivery
+- Redis deduplication under repeated and concurrent critical events
 - PostgreSQL/ClickHouse consistency and retry behavior where both stores are
   involved
 - Operational metrics for critical ingestion and alert failure paths

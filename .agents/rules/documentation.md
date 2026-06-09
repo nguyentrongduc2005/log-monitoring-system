@@ -6,11 +6,14 @@ configuration, setup, or developer workflows.
 ## Sources
 
 - `README.md`: project introduction, setup, commands, and roadmap
-- `docs/architecture.md`: detailed architecture when created
-- `docs/api.md`: API behavior when created
-- `docs/database.md`: storage design when created
+- `docs/api/README.md`: target API behavior and MVP defaults
 - `docs/api/openapi.json`: generated API contract
 - `.agents/context/`: concise agent orientation
+- `DETAI.md`: authoritative assignment scope
+
+`docs/module-requirement.md` and `docs/store-requirement.md` are temporary
+planning drafts. Update or review them only when the user explicitly requests
+those files; do not treat them as official sources.
 
 Implementation and executable configuration take precedence over roadmap text.
 Do not document planned behavior as implemented.
@@ -38,6 +41,8 @@ Do not document planned behavior as implemented.
   independently deployed services.
 - State that backend modules use PostgreSQL for transactional/configuration
   data and ClickHouse for logs/analytics.
+- State that Kafka is mandatory for the raw-log processing pipeline and Redis
+  is mandatory for alert deduplication.
 - Do not apply backend module package rules to the existing frontend
   architecture.
 

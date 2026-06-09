@@ -15,13 +15,15 @@ Apply to all source and test changes.
 
 - Target Java 21 and package code under `com.vdt.log_monitoring`.
 - Put business code under `modules`, module-local transport adapters under
+  top-level `api.<module>`, public module contracts under
   `modules.<module>.api`, and technical building blocks under `shared`.
 - Implement `identity`, `logs`, `alerting`, and `realtime` first; do not create
   empty future modules.
 - Add `domain` and `integrationevents` only when real behavior requires them.
 - Never import another module's entity, repository, persistence model, or
   infrastructure class.
-- Keep controllers thin inside the owning module's `api` package.
+- Keep controllers thin inside top-level `api.<module>`.
+- Controllers depend only on the owning module's public facade.
 - Use `PascalCase` for types, `camelCase` for methods and variables, and
   `UPPER_SNAKE_CASE` for constants.
 - Use constructor injection for required dependencies.

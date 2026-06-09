@@ -1,22 +1,20 @@
 <!-- Improved compatibility of back to top link: See: https://github.com/othneildrew/Best-README-Template/pull/73 -->
+
 <a id="readme-top"></a>
 
-
-
 <!-- PROJECT SHIELDS -->
+
 [![MIT License][license-shield]][license-url]
 [![Java][java-shield]][Java-url]
 [![Spring Boot][spring-shield]][Spring-Boot-url]
 [![React][react-shield]][React-url]
 
-
-
 <!-- PROJECT LOGO -->
 <br />
 <div align="center">
   <a href="https://github.com/nguyentrongduc2005/log-monitoring-system">
-    <img src="apps/frontend/public/favicon.svg" alt="Logo" width="80" height="80">
-  </a>
+  <img src="docs/assets/logo-transparent.png" alt="Logo" width="120">
+</a>
 
   <h3 align="center">Log Monitoring System</h3>
 
@@ -31,8 +29,6 @@
     <a href="https://github.com/nguyentrongduc2005/log-monitoring-system/issues/new?labels=enhancement">Request Feature</a>
   </p>
 </div>
-
-
 
 <!-- TABLE OF CONTENTS -->
 <details>
@@ -60,9 +56,8 @@
   </ol>
 </details>
 
-
-
 <!-- ABOUT THE PROJECT -->
+
 ## About The Project
 
 Log Monitoring System giúp tập trung log từ nhiều ứng dụng vào một nền tảng
@@ -72,82 +67,94 @@ tích.
 
 Các chức năng chính:
 
-* Tiếp nhận log tốc độ cao từ nhiều ứng dụng.
-* Chuẩn hóa `applicationName`, `level`, `message`, `timestamp` và `traceId`.
-* Tìm kiếm và lọc log theo ứng dụng, cấp độ lỗi và thời gian.
-* Hiển thị live log trên dashboard mà không cần reload trang.
-* Phát hiện log `ERROR` hoặc `CRITICAL` và gửi cảnh báo thời gian thực.
-* Chống cảnh báo trùng lặp bằng Redis để hạn chế alert fatigue.
-* Phân tích throughput, error rate và sức khỏe của từng ứng dụng.
-* Phân quyền kỹ sư theo ứng dụng và cung cấp quyền quản trị alert rule.
-* Hỗ trợ retention policy và mở rộng phân tích log bằng AI.
+- Tiếp nhận log tốc độ cao từ nhiều ứng dụng.
+- Chuẩn hóa `applicationName`, `level`, `message`, `timestamp` và `traceId`.
+- Tìm kiếm và lọc log theo ứng dụng, cấp độ lỗi và thời gian.
+- Hiển thị live log trên dashboard mà không cần reload trang.
+- Phát hiện log `ERROR` hoặc `CRITICAL` và gửi cảnh báo thời gian thực.
+- Chống cảnh báo trùng lặp bằng Redis để hạn chế alert fatigue.
+- Phân quyền kỹ sư theo ứng dụng và cung cấp quyền quản trị alert rule.
+- Điểm cộng: analytics sức khỏe ứng dụng, retention policy và phân tích AI.
 
 > [!NOTE]
 > Dự án đang trong giai đoạn phát triển. Frontend scaffold, Dockerfile và hạ
-> tầng Docker Compose đã được thiết lập. Các module ingestion, processing,
-> alerting và analytics đang được triển khai theo roadmap.
+> tầng Docker Compose đã được thiết lập. Backend triển khai trước các module
+> `identity`, `logs`, `alerting`, `realtime`; ingestion và processing là hai
+> component bên trong `logs`, cùng với query, trong một Spring Boot Modular
+> Monolith. Analytics là phạm vi điểm cộng.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
 
 ### Architecture
 
 ```mermaid
 flowchart LR
-    SOURCE[External Applications] -->|POST logs| API[Spring Boot Ingestion API]
-    API --> RAW[Kafka: logs.raw]
-    RAW --> WORKER[Parsing Worker]
+    SOURCE[External Applications] -->|POST logs| INGEST[Logs Ingestion API]
+    INGEST --> RAW[Kafka: logs.raw]
+    RAW --> WORKER[Logs Processing Worker]
     WORKER --> CH[(ClickHouse)]
     WORKER --> LIVE[Kafka: logs.live]
     WORKER -->|ERROR / CRITICAL| ALERT[Kafka: alerts.critical]
-    ALERT --> REDIS[(Redis Deduplication)]
-    REDIS --> WS[WebSocket]
-    REDIS --> TELEGRAM[Telegram]
+    ALERT --> DEDUP[Priority Alert Consumer]
+    DEDUP --> REDIS[(Redis Deduplication)]
+    REDIS --> ALERTDB[(PostgreSQL Alert Occurrences)]
+    ALERTDB --> TELEGRAM[Telegram]
+    ALERTDB --> ALERTEVENT[Realtime Alert Event]
+    ALERTEVENT --> WS[WebSocket]
     LIVE --> WS
     WS --> UI[React Dashboard]
-    UI -->|Search / Analytics API| API
-    API --> CH
-    API --> PG[(PostgreSQL)]
+    UI -->|Historical Search| QUERY[Logs Query API]
+    QUERY --> CH
+    UI -->|Management API| BACKEND[Platform API]
+    BACKEND --> PG[(PostgreSQL Identity / Alerting)]
 ```
 
-| Component | Responsibility |
-| --- | --- |
-| PostgreSQL | User, role, application, permission, API key và alert rule |
-| ClickHouse | Log đã chuẩn hóa, truy vấn thời gian và dữ liệu analytics |
-| Kafka | Buffer log thô và truyền event giữa các bước xử lý |
-| Redis | Khóa cảnh báo trùng lặp và dữ liệu tạm thời có TTL |
-| WebSocket | Truyền live log và alert tới React dashboard |
+Worker chỉ commit offset `logs.raw` sau khi ClickHouse và các Kafka event
+downstream bắt buộc đều được acknowledge. `alerts.critical` có consumer group
+và tài nguyên xử lý riêng; Kafka không tự cung cấp message priority.
+
+Business module `logs` sở hữu event contract và ClickHouse dataset.
+`ingestion`, `processing`, `query` là component nội bộ trong cùng Spring Boot
+application, không phải module hoặc service độc lập.
+
+HTTP/WebSocket controller nằm ở top-level `api`; chúng chỉ chuyển request đến
+public facade của module. Business logic, persistence và Kafka/ClickHouse
+adapter vẫn nằm bên trong module sở hữu.
+
+| Component  | Responsibility                                            |
+| ---------- | --------------------------------------------------------- |
+| PostgreSQL | Identity, alert rule, occurrence và delivery state         |
+| ClickHouse | Log chuẩn hóa, search và analytics điểm cộng               |
+| Kafka      | Buffer log thô và truyền event giữa các bước xử lý         |
+| Redis      | Khóa cảnh báo trùng lặp và dữ liệu tạm thời có TTL         |
+| WebSocket  | Truyền live log và alert tới React dashboard              |
+| Telegram   | Kênh gửi cảnh báo bắt buộc                                |
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
 
 ### Built With
 
 #### Backend
 
-* [![Java][Java]][Java-url]
-* [![Spring Boot][Spring-Boot]][Spring-Boot-url]
-* [![PostgreSQL][PostgreSQL]][PostgreSQL-url]
-* [![ClickHouse][ClickHouse]][ClickHouse-url]
-* [![Apache Kafka][Kafka]][Kafka-url]
-* [![Redis][Redis]][Redis-url]
+- [![Java][Java]][Java-url]
+- [![Spring Boot][Spring-Boot]][Spring-Boot-url]
+- [![PostgreSQL][PostgreSQL]][PostgreSQL-url]
+- [![ClickHouse][ClickHouse]][ClickHouse-url]
+- [![Apache Kafka][Kafka]][Kafka-url]
+- [![Redis][Redis]][Redis-url]
 
 #### Frontend
 
-* [![React][React.js]][React-url]
-* [![TypeScript][TypeScript]][TypeScript-url]
-* [![Vite][Vite]][Vite-url]
-* [![Nginx][Nginx]][Nginx-url]
+- [![React][React.js]][React-url]
+- [![TypeScript][TypeScript]][TypeScript-url]
+- [![Vite][Vite]][Vite-url]
+- [![Nginx][Nginx]][Nginx-url]
 
 #### Infrastructure
 
-* [![Docker][Docker]][Docker-url]
+- [![Docker][Docker]][Docker-url]
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-
 
 ### Project Structure
 
@@ -165,9 +172,11 @@ log-monitoring-system/
 │       ├── nginx.conf
 │       └── package.json
 ├── docs/
-│   ├── api/                     # OpenAPI specification được export
+│   ├── api/                     # API overview và OpenAPI được export
 │   ├── diagram/                 # Sơ đồ hệ thống
-│   └── report/                  # Tài liệu và báo cáo
+│   ├── module-requirement.md    # Bản nháp định hướng module
+│   ├── report/                  # Tài liệu và báo cáo
+│   └── store-requirement.md     # Bản nháp định hướng storage
 ├── scripts/
 │   └── generate-api-types.sh    # Sinh TypeScript type từ OpenAPI
 ├── compose.yml                  # PostgreSQL, ClickHouse, Kafka và Redis
@@ -178,20 +187,19 @@ log-monitoring-system/
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
-
 <!-- GETTING STARTED -->
+
 ## Getting Started
 
 Thực hiện các bước dưới đây để chạy dự án trên máy local.
 
 ### Prerequisites
 
-* Git
-* Java 21
-* Node.js 22 trở lên
-* Docker và Docker Compose
-* GNU Make, tùy chọn nhưng được khuyến nghị
+- Git
+- Java 21
+- Node.js 22 trở lên
+- Docker và Docker Compose
+- GNU Make, tùy chọn nhưng được khuyến nghị
 
 Kiểm tra phiên bản:
 
@@ -250,24 +258,23 @@ Không commit `.env`, credential, token hoặc API key vào repository.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
-
 <!-- USAGE EXAMPLES -->
+
 ## Usage
 
 ### Development commands
 
-| Command | Description |
-| --- | --- |
-| `make infra-up` | Khởi động PostgreSQL, ClickHouse, Redis và Kafka |
-| `make infra-down` | Dừng các container |
-| `make backend` | Chạy Spring Boot backend |
-| `make frontend` | Chạy Vite development server |
-| `make api` | Sinh TypeScript API type từ OpenAPI |
-| `make build` | Build backend và frontend |
-| `make test` | Chạy backend tests |
-| `make lint` | Chạy frontend ESLint |
-| `make clean` | Xóa output build |
+| Command           | Description                                      |
+| ----------------- | ------------------------------------------------ |
+| `make infra-up`   | Khởi động PostgreSQL, ClickHouse, Redis và Kafka |
+| `make infra-down` | Dừng các container                               |
+| `make backend`    | Chạy Spring Boot backend                         |
+| `make frontend`   | Chạy Vite development server                     |
+| `make api`        | Sinh TypeScript API type từ OpenAPI              |
+| `make build`      | Build backend và frontend                        |
+| `make test`       | Chạy backend tests                               |
+| `make lint`       | Chạy frontend ESLint                             |
+| `make clean`      | Xóa output build                                 |
 
 ### Build Docker images
 
@@ -279,23 +286,26 @@ docker build -t log-monitoring-frontend ./apps/frontend
 `compose.yml` hiện quản lý các service hạ tầng. Backend và frontend sẽ được
 thêm vào Compose sau khi cấu hình production của backend hoàn tất.
 
+Đây là khoảng trống triển khai hiện tại so với yêu cầu bàn giao cuối: Compose
+phải chạy được backend Modular Monolith, frontend, PostgreSQL, ClickHouse,
+Kafka và Redis.
+
 ### Local service ports
 
-| Service | Port |
-| --- | --- |
-| Backend | `8080` |
-| Frontend | `5173` |
-| PostgreSQL | `5432` |
-| ClickHouse HTTP | `8123` |
+| Service           | Port   |
+| ----------------- | ------ |
+| Backend           | `8080` |
+| Frontend          | `5173` |
+| PostgreSQL        | `5432` |
+| ClickHouse HTTP   | `8123` |
 | ClickHouse Native | `9000` |
-| Kafka | `9094` |
-| Redis | `6379` |
+| Kafka             | `9094` |
+| Redis             | `6379` |
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
-
 <!-- API DOCUMENTATION -->
+
 ## API Documentation
 
 Khi backend đang chạy:
@@ -323,11 +333,14 @@ apps/frontend/src/api/generated/api-types.ts
 
 Không chỉnh sửa file generated bằng tay.
 
+Quy ước target cho ingestion API, giới hạn batch, idempotency và backpressure
+được mô tả tại [`docs/api/README.md`](docs/api/README.md). Tài liệu này không
+khẳng định endpoint đã tồn tại nếu controller tương ứng chưa được triển khai.
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
-
 <!-- ROADMAP -->
+
 ## Roadmap
 
 - [x] Khởi tạo monorepo Spring Boot và React
@@ -347,7 +360,9 @@ Không chỉnh sửa file generated bằng tay.
 - [ ] Chống cảnh báo trùng bằng Redis TTL
 - [ ] Tích hợp Telegram notification
 - [ ] Thêm authentication và application-level permissions
-- [ ] Thêm dashboard throughput, error rate và application health
+- [ ] [Điểm cộng] Thêm dashboard throughput, error rate và application health
+- [ ] [Điểm cộng] Thêm retention INFO quá 7 ngày
+- [ ] [Điểm cộng] Thêm AI phân tích và phân loại nhóm lỗi
 - [ ] Viết k6 scenario cho demo 500 log trong 2 giây
 - [ ] Thêm backend và frontend vào Docker Compose
 
@@ -356,18 +371,17 @@ for a full list of proposed features and known issues.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
 <!-- LICENSE -->
+
 ## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-
-
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
+
 [license-shield]: https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge
 [license-url]: LICENSE
 [java-shield]: https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white

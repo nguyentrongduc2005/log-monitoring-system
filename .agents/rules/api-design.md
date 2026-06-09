@@ -4,8 +4,10 @@ Apply to HTTP, WebSocket, module contracts, and integration events.
 
 ## Location And Contract
 
-- Place each controller under
-  `com.vdt.log_monitoring.modules.<module>.api`.
+- Place each HTTP/WebSocket controller under
+  `com.vdt.log_monitoring.api.<module>`.
+- Reserve `com.vdt.log_monitoring.modules.<module>.api` for public module
+  facade interfaces and contract DTOs.
 - HTTP APIs use Spring MVC and the `/api/v1` namespace.
 - OpenAPI source is Spring controllers and transport DTOs.
 - Generate `docs/api/openapi.json` and frontend API types with `make api`.
@@ -14,10 +16,10 @@ Apply to HTTP, WebSocket, module contracts, and integration events.
 ## Controllers
 
 Controllers may validate transport input, enforce authentication and
-authorization, invoke one module use case, and map its result.
+authorization, invoke one public module facade, and map its result.
 
 Controllers must not implement business rules, access persistence, publish
-domain events, or coordinate multiple modules.
+domain events, import module internals, or coordinate multiple modules.
 
 - Use transport DTOs; never expose domain or persistence entities.
 - Define required, optional, nullable, and default behavior.
@@ -27,17 +29,23 @@ domain events, or coordinate multiple modules.
 
 ## Log Ingestion Contract
 
-Before implementing ingestion, explicitly define:
+Use the documented MVP baseline unless load-test evidence approves a change:
 
-- Maximum request bytes and maximum events per batch.
-- Per-application or per-credential rate limits.
-- Duplicate and idempotency behavior.
-- Accepted timestamp range and canonical log fields.
-- Partial-batch versus whole-batch failure semantics.
-- Overload/backpressure response and retry guidance.
-- Validation and redaction behavior.
+- Maximum request body: `1 MiB`.
+- Maximum batch: `500` events.
+- Default rate: `1,000 events/second/application`, burst `2,000`.
+- Accepted timestamp: from `7 days ago` through `5 minutes in the future`.
+- Whole-batch validation: one invalid event rejects the complete request.
+- Support `Idempotency-Key` and preserve logical event IDs across retries.
+- Require Kafka acknowledgment before returning accepted.
+- Default Kafka publish timeout: `3 seconds`.
+- Return `429` for rate limiting and `503` for broker/overload failure, with
+  retry guidance.
+- Redact recognizable secrets before Kafka and again before storage/downstream
+  publication.
 
-Do not invent these limits while implementing an unrelated task.
+Keep these values configurable and synchronize approved changes with the
+OpenAPI and storage/module requirements.
 
 ## Module Contracts
 
@@ -45,6 +53,8 @@ Do not invent these limits while implementing an unrelated task.
   models.
 - Use synchronous contracts only when an immediate result is required.
 - Prevent circular contract dependencies.
+- Facade methods call focused application services directly; do not add a
+  generic request bus for the MVP.
 
 ## Integration Events
 
@@ -53,9 +63,13 @@ Do not invent these limits while implementing an unrelated task.
   only legitimate consumer data.
 - Publish after commit and define idempotency, ordering, retry, and failure
   behavior.
-- Use the in-process event bus by default.
-- Kafka and outbox are optional reliability mechanisms, not default module
-  communication.
+- Use Kafka for the required raw-log, live-log, critical-alert, and
+  dead-letter pipeline.
+- Consumers must be idempotent and define retry/DLQ behavior.
+- Use in-process events only outside that pipeline when durable delivery is
+  unnecessary.
+- Use an outbox when database commit and Kafka publication require atomic
+  recovery semantics.
 
 ## Realtime
 
