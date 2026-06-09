@@ -1,90 +1,62 @@
-# Log Monitoring System Project Overview
+# Project Overview
 
-## Purpose
+## Goal
 
-Log Monitoring System centralizes logs from multiple applications for
-real-time ingestion, normalization, search, monitoring, alerting, and
-analytics.
+Centralize application logs for high-speed ingestion, normalization, search,
+live monitoring, critical alerts, and application-level authorization.
 
-Its primary goal is to give engineering teams one operational view of
-application behavior and critical failures.
+Mandatory demonstration: accept 500 logs in 2 seconds through Kafka without
+losing acknowledged events while the admin live viewer remains smooth.
+
+## Scope
+
+Initial modules:
+
+- `identity`: users, applications, API keys, roles, and application access.
+- `logs`: single/batch ingestion, Kafka processing, ClickHouse storage/search,
+  and ERROR/CRITICAL detection.
+- `alerting`: configurable rules, Redis deduplication, Telegram delivery, and
+  alert occurrences.
+- `realtime`: authorized WebSocket delivery and live filters by application and
+  level.
+
+Bonus/future: `incidents`, `analytics`, `retention`, and `ai`.
+
+Required infrastructure: PostgreSQL, ClickHouse, Kafka, and Redis. The backend
+is one Spring Boot Modular Monolith. The frontend keeps its existing
+feature-based React architecture.
 
 ## Users
 
-### Engineers
+- Engineer: searches and watches logs only for assigned applications and
+  receives critical alerts.
+- Admin: manages applications, access, API keys, alert thresholds, and
+  notification configuration.
 
-- Submit application logs.
-- Search and filter logs by application, level, and time.
-- Watch live logs and application health.
-- Receive critical-event alerts.
+## Current State
 
-### Administrators
+The repository currently has the Spring Boot/React scaffold, Docker images,
+local PostgreSQL/ClickHouse/Kafka/Redis Compose services, OpenAPI generation,
+and early identity persistence. Kafka ingestion, processing, ClickHouse
+storage, realtime, alerting, and most authorization behavior remain target
+architecture unless source code proves otherwise.
 
-- Manage applications, access, API keys, and alert rules.
-- Control which engineers can view each application.
-
-These roles describe target product behavior. Authentication and authorization
-are not implemented in the current scaffold.
-
-## Core Capabilities
-
-Initial implementation scope:
-
-- `identity`: users, roles, authentication, authorization, access, and API
-  credentials
-- `logs`: single and batch ingestion, normalization, storage, search, and
-  error detection
-- `alerting`: rules, evaluation, deduplication policy, notifications, and
-  alert lifecycle
-- `realtime`: live log and alert delivery
-
-Later capabilities, created only when implementation begins:
-
-- `incidents`: incident tracking, assignment, state transitions, timelines,
-  and resolution
-- `analytics`: throughput, error rate, trends, and application health
-- `ai`: assisted summaries, classification, correlation, and recommendations
-- `retention`: retention policies and deletion or archival orchestration
-
-## Boundaries
-
-The system owns log ingestion, normalization, storage, querying, live
-delivery, alert rules, deduplication, and monitoring views.
-
-External applications own log production and transport to the ingestion API.
-Telegram, when integrated, owns final message delivery.
-
-The backend is one deployable Spring Boot Modular Monolith. Business
-capabilities are modules, not independently deployed services.
-
-PostgreSQL owns transactional and configuration data. ClickHouse owns
-high-volume logs and analytical data. Storage remains private to the owning
-module.
-
-## Current Implementation
-
-The backend has Spring MVC, JPA, PostgreSQL, and Flyway configured. Early
-`identity` code and a `users` migration exist, but controllers and application
-services are empty. The current package and public-schema migration predate
-the approved `api`/`modules` structure and module-owned schema strategy.
-
-The remaining business modules and internal event bus are target architecture,
-not implemented behavior. ClickHouse is an intended data store, while Kafka
-and Redis remain optional infrastructure until a verified use case requires
-them.
+The current identity package and `public.users` migration predate the approved
+top-level `api` plus `modules` package structure and module-owned PostgreSQL
+schemas.
 
 ## Success Direction
 
-- Sustain burst-oriented ingestion without coupling request handling to slow
-  storage or notification work.
-- Keep search and live monitoring usable across multiple applications.
-- Avoid duplicate alerts and prevent sensitive data from leaking through logs.
-- Keep module dependencies explicit enough to allow future extraction without
-  paying distributed-system costs today.
+- Keep request handling decoupled from storage and notification work.
+- Do not lose events acknowledged by Kafka.
+- Keep live filtering responsive during the 500-log/2-second demonstration.
+- Enforce application-level authorization on search and WebSocket delivery.
+- Prevent duplicate notifications and sensitive-data leakage.
 
 ## Sources
 
-- `README.md`
-- `compose.yml`
-- `apps/backend/pom.xml`
-- `apps/frontend/package.json`
+- `DETAI.md`: authoritative assignment requirements.
+- Source code and executable configuration: implementation truth.
+
+`docs/module-requirement.md` and `docs/store-requirement.md` are temporary
+planning drafts and are not authoritative project sources.

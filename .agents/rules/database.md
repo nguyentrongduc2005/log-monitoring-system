@@ -11,7 +11,9 @@ Both databases are intentional parts of the backend:
 - ClickHouse 25.3: high-volume logs, log search, aggregations, and analytical
   projections.
 
-Kafka and Redis are optional infrastructure and are not authoritative stores.
+Kafka is the mandatory raw-log buffer and event transport for the processing
+pipeline. Redis is the mandatory alert-deduplication store. Neither replaces
+PostgreSQL or ClickHouse as an authoritative query store.
 
 ## Ownership
 
@@ -50,7 +52,12 @@ approved `identity` schema ownership.
 - Never use a distributed transaction across PostgreSQL and ClickHouse.
 - State which store is authoritative for each datum.
 - Define eventual consistency, idempotency, retry, and reconciliation.
-- Add an outbox only when durable post-commit publication is required.
+- Preserve event IDs across Kafka retries and define a concrete ClickHouse
+  duplicate-handling strategy; `event_id` alone does not enforce uniqueness.
+- Commit a raw-log offset only after ClickHouse and required downstream Kafka
+  publications are acknowledged. Redelivery after a partial success must be
+  safe for storage and every consumer.
+- Add an outbox when durable post-commit Kafka publication is required.
 
 ## Retention
 

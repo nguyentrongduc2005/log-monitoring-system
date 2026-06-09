@@ -9,7 +9,10 @@ rules do not change the existing frontend architecture.
 - Implement `identity`, `logs`, `alerting`, and `realtime` first.
 - Do not create empty `incidents`, `analytics`, `retention`, or `ai` modules.
 - Organize each capability under `com.vdt.log_monitoring.modules.<module>`.
-- Keep module API adapters under `<module>.api`.
+- Keep HTTP/WebSocket adapters under top-level
+  `com.vdt.log_monitoring.api.<module>`.
+- Use `modules.<module>.api` only for the module's small public Java
+  facade/contract.
 - Keep cross-cutting technical code under `com.vdt.log_monitoring.shared`.
 - Do not create global `controller`, `service`, `repository`, or `entity`
   packages.
@@ -20,7 +23,7 @@ Start with the smallest useful structure:
 
 ```text
 modules/<module>/
-├── api/
+├── api/                 # public module facade/contract
 ├── application/
 ├── model/ or domain/
 ├── infrastructure/
@@ -37,7 +40,9 @@ modules/<module>/
 Each module owns its use cases, business model, storage adapters, repositories,
 and published integration events.
 
-- API adapters depend on their module's application boundary.
+- Top-level API adapters depend only on the owning module's public facade.
+- Public module APIs expose stable DTO/value contracts, never entities,
+  repositories, provider models, or infrastructure types.
 - Controllers contain no business logic and access no repository.
 - Never import another module's entity, repository, or infrastructure.
 - Never query or write another module's PostgreSQL schema or ClickHouse
@@ -50,16 +55,27 @@ Use a narrow public application contract for immediate cross-module results.
 Use an integration event for independent reactions. Controllers must not
 coordinate multiple modules.
 
+Each module owns its Spring configuration/composition wiring. The application
+root starts modules but does not configure their repositories, handlers, or
+external adapters individually.
+
+Implement validation, authorization, transaction handling, correlation,
+logging, metrics, and idempotency through focused filters, interceptors,
+decorators, or shared technical utilities. Do not place business rules in
+cross-cutting code.
+
 ## Events
 
-- Use an in-process event bus first.
-- Publish integration events after the owning transaction commits.
+- Kafka is mandatory for raw-log buffering and the asynchronous log pipeline.
+- Every accepted raw log must be published to Kafka before processing.
+- Use an in-process event bus only for non-pipeline module reactions where
+  durable queue semantics are unnecessary.
+- Publish post-transaction integration events after the owning transaction
+  commits.
 - Keep events immutable and name them as past-tense facts.
 - Define consumer idempotency, ordering, retries, and failure handling.
 - Add an outbox when an important post-commit event must survive process
   failure.
-- Add Kafka only for verified buffering, replay, external consumption,
-  sustained burst isolation, or durable delivery needs.
 
 ## Storage
 
@@ -69,13 +85,32 @@ coordinate multiple modules.
 - Do not use distributed transactions across PostgreSQL and ClickHouse.
 - Define eventual consistency, retry, idempotency, and reconciliation for
   workflows that cross stores.
-- Redis is optional infrastructure, not an authoritative business store.
+- Redis is mandatory for atomic alert deduplication but is not an
+  authoritative business store.
 
 ## Ingestion
 
-Before production ingestion, define payload and batch limits, rate limiting,
-duplicate semantics, backpressure, ClickHouse batching, retries, malformed-log
-handling, redaction, and timestamp validation.
+Separate the required pipeline into:
+
+1. Ingestion API/Kafka producer.
+2. Kafka `logs.raw` buffer.
+3. Processing worker/Kafka consumer.
+
+The ingestion component and worker may share the `logs` business module and
+Spring Boot deployment, but they must not call each other directly. The
+ingestion API never parses deeply or writes PostgreSQL/ClickHouse. The worker
+runs outside the request thread, writes ClickHouse in batches, and commits its
+Kafka offset only after successful storage and acknowledgment of every
+required downstream Kafka event. Redelivery must preserve `event_id`; storage
+and consumers must be idempotent. Terminal downstream-publication failure must
+be replayable from `logs.dlq` and observable.
+
+Define payload and batch limits, rate limiting, duplicate semantics, Kafka
+backpressure, ClickHouse batching, retries, malformed-log/DLQ handling,
+redaction, and timestamp validation.
+
+Run `alerts.critical` with a dedicated consumer group and reserved execution
+resources. Do not describe Kafka topic naming alone as message priority.
 
 ## Retention
 
