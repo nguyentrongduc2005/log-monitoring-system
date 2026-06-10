@@ -18,6 +18,7 @@ import type { components } from "@/api/generated/api-types";
 import type { AuthSession } from "@/features/auth/auth-storage";
 
 type LoginRequest = components["schemas"]["LoginRequest"];
+type UserResponse = components["schemas"]["UserResponse"];
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<AuthSession | null>(null);
@@ -33,6 +34,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
     storeSession(nextSession);
     setSession(nextSession);
     return nextSession;
+  }, []);
+
+  const updateSessionUser = useCallback((user: UserResponse) => {
+    setSession((currentSession) => {
+      if (!currentSession) {
+        return currentSession;
+      }
+
+      const nextSession = { ...currentSession, user };
+      storeSession(nextSession);
+      return nextSession;
+    });
   }, []);
 
   useEffect(() => {
@@ -93,8 +106,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, [logout]);
 
   const value = useMemo(
-    () => ({ session, isInitializing, login, logout }),
-    [session, isInitializing, login, logout]
+    () => ({ session, isInitializing, login, logout, updateSessionUser }),
+    [session, isInitializing, login, logout, updateSessionUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

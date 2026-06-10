@@ -81,7 +81,8 @@ function renderLayout({
     },
     isInitializing: false,
     login: vi.fn(),
-    logout
+    logout,
+    updateSessionUser: vi.fn()
   };
 
   const result = render(

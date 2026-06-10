@@ -3,10 +3,21 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import {
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation
+} from "react-router-dom";
+import {
   PageHeader,
   PageHeaderProvider
 } from "@/shared/layouts/page-header-context";
 import Topbar from "@/shared/layouts/Topbar";
+
+function LocationProbe() {
+  const location = useLocation();
+  return <p data-testid="location-probe">{location.pathname}</p>;
+}
 
 function renderTopbar({
   displayName = "Ada Lovelace",
@@ -22,19 +33,29 @@ function renderTopbar({
   const toggleRef = createRef<HTMLButtonElement>();
 
   render(
-    <PageHeaderProvider>
-      <Topbar
-        onLogout={onLogout}
-        onToggleSidebar={vi.fn()}
-        sidebarOpen
-        toggleRef={toggleRef}
-        user={{ displayName, email, role }}
-      />
-      <PageHeader
-        actions={<button type="button">Create Application</button>}
-        title="Overview"
-      />
-    </PageHeaderProvider>
+    <MemoryRouter initialEntries={["/"]}>
+      <Routes>
+        <Route
+          path="*"
+          element={
+            <PageHeaderProvider>
+              <Topbar
+                onLogout={onLogout}
+                onToggleSidebar={vi.fn()}
+                sidebarOpen
+                toggleRef={toggleRef}
+                user={{ displayName, email, role }}
+              />
+              <PageHeader
+                actions={<button type="button">Create Application</button>}
+                title="Overview"
+              />
+              <LocationProbe />
+            </PageHeaderProvider>
+          }
+        />
+      </Routes>
+    </MemoryRouter>
   );
 
   return { onLogout };
@@ -87,6 +108,16 @@ describe("Topbar", () => {
     await user.click(trigger);
     await user.click(screen.getByRole("menuitem", { name: "Log out" }));
     expect(onLogout).toHaveBeenCalledTimes(1);
+  });
+
+  it("navigates to the profile route from the account menu", async () => {
+    const user = userEvent.setup();
+    renderTopbar();
+
+    await user.click(screen.getByRole("button", { name: /open account menu/i }));
+    await user.click(screen.getByRole("menuitem", { name: "Profile" }));
+
+    expect(screen.getByTestId("location-probe")).toHaveTextContent("/profile");
   });
 
   it("does not render excluded global controls", () => {

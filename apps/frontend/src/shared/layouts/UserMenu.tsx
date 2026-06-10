@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { AppIcon } from "@/shared/components/AppIcon";
 
 type UserMenuProps = {
@@ -130,15 +131,15 @@ export default function UserMenu({
             </p>
             <p className="text-xs text-muted">{roleLabel}</p>
           </div>
-          <button
+          <Link
+            to="/profile"
             className="flex min-h-10 w-full items-center gap-2 rounded px-3 py-2 text-sm text-muted hover:bg-surface-raised hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
             onClick={() => setOpen(false)}
             role="menuitem"
-            type="button"
           >
             <AppIcon name="user" size={18} />
-            Hồ sơ cá nhân
-          </button>
+            Profile
+          </Link>
           <div className="my-1 h-px bg-border" role="separator" />
           <button
             className="flex min-h-10 w-full items-center gap-2 rounded px-3 py-2 text-sm text-muted hover:bg-surface-raised hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"

@@ -59,9 +59,20 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   const { actionsTarget, titleTarget } = usePageHeaderSlots();
+  const hasTargets = titleTarget || actionsTarget;
 
   return (
     <>
+      {!hasTargets ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-4">
+          <span className="block truncate text-lg font-semibold text-text" title={title}>
+            {title}
+          </span>
+          {actions ? (
+            <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
+          ) : null}
+        </div>
+      ) : null}
       {titleTarget
         ? createPortal(
             <span className="block truncate" title={title}>
