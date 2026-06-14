@@ -61,15 +61,30 @@ export const navigationGroups = [
   {
     label: "Resources",
     items: [
-      { id: "applications", label: "Applications", icon: "applications" }
+      {
+        id: "applications",
+        label: "Applications",
+        icon: "applications",
+        to: "/admin/applications"
+      }
     ]
   },
   {
     label: "Administration",
     roles: ["ADMIN"],
     items: [
-      { id: "users-access", label: "Users & Access", icon: "users" },
-      { id: "alert-rules", label: "Alert Rules", icon: "rules" },
+      {
+        id: "users-access",
+        label: "Users & Access",
+        icon: "users",
+        to: "/admin/users"
+      },
+      {
+        id: "alert-rules",
+        label: "Alert Rules",
+        icon: "rules",
+        to: "/admin/alert-rules"
+      },
       {
         id: "notification-channels",
         label: "Notification Channels",
@@ -78,7 +93,8 @@ export const navigationGroups = [
       {
         id: "retention-policies",
         label: "Retention Policies",
-        icon: "retention"
+        icon: "retention",
+        to: "/admin/retention"
       },
       {
         id: "system-operations",

@@ -9,6 +9,8 @@ import java.util.function.Function;
 import javax.crypto.SecretKey;
 
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
@@ -51,6 +53,18 @@ public class JwtTokenProvider {
 		return getClaimFromToken(token, claims -> claims.get("role", String.class));
 	}
 
+	public Date getExpirationFromToken(String token) {
+		return getClaimFromToken(token, Claims::getExpiration);
+	}
+
+	public long getRemainingValidityMillis(String token) {
+		Date expiration = getExpirationFromToken(token);
+		if (expiration == null) {
+			return 0;
+		}
+		return Math.max(0, expiration.getTime() - System.currentTimeMillis());
+	}
+
 	public <T> T getClaimFromToken(String token, Function<Claims, T> claimsResolver) {
 		final Claims claims = getAllClaimsFromToken(token);
 		return claimsResolver.apply(claims);
@@ -66,10 +80,20 @@ public class JwtTokenProvider {
 
 	public boolean validateToken(String token) {
 		try {
-			Claims claims = getAllClaimsFromToken(token);
-			return !claims.getExpiration().before(new Date());
+			validateTokenOrThrow(token);
+			return true;
 		} catch (Exception e) {
 			return false;
+		}
+	}
+
+	public void validateTokenOrThrow(String token) {
+		Claims claims = getAllClaimsFromToken(token);
+		if (claims.getExpiration() == null) {
+			throw new JwtException("JWT token is missing expiration");
+		}
+		if (claims.getExpiration().before(new Date())) {
+			throw new ExpiredJwtException(null, claims, "JWT token is expired");
 		}
 	}
 }

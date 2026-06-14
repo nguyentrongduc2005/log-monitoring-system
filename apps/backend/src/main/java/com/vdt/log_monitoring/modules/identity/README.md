@@ -22,31 +22,35 @@ com/vdt/log_monitoring/
 │   ├── dto/                                     # Data Transfer Objects (DTOs)
 │   │   ├── ChangePasswordRequest.java
 │   │   ├── CreateUserRequest.java
+│   │   ├── ApplicationRequest.java
+│   │   ├── ApplicationAccessResponse.java
+│   │   ├── CreateApiKeyRequest.java
 │   │   ├── LoginRequest.java
 │   │   ├── LoginResponse.java
 │   │   ├── RefreshTokenRequest.java
 │   │   ├── UpdateUserRequest.java
 │   │   └── UserResponse.java
 │   ├── AuthenticationController.java
+│   ├── ApplicationController.java
+│   ├── ApplicationAccessController.java
+│   ├── ApplicationApiKeyController.java
+│   ├── UserAdminController.java
 │   ├── UserController.java
 │   └── IdentityExceptionHandler.java            # Bắt lỗi cục bộ cho module Identity
 │
-├── modules/identity/                            # Logic nội bộ của Module Identity
-│   ├── api/                                     # Public Facade Interfaces (Hợp đồng Module)
-│   │   └── IdentityFacade.java
-│   ├── application/                             # Tầng Nghiệp vụ (Services & Facade Impl)
-│   │   ├── AuthService.java
-│   │   ├── IdentityException.java               # Danh sách mã lỗi của Module
+├── modules/identity/                            # Module Identity
+│   ├── api/                                     # Hợp đồng công khai duy nhất
+│   │   ├── IdentityFacade.java
+│   │   ├── ApplicationAccessFacade.java
+│   │   └── IdentityException.java
+│   ├── internal/                                # Implementation không cho module khác import
+│   │   ├── auth/                                # Xác thực và refresh token
+│   │   ├── user/                                # Entity, repository, service, enums
+│   │   ├── application/                         # Entity, repository, service, status
+│   │   ├── access/                              # Entity, repository, service, access level
+│   │   ├── apikey/                              # Entity, repository, service, status
 │   │   ├── IdentityFacadeImpl.java
-│   │   ├── TokenPair.java
-│   │   └── UserService.java
-│   ├── infrastructure/persistence/              # Tầng dữ liệu (Repository & Entity)
-│   │   ├── UserEntity.java
-│   │   └── UserRepository.java
-│   ├── model/                                   # Domain Model & Enums
-│   │   ├── User.java
-│   │   ├── UserRole.java
-│   │   └── UserStatus.java
+│   │   └── ApplicationAccessFacadeImpl.java
 │   └── README.md                                # Tài liệu này
 │
 └── shared/                                      # Thành phần chia sẻ dùng chung kỹ thuật
@@ -64,16 +68,19 @@ com/vdt/log_monitoring/
 
 ## Các tính năng ĐÃ hoàn thành
 
-### 1. Cơ sở dữ liệu & Entity Mapping
+### 1. Cơ sở dữ liệu & Entity
 - **PostgreSQL Flyway Migration**: Bảng `users` được tách biệt chạy trên schema `identity` thông qua script `V1__create_users_table.sql`. Thiết lập unique index trên cột email không phân biệt hoa thường và check constraint nghiêm ngặt.
 - **JPA Entity Mapping**: Ánh xạ `UserEntity` khớp chính xác với schema `identity.users`.
-- **Domain Model**: Tách biệt `User` model nghiệp vụ để xử lý các logic mã hóa mật khẩu, đổi thông tin cá nhân và kiểm tra trạng thái tài khoản độc lập với JPA Entity.
+- **JPA Entity**: Entity giữ các thay đổi trạng thái đơn giản; service chịu trách nhiệm validation, orchestration và transaction. Module không duy trì domain model trùng với entity khi chưa có nghiệp vụ đủ phức tạp.
 
 ### 2. Tầng Nghiệp vụ (Application Service & Facade)
 - **UserService**: Quản lý đầy đủ logic CRUD người dùng, kiểm tra email trùng lặp, chuẩn hóa email và chuyển đổi quyền.
 - **AuthService**: Thực hiện xác thực thông tin tài khoản, mã hóa mật khẩu sử dụng BCrypt, sinh cặp Token và xử lý vòng đời Refresh Token.
+- **ApplicationService**: Quản lý application và truy vấn application đang hoạt động theo phạm vi người dùng.
+- **ApplicationAccessService**: Quản lý quyền `VIEW`/`MANAGE` và kiểm tra quyền truy cập application.
+- **ApiKeyService**: Quản lý vòng đời API key và xác minh API key nội bộ.
 - **Refresh Token Rotation (Redis)**: Sử dụng Redis để quản lý và quay vòng Refresh Token có thời hạn (TTL 7 ngày) giúp chống các cuộc tấn công chiếm quyền và kiểm soát phiên làm việc.
-- **IdentityFacade**: Cung cấp giao diện trao đổi dữ liệu an toàn cho các module khác. Các phương thức tìm kiếm (`findUserById`, `findUserByEmail`) trả về `Optional<UserDto>` nhằm cô lập hoàn toàn `IdentityException` nội bộ, ngăn ngừa vi phạm ranh giới module.
+- **Public Facades**: `IdentityFacade` phụ trách user/auth; `ApplicationAccessFacade` là hợp đồng chung cho application, access grant, API key và kiểm tra quyền theo thiết kế module đã chốt.
 
 ### 3. Bảo mật & Xác thực (Security Infrastructure)
 - **Spring Security Configuration**: Chuyển đổi toàn bộ API sang cơ chế Stateless REST APIs sử dụng JWT.
@@ -104,6 +111,7 @@ com/vdt/log_monitoring/
 
 ## Quy tắc thiết kế module đã chốt
 
-1. **Ranh giới Module**: Không một module nào được phép import trực tiếp Entity, Repository, Domain model, hay Exception của module `identity`. Tất cả các thao tác đều bắt buộc gọi qua `IdentityFacade`.
+1. **Ranh giới Module**: Code bên ngoài module không được import `modules.identity.internal`. Giao tiếp chỉ qua facade, DTO và exception trong `modules.identity.api`. Boundary test sẽ kiểm tra quy tắc này.
 2. **Exception Handling**: Các checked/unchecked exceptions phát sinh từ logic nghiệp vụ của module `identity` khi trôi ra ngoài controller sẽ được Handler cục bộ bắt và ánh xạ thành schema `ApiResponse` chứa mã lỗi nghiệp vụ riêng để frontend xử lý.
 3. **Response DTO**: Không bao giờ trả về trực tiếp `UserEntity` hoặc `passwordHash` ra ngoài Client. Luôn ánh xạ qua `UserResponse`.
+4. **Mức độ kiến trúc**: Dùng package theo feature với service giao dịch và JPA trực tiếp. Chỉ tách domain model hoặc persistence adapter khi xuất hiện nghiệp vụ phức tạp hoặc có nhiều implementation thực tế.

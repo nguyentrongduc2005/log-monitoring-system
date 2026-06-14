@@ -22,6 +22,7 @@ Phạm vi điểm cộng/tương lai:
 
 - `incidents`
 - `analytics`
+- `metrics`
 - `retention`
 - `ai`
 
@@ -206,8 +207,8 @@ Các component bắt buộc phải tách:
   event được xử lý lại với cùng `event_id`; ClickHouse writer và downstream
   consumer phải idempotent.
 - Nếu publish downstream vẫn thất bại sau retry có giới hạn, không silently
-  commit raw offset. Chuyển event kèm failure stage vào `logs.dlq` để replay và
-  phát metric/cảnh báo vận hành.
+  commit raw offset. Chuyển event kèm failure stage vào DLT tương ứng, ví dụ
+  `logs.raw.DLT`, để replay và phát metric/cảnh báo vận hành.
 
 Ingestion API, processing worker và query chạy trong cùng Spring Boot
 application nhưng là các component tách biệt. Ingestion không gọi trực tiếp
@@ -227,7 +228,7 @@ RawLogProcessingWorker
     -> ClickHouseBatchWriter
     -> Kafka logs.live
     -> Kafka alerts.critical      # ERROR/CRITICAL
-    -> Kafka logs.dlq             # terminal processing failure
+    -> Kafka logs.raw.DLT         # terminal processing failure
     -> commit logs.raw offset     # after required acknowledgments
 ```
 
@@ -253,7 +254,7 @@ logs
 ├── infrastructure
 │   ├── config           # module-owned Spring configuration
 │   ├── kafka
-│   │   ├── producer    # logs.raw, logs.live, alerts.critical, logs.dlq
+│   │   ├── producer    # logs.raw, logs.live, alerts.critical và DLT tương ứng
 │   │   └── consumer    # RawLogProcessingWorker
 │   └── clickhouse      # batch writer và query repository
 └── integrationevents
@@ -274,7 +275,7 @@ Quy tắc bắt buộc:
 - Consumer phải idempotent vì Kafka có thể giao lại event.
 - ClickHouse retry phải có chiến lược chống/truy vấn loại duplicate cụ thể;
   giữ nguyên `event_id` là cần thiết nhưng chưa đủ.
-- Không silently discard log lỗi; terminal failure đi vào `logs.dlq`.
+- Không silently discard log lỗi; terminal failure đi vào DLT tương ứng.
 - Search luôn có time range và result limit.
 - Client không được gửi raw SQL hoặc ClickHouse expression.
 
@@ -383,6 +384,33 @@ và ownership riêng. Sở hữu PostgreSQL schema `incidents`.
 rate, critical rate và application health theo giờ. Đây là read model đơn
 giản, không bắt buộc full DDD.
 
+### `metrics`
+
+Đọc metrics/health signals từ nguồn quan sát bên ngoài để làm giàu ngữ cảnh
+incident. Module này không thay thế `logs` và không nằm trên hot path ingestion.
+
+Nguồn metrics dự kiến:
+
+- Node/service metrics từ Prometheus/node exporter hoặc OpenTelemetry
+  Collector.
+- Application metrics như request rate, latency, error rate, JVM/resource
+  usage và queue lag.
+- Security/auth signals như số lần login fail tăng bất thường hoặc login từ
+  nguồn bất thường.
+
+Quy tắc:
+
+- Backend đọc metrics qua query adapter hoặc client của metrics store; không
+  ghi metrics thời gian thực vào PostgreSQL.
+- Metrics store mặc định có thể là Prometheus trong MVP; khi cần scale dài hạn
+  dùng remote storage như Mimir/Thanos hoặc giải pháp tương đương.
+- Metrics chỉ tạo tín hiệu bất thường/correlation input. Incident lifecycle,
+  severity và alert vẫn thuộc `incidents`/`alerting`.
+- Query metrics phải có time window, application/service scope và giới hạn số
+  series để tránh query không kiểm soát.
+- Metrics correlation chạy async theo window; không chặn ingestion, log
+  processing hoặc delivery cảnh báo.
+
 ### `retention`
 
 Sở hữu policy và lịch chạy trong PostgreSQL. Không trực tiếp xóa dữ liệu module
@@ -395,18 +423,29 @@ Phân tích incident/fingerprint bất đồng bộ sau alert. AI không nằm t
 path ingestion, live log hoặc notification. Input phải redaction; output chỉ
 là gợi ý và không tự resolve incident.
 
+AI nhận ngữ cảnh đã được correlation gồm log mẫu, fingerprint, số lần xuất
+hiện, timeline và metrics bất thường liên quan. Kết quả AI phải phân biệt:
+
+- Phân tích: kết luận sơ bộ như khả năng tấn công, lỗi hệ thống, quá tải tài
+  nguyên hoặc cấu hình sai.
+- Phân loại severity: `HIGH` cần xử lý khẩn cấp, `MEDIUM` cần điều tra trong
+  SLA, `LOW` dùng để theo dõi hoặc có thể bỏ qua.
+
 ## 6. Kafka topic ownership
 
 | Topic | Producer | Consumer | Phạm vi |
 | --- | --- | --- | --- |
 | `logs.raw` | `logs` ingestion | `logs` processing worker | Bắt buộc |
+| `logs.raw.DLT` | `logs` processing worker/error handler | Operations/admin tooling | Bắt buộc |
 | `logs.live` | `logs` processing worker | `realtime` | Bắt buộc |
-| `logs.dlq` | `logs` processing worker | Operations/admin tooling | Bắt buộc |
+| `logs.live.DLT` | `realtime`/error handler | Operations/admin tooling | Bắt buộc |
 | `alerts.critical` | `logs` processing worker | `alerting` | Bắt buộc |
+| `alerts.critical.DLT` | `alerting`/error handler | Operations/admin tooling | Bắt buộc |
 | `incidents.ai` | `incidents`/`alerting` | `ai` | Điểm cộng |
+| `incidents.ai.DLT` | `ai`/error handler | Operations/admin tooling | Điểm cộng |
 
 Mỗi event phải có event ID, schema version và UTC timestamp. Producer xác định
-acknowledgment/retry; consumer xác định idempotency, ordering, retry và DLQ.
+acknowledgment/retry; consumer xác định idempotency, ordering, retry và DLT.
 `alerts.critical` là topic ưu tiên về vận hành: có consumer group, executor,
 concurrency và metric latency riêng. Kafka không tự cung cấp message priority,
 vì vậy không được chỉ dựa vào việc đặt tên topic.
@@ -462,12 +501,13 @@ apps/frontend/src
 
 1. `identity`: application, API key và access policy.
 2. `logs`: ingestion API và Kafka `logs.raw`.
-3. `logs`: worker normalize, DLQ và batch write ClickHouse.
+3. `logs`: worker normalize, DLT và batch write ClickHouse.
 4. `logs`: search API.
 5. `realtime`: Kafka `logs.live` và WebSocket.
 6. `alerting`: `alerts.critical`, Redis dedup và Telegram.
 7. Architecture tests, observability và load test 500 logs/2 seconds.
-8. `analytics`, `retention`, `incidents`, `ai` theo phạm vi điểm cộng.
+8. `metrics`: đọc metrics từ backend qua metrics store để enrich incident.
+9. `analytics`, `retention`, `incidents`, `ai` theo phạm vi điểm cộng.
 
 ## 10. Tiêu chí review
 
@@ -475,9 +515,13 @@ apps/frontend/src
 - Kafka có nằm trên mọi đường tiếp nhận raw log không?
 - Module có truy cập storage/internal type của module khác không?
 - Top-level controller có chỉ gọi public module facade không?
-- Retry, idempotency, DLQ và backpressure đã rõ chưa?
+- Retry, idempotency, DLT và backpressure đã rõ chưa?
 - Redis dedup có atomic và có TTL không?
 - ClickHouse insert có batch và query có time bound không?
 - Dữ liệu nhạy cảm đã được redaction chưa?
 - Metrics cho ingestion, Kafka lag, ClickHouse, Redis và delivery đã có chưa?
+- Metrics/health signals có được đọc qua backend bằng query có scope/time
+  window rõ ràng không?
+- AI có chạy bất đồng bộ sau correlation và có phân loại severity rõ ràng
+  không?
 - Test có chứng minh mục tiêu 500 logs trong 2 giây không?

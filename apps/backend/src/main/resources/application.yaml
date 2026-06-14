@@ -18,13 +18,25 @@ spring:
     enabled: true
     locations: classpath:db/migration/postgresql
 
-  # kafka:
-  #   consumer:
-  #     group-id: log-processing-group
-  #     auto-offset-reset: earliest
-  #     enable-auto-commit: false
-  #   producer:
-  #     acks: all
+  kafka:
+    consumer:
+      group-id: log-processing-group
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: com.vdt.log_monitoring.*
+    producer:
+      acks: all
+      retries: 3
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        delivery.timeout.ms: 3000
+        request.timeout.ms: 3000
 
 server:
   port: 8080
@@ -43,9 +55,36 @@ springdoc:
 
 app:
   security:
+    api-key:
+      key-prefix: ${API_KEY_PREFIX:lms_live_}
+      prefix-characters: ${API_KEY_PREFIX_CHARACTERS:abcdefghijklmnopqrstuvwxyz0123456789}
+      random-prefix-length: ${API_KEY_RANDOM_PREFIX_LENGTH:10}
+      secret-length-bytes: ${API_KEY_SECRET_LENGTH_BYTES:32}
+      verification-cache:
+        prefix: ${API_KEY_CACHE_PREFIX:identity:api_key:verification:}
+        index-prefix: ${API_KEY_CACHE_INDEX_PREFIX:identity:api_key:verification_index:}
+        ttl-seconds: ${API_KEY_CACHE_TTL_SECONDS:300}
     jwt:
       secret: ${JWT_SECRET:default-secret-key-that-must-be-very-long-and-secure-for-hmac-sha-256}
       expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24 hours
+      access-token:
+        blacklist-prefix: "identity:access_token:blacklist:"
       refresh-token:
         prefix: "identity:refresh_token:"
+        user-prefix: "identity:user_refresh_token:"
         expiration-days: 7
+  kafka:
+    publish-timeout: ${KAFKA_PUBLISH_TIMEOUT:5s}
+    topics:
+      raw: ${KAFKA_TOPIC_LOGS_RAW:logs.raw}
+      raw-dlt: ${KAFKA_TOPIC_LOGS_RAW_DLT:logs.raw.DLT}
+      live: ${KAFKA_TOPIC_LOGS_LIVE:logs.live}
+      live-dlt: ${KAFKA_TOPIC_LOGS_LIVE_DLT:logs.live.DLT}
+      alerts-critical: ${KAFKA_TOPIC_ALERTS_CRITICAL:alerts.critical}
+      alerts-critical-dlt: ${KAFKA_TOPIC_ALERTS_CRITICAL_DLT:alerts.critical.DLT}
+      incidents-ai: ${KAFKA_TOPIC_INCIDENTS_AI:incidents.ai}
+      incidents-ai-dlt: ${KAFKA_TOPIC_INCIDENTS_AI_DLT:incidents.ai.DLT}
+  logs:
+    idempotency:
+      key-prefix: ${LOG_INGESTION_IDEMPOTENCY_KEY_PREFIX:logs:ingestion:idempotency}
+      ttl: ${LOG_INGESTION_IDEMPOTENCY_TTL:24h}

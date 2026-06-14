@@ -8,14 +8,14 @@ spring:
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}
 
-#   kafka:
-#     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 
-#   data:
-#     redis:
-#       host: ${REDIS_HOST}
-#       port: ${REDIS_PORT:6379}
-#       password: ${REDIS_PASSWORD:}
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
 
 # clickhouse:
 #   url: ${CLICKHOUSE_URL}

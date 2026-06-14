@@ -7,7 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import com.vdt.log_monitoring.modules.identity.application.IdentityException;
+import com.vdt.log_monitoring.modules.identity.api.IdentityException;
 import com.vdt.log_monitoring.shared.dto.ApiResponse;
 
 @RestControllerAdvice(basePackages = "com.vdt.log_monitoring.api.identity")
@@ -17,10 +17,14 @@ public class IdentityExceptionHandler {
 	@ExceptionHandler(IdentityException.class)
 	public ResponseEntity<ApiResponse<Object>> handleIdentityException(IdentityException ex) {
 		HttpStatus status = switch (ex.getErrorCode()) {
-			case USER_NOT_FOUND -> HttpStatus.NOT_FOUND;
-			case EMAIL_ALREADY_EXISTS -> HttpStatus.BAD_REQUEST;
-			case INVALID_CREDENTIALS -> HttpStatus.UNAUTHORIZED;
-			case ACCOUNT_DISABLED, ACCOUNT_LOCKED, UNAUTHORIZED -> HttpStatus.FORBIDDEN;
+			case USER_NOT_FOUND, APPLICATION_NOT_FOUND, APPLICATION_ACCESS_NOT_FOUND, API_KEY_NOT_FOUND ->
+				HttpStatus.NOT_FOUND;
+			case EMAIL_ALREADY_EXISTS, APPLICATION_NAME_ALREADY_EXISTS -> HttpStatus.CONFLICT;
+			case INVALID_APPLICATION_STATUS, INVALID_APPLICATION_ACCESS_LEVEL, INVALID_APPLICATION_ACCESS_GRANT ->
+				HttpStatus.BAD_REQUEST;
+			case INVALID_CREDENTIALS, INVALID_API_KEY -> HttpStatus.UNAUTHORIZED;
+			case ACCOUNT_DISABLED, ACCOUNT_LOCKED, UNAUTHORIZED, APPLICATION_INACTIVE, API_KEY_REVOKED,
+				 API_KEY_EXPIRED -> HttpStatus.FORBIDDEN;
 		};
 
 		ApiResponse<Object> response = ApiResponse.builder()
