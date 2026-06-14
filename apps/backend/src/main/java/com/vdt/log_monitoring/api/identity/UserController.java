@@ -1,15 +1,11 @@
 package com.vdt.log_monitoring.api.identity;
 
 import java.security.Principal;
-import java.util.UUID;
-
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -46,28 +42,5 @@ public class UserController {
 		IdentityFacade.UserDto user = identityFacade.findUserByEmail(principal.getName());
 		identityFacade.changePassword(user.id(), request.getOldPassword(), request.getNewPassword());
 		return ResponseEntity.ok(ApiResponse.success(null, "Password changed successfully"));
-	}
-
-	@GetMapping("/{id}")
-	@PreAuthorize("hasRole('ADMIN')")
-	public ResponseEntity<ApiResponse<UserResponse>> getUserById(@PathVariable UUID id) {
-		IdentityFacade.UserDto user = identityFacade.findUserById(id);
-		return ResponseEntity.ok(ApiResponse.success(UserResponse.from(user)));
-	}
-
-	@PutMapping("/{id}/role")
-	@PreAuthorize("hasRole('ADMIN')")
-	public ResponseEntity<ApiResponse<UserResponse>> changeRole(@PathVariable UUID id, @RequestBody String role) {
-		String cleanRole = role.replace("\"", "").trim();
-		IdentityFacade.UserDto updated = identityFacade.changeRole(id, cleanRole);
-		return ResponseEntity.ok(ApiResponse.success(UserResponse.from(updated)));
-	}
-
-	@PutMapping("/{id}/status")
-	@PreAuthorize("hasRole('ADMIN')")
-	public ResponseEntity<ApiResponse<UserResponse>> changeStatus(@PathVariable UUID id, @RequestBody String status) {
-		String cleanStatus = status.replace("\"", "").trim();
-		IdentityFacade.UserDto updated = identityFacade.changeStatus(id, cleanStatus);
-		return ResponseEntity.ok(ApiResponse.success(UserResponse.from(updated)));
 	}
 }

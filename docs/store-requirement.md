@@ -48,6 +48,7 @@ Phân loại:
 | ClickHouse 25.3 | Log bắt buộc; AI insight và health analytics tương lai |
 | Redis 8 | Alert deduplication bắt buộc; cache API tùy chọn |
 | Kafka 4 | Buffer bắt buộc cho raw log và pipeline xử lý bất đồng bộ |
+| Metrics store | Future: Prometheus-compatible metrics backend cho health signals |
 
 ## 4. Data ownership
 
@@ -60,6 +61,7 @@ Phân loại:
 | ClickHouse `logs` | `logs` | Required |
 | ClickHouse `incident_ai_insights` | `ai` | Bonus/Future |
 | ClickHouse `application_health_hourly` | `analytics` | Bonus/Future |
+| Metrics store series | `metrics` | Bonus/Future; không lưu trong PostgreSQL hot path |
 | Redis alert keys | `alerting` | Required |
 | Kafka log topics | Producer/consumer module tương ứng | Required/Bonus |
 
@@ -400,14 +402,14 @@ Không tạo bảng trạng thái riêng và không update liên tục trong Cli
 | `RAW_RECEIVED` | Event đã được ghi vào `logs.raw` |
 | `NORMALIZED` | Worker đã parse và validate thành công |
 | `STORED` | Bản ghi tồn tại trong ClickHouse `logs` |
-| `FAILED` | Event được chuyển vào `logs.dlq` |
+| `FAILED` | Event được chuyển vào DLT của topic nguồn, ví dụ `logs.raw.DLT` |
 
 Nếu sau này cần audit từng transition, phải bổ sung một append-only event table
 thay vì mutation trên `logs`.
 
 Trong MVP, đây là trạng thái vận hành nội bộ, không phải API cho người dùng truy
 vấn từng transition. API ingestion trả `202` khi đạt `RAW_RECEIVED`; log search
-chỉ trả bản ghi đã `STORED`; Operations quan sát `FAILED` qua `logs.dlq`.
+chỉ trả bản ghi đã `STORED`; Operations quan sát `FAILED` qua DLT tương ứng.
 Nếu yêu cầu UI/API theo dõi trạng thái từng `event_id` xuất hiện, phải bổ sung
 projection append-only trước khi công bố contract đó.
 
@@ -577,10 +579,13 @@ dữ liệu.
 | Topic | Key đề xuất | Nội dung | Lưu ý |
 | --- | --- | --- | --- |
 | `logs.raw` | `application_id` | Log thô đã được ingestion chấp nhận | Required; buffer chính |
+| `logs.raw.DLT` | `application_id` | Raw event không xử lý được sau retry | Required; source DLT của `logs.raw` |
 | `logs.live` | `application_id` | Log đã chuẩn hóa cho live viewer | Required; retention ngắn |
-| `logs.dlq` | `application_id` | Log không parse hoặc xử lý được | Required; lỗi đã redaction |
+| `logs.live.DLT` | `application_id` | Live event không broadcast được sau retry | Required; source DLT của `logs.live` |
 | `alerts.critical` | `fingerprint` | Event `ERROR`/`CRITICAL` | Required; priority consumer riêng, Redis dedup và alert |
+| `alerts.critical.DLT` | `fingerprint` | Alert event không xử lý/delivery được sau retry | Required; source DLT của `alerts.critical` |
 | `incidents.ai` | `incident_id` | Yêu cầu AI phân tích incident | Bonus/Future |
+| `incidents.ai.DLT` | `incident_id` | AI analysis request thất bại sau retry | Bonus/Future; source DLT của `incidents.ai` |
 
 Yêu cầu:
 
@@ -588,7 +593,7 @@ Yêu cầu:
 - Producer phải xác định acknowledgment và retry.
 - Ingestion API chỉ trả accepted sau acknowledgment của `logs.raw`.
 - Consumer phải idempotent vì Kafka có thể giao event nhiều lần.
-- Topic phải có retention, partition count và DLQ strategy rõ ràng.
+- Topic phải có retention, partition count và DLT strategy rõ ràng.
 - `alerts.critical` dùng consumer group, executor và concurrency riêng với
   `logs.live`; theo dõi p95 alert queue-to-delivery-start, mục tiêu MVP không
   quá `2 giây`.
@@ -611,7 +616,7 @@ External Application
         -> ClickHouse logs
         -> Kafka logs.live
         -> Kafka alerts.critical (ERROR/CRITICAL)
-        -> Kafka logs.dlq (parse/store failure)
+        -> Kafka logs.raw.DLT (parse/store failure after retry)
         -> commit logs.raw offset only after required acknowledgments
 
 alerts.critical
@@ -626,6 +631,12 @@ alerts.critical
 Bonus/Future:
     -> Kafka incidents.ai
     -> ClickHouse incident_ai_insights
+
+Metrics extension:
+    node exporter / application metrics / OpenTelemetry
+    -> Prometheus-compatible metrics store
+    -> metrics query adapter in backend
+    -> incident correlation / AI context
 
 ClickHouse logs
     <- logs.query component (read-only)
@@ -658,16 +669,19 @@ Retention Scheduler
   lại cùng raw event. Writer và consumer dedup theo `event_id`; duplicate
   delivery không được tạo thêm logical log hoặc notification.
 - Nếu publish `logs.live`/`alerts.critical` thất bại, worker retry và không
-  commit raw offset. Sau retry giới hạn, event vào `logs.dlq` cùng failure stage
-  để replay; phải phát metric và operational alert.
+  commit raw offset. Sau retry giới hạn, event vào DLT tương ứng cùng failure
+  stage để replay; phải phát metric và operational alert.
 - Nếu ghi ClickHouse thất bại sau số lần retry cho phép, event chuyển
-  `logs.dlq`.
+  `logs.raw.DLT`.
 - Nếu Telegram thất bại, occurrence vẫn tồn tại và `alert_deliveries` ghi
   trạng thái để retry.
 - WebSocket delivery failure không ghi vào `alert_deliveries`; `realtime` theo
   dõi session count, dropped event và delivery failure bằng metrics.
 - Nếu AI thất bại, alert và incident không bị ảnh hưởng; trạng thái AI thuộc
   module/bảng bonus tương lai, không nằm trong alert occurrence.
+- Metrics store không phải source of truth cho incident. Nếu metrics query thất
+  bại, hệ thống vẫn tạo incident từ log/alert hiện có và đánh dấu thiếu ngữ
+  cảnh metrics.
 
 ## 12. Backup và quan sát
 
@@ -691,7 +705,7 @@ Retention Scheduler
 
 ### Kafka
 
-- Theo dõi consumer lag, throughput, under-replicated partition và DLQ rate.
+- Theo dõi consumer lag, throughput, under-replicated partition và DLT rate.
 - Cảnh báo khi worker không theo kịp tốc độ ingestion.
 - Theo dõi riêng HTTP ingestion latency, Kafka producer latency, consumer lag,
   processing latency và ClickHouse insert/query latency.

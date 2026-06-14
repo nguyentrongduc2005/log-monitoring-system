@@ -52,12 +52,12 @@
 
 
 		<!-- Kafka: enable when log ingestion topics are configured. -->
-		<!--
+		
 		<dependency>
 			<groupId>org.springframework.kafka</groupId>
 			<artifactId>spring-kafka</artifactId>
 		</dependency>
-		-->
+		
 
 		<!-- Redis: enable when alert deduplication is implemented. -->
 		<dependency>

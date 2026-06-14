@@ -29,7 +29,7 @@ describe("navigation", () => {
     ).toBe(false);
   });
 
-  it("defines only Overview and Live Logs as implemented routes", () => {
+  it("defines the implemented application routes", () => {
     const implemented = navigationGroups
       .flatMap<NavigationItem>((group) => [...group.items])
       .filter((item) => item.to !== undefined)
@@ -37,7 +37,11 @@ describe("navigation", () => {
 
     expect(implemented).toEqual([
       ["Overview", "/"],
-      ["Live Logs", "/logs"]
+      ["Live Logs", "/logs"],
+      ["Applications", "/admin/applications"],
+      ["Users & Access", "/admin/users"],
+      ["Alert Rules", "/admin/alert-rules"],
+      ["Retention Policies", "/admin/retention"]
     ]);
   });
 
