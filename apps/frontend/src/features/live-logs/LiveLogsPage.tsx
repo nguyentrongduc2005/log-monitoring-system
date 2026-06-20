@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  createLiveLogConnection,
   filterLiveLogEntries,
   getInitialLiveLogSnapshot,
   MAX_VISIBLE_LOGS
@@ -14,14 +15,16 @@ import type {
   LiveLogFilters as LiveLogFiltersValue,
   LiveLogSnapshot
 } from "@/features/live-logs/live-logs-types";
+import { useAuth } from "@/features/auth/auth-context";
 import { PageHeader } from "@/shared/layouts/page-header-context";
 
 const defaultFilters: LiveLogFiltersValue = {
   applicationId: "",
   level: "ALL",
-  keyword: "",
-  traceId: ""
+  keyword: ""
 };
+
+const MAX_BUFFERED_LOGS = 1_000;
 
 function getEmptySnapshot(): LiveLogSnapshot {
   return {
@@ -34,13 +37,18 @@ function getEmptySnapshot(): LiveLogSnapshot {
 }
 
 export function Component() {
+  const { session } = useAuth();
   const [snapshot, setSnapshot] = useState<LiveLogSnapshot>(getEmptySnapshot);
   const [filters, setFilters] = useState<LiveLogFiltersValue>(defaultFilters);
   const [selectedEntry, setSelectedEntry] = useState<LiveLogEntry | null>(null);
+  const [detailCollapsed, setDetailCollapsed] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [stickyToLatest, setStickyToLatest] = useState(true);
+  const [wrapLines, setWrapLines] = useState(false);
   const [cleared, setCleared] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const pausedRef = useRef(paused);
 
   async function loadSnapshot() {
     setLoading(true);
@@ -63,11 +71,87 @@ export function Component() {
     });
   }, []);
 
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
+
+  useEffect(() => {
+    if (loading || error || snapshot.applications.length === 0) {
+      return;
+    }
+
+    if (!session?.accessToken) {
+      return;
+    }
+
+    const selectedApplications = filters.applicationId
+      ? snapshot.applications.filter(
+          (application) => application.id === filters.applicationId
+        )
+      : snapshot.applications;
+
+    if (selectedApplications.length === 0) {
+      return;
+    }
+
+    let active = true;
+    const connection = createLiveLogConnection({
+      accessToken: session.accessToken,
+      applications: selectedApplications,
+      onLog: (entry) => {
+        if (!active) {
+          return;
+        }
+
+        if (pausedRef.current) {
+          setSnapshot((current) => ({
+            ...current,
+            buffered: current.buffered + 1
+          }));
+          return;
+        }
+
+        setCleared(false);
+        setSnapshot((current) => {
+          const entries = [...current.entries, entry];
+          const dropped = Math.max(0, entries.length - MAX_BUFFERED_LOGS);
+
+          return {
+            ...current,
+            entries: entries.slice(dropped),
+            dropped: current.dropped + dropped
+          };
+        });
+      },
+      onStateChange: (connectionState) => {
+        if (!active) {
+          return;
+        }
+
+        setSnapshot((current) => ({
+          ...current,
+          connectionState
+        }));
+      }
+    });
+
+    return () => {
+      active = false;
+      connection.disconnect();
+    };
+  }, [
+    error,
+    filters.applicationId,
+    loading,
+    session?.accessToken,
+    snapshot.applications
+  ]);
+
   const filteredEntries = cleared
     ? []
     : filterLiveLogEntries(snapshot.entries, filters);
   const overflowCount = Math.max(0, filteredEntries.length - MAX_VISIBLE_LOGS);
-  const visibleEntries = filteredEntries.slice(0, MAX_VISIBLE_LOGS);
+  const visibleEntries = filteredEntries.slice(-MAX_VISIBLE_LOGS);
   const effectiveConnectionState: LiveConnectionState = paused
     ? "paused"
     : snapshot.connectionState;
@@ -77,11 +161,26 @@ export function Component() {
     setFilters(defaultFilters);
   }
 
+  function togglePause() {
+    setPaused((current) => {
+      const nextPaused = !current;
+
+      if (!nextPaused) {
+        setStickyToLatest(true);
+        setSnapshot((snapshot) => ({
+          ...snapshot,
+          buffered: 0
+        }));
+      }
+
+      return nextPaused;
+    });
+  }
+
   const hasActiveFilters =
     filters.applicationId !== "" ||
     filters.level !== "ALL" ||
-    filters.keyword.trim() !== "" ||
-    filters.traceId.trim() !== "";
+    filters.keyword.trim() !== "";
 
   return (
     <div className="space-y-6">
@@ -94,9 +193,15 @@ export function Component() {
             onClear={() => {
               setCleared(true);
               setSelectedEntry(null);
+              setDetailCollapsed(false);
+              setStickyToLatest(true);
             }}
-            onTogglePause={() => setPaused((current) => !current)}
+            onFollowLatest={() => setStickyToLatest(true)}
+            onTogglePause={togglePause}
+            onToggleWrap={() => setWrapLines((current) => !current)}
             paused={paused}
+            stickyToLatest={stickyToLatest}
+            wrapLines={wrapLines}
           />
         }
         title="Live Logs"
@@ -150,26 +255,41 @@ export function Component() {
               </button>
             </section>
           ) : (
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(20rem,0.85fr)]">
-              <div className="space-y-3">
-                {effectiveConnectionState === "disconnected" ? (
-                  <p className="text-sm text-warning">
-                    Connection status: Disconnected. Existing rows remain visible.
-                  </p>
-                ) : null}
-                {effectiveConnectionState === "error" ? (
-                  <p className="text-sm text-error">
-                    Connection status: Error. Existing rows remain visible.
-                  </p>
-                ) : null}
-                <LiveLogTable
-                  entries={visibleEntries}
-                  onSelect={setSelectedEntry}
-                />
-              </div>
+            <div className="space-y-3">
+              {effectiveConnectionState === "disconnected" ? (
+                <p className="text-sm text-warning">
+                  Connection status: Disconnected. Existing rows remain visible.
+                </p>
+              ) : null}
+              {effectiveConnectionState === "error" ? (
+                <p className="text-sm text-error">
+                  Connection status: Error. Existing rows remain visible.
+                </p>
+              ) : null}
+              <LiveLogTable
+                expanded={!selectedEntry || detailCollapsed}
+                entries={visibleEntries}
+                keyword={filters.keyword}
+                onSelect={(entry) => {
+                  setSelectedEntry(entry);
+                  setDetailCollapsed(false);
+                  setStickyToLatest(false);
+                }}
+                onStickyChange={setStickyToLatest}
+                selectedEntryId={selectedEntry?.id}
+                stickyToLatest={stickyToLatest}
+                wrapLines={wrapLines}
+              />
               <LogDetailDrawer
+                collapsed={detailCollapsed}
                 entry={selectedEntry}
-                onClose={() => setSelectedEntry(null)}
+                onClose={() => {
+                  setSelectedEntry(null);
+                  setDetailCollapsed(false);
+                }}
+                onToggleCollapse={() =>
+                  setDetailCollapsed((current) => !current)
+                }
               />
             </div>
           )}

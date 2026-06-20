@@ -30,6 +30,10 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-validation</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-websocket</artifactId>
+		</dependency>
 
 		<!-- API documentation -->
 		<dependency>
@@ -66,13 +70,13 @@
 		</dependency>
 
 		<!-- ClickHouse: enable when log storage is configured. -->
-		<!--
+		
 		<dependency>
 			<groupId>com.clickhouse</groupId>
 			<artifactId>clickhouse-jdbc</artifactId>
 			<version>${clickhouse-jdbc.version}</version>
 		</dependency>
-		-->
+		
 
 		<!-- Flyway: enable when PostgreSQL migrations are added. -->
 		<dependency>

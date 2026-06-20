@@ -1,8 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Component as LiveLogsPage } from "@/features/live-logs/LiveLogsPage";
+import { AuthContext, type AuthContextValue } from "@/features/auth/auth-context";
 import {
+  createLiveLogConnection,
   getInitialLiveLogSnapshot,
   MAX_VISIBLE_LOGS
 } from "@/features/live-logs/live-logs-adapter";
@@ -16,6 +18,9 @@ vi.mock("@/features/live-logs/live-logs-adapter", async () => {
 
   return {
     ...actual,
+    createLiveLogConnection: vi.fn(() => ({
+      disconnect: vi.fn()
+    })),
     getInitialLiveLogSnapshot: vi.fn()
   };
 });
@@ -72,11 +77,31 @@ const baseSnapshot: LiveLogSnapshot = {
   dropped: 1
 };
 
+const authValue: AuthContextValue = {
+  session: {
+    accessToken: "access-token",
+    refreshToken: "refresh-token",
+    user: {
+      id: "00000000-0000-0000-0000-000000000001",
+      email: "engineer@example.com",
+      displayName: "Engineer",
+      role: "ENGINEER",
+      status: "ACTIVE"
+    }
+  },
+  isInitializing: false,
+  login: vi.fn(),
+  logout: vi.fn(),
+  updateSessionUser: vi.fn()
+};
+
 function renderLiveLogsPage() {
   render(
-    <PageHeaderProvider>
-      <LiveLogsPage />
-    </PageHeaderProvider>
+    <AuthContext.Provider value={authValue}>
+      <PageHeaderProvider>
+        <LiveLogsPage />
+      </PageHeaderProvider>
+    </AuthContext.Provider>
   );
 }
 
@@ -84,6 +109,9 @@ describe("LiveLogsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getInitialLiveLogSnapshot).mockResolvedValue(baseSnapshot);
+    vi.mocked(createLiveLogConnection).mockReturnValue({
+      disconnect: vi.fn()
+    });
   });
 
   it("renders live logs page and connection status", async () => {
@@ -94,7 +122,7 @@ describe("LiveLogsPage", () => {
     expect(screen.getByText("Live")).toBeInTheDocument();
   });
 
-  it("filters by application, level, keyword, and trace ID", async () => {
+  it("filters by application, level, and keyword", async () => {
     const user = userEvent.setup();
     renderLiveLogsPage();
 
@@ -110,13 +138,33 @@ describe("LiveLogsPage", () => {
 
     await user.selectOptions(screen.getByLabelText("Level"), "ALL");
     await user.type(screen.getByLabelText("Keyword"), "checkout completed");
-    expect(screen.getByText("Order checkout completed successfully.")).toBeInTheDocument();
+    expect(screen.getByText("checkout completed")).toBeInTheDocument();
     expect(screen.queryByText("Invoice retry queue is growing faster than the worker drain rate.")).not.toBeInTheDocument();
+  });
 
-    await user.clear(screen.getByLabelText("Keyword"));
-    await user.type(screen.getByLabelText("Trace ID"), "trace-billing-1");
-    expect(screen.getByText("Invoice retry queue is growing faster than the worker drain rate.")).toBeInTheDocument();
-    expect(screen.queryByText("Order checkout completed successfully.")).not.toBeInTheDocument();
+  it("resubscribes live log topics when the application filter changes", async () => {
+    const user = userEvent.setup();
+    renderLiveLogsPage();
+
+    await screen.findByText("Payment gateway timeout exceeded the critical threshold.");
+    await waitFor(() => {
+      expect(createLiveLogConnection).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          accessToken: "access-token",
+          applications: baseSnapshot.applications
+        })
+      );
+    });
+
+    await user.selectOptions(screen.getByLabelText("Application"), "billing-worker");
+    await waitFor(() => {
+      expect(createLiveLogConnection).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          accessToken: "access-token",
+          applications: [{ id: "billing-worker", name: "billing-worker" }]
+        })
+      );
+    });
   });
 
   it("pauses, resumes, and clears visible rows", async () => {
@@ -157,7 +205,7 @@ describe("LiveLogsPage", () => {
     renderLiveLogsPage();
 
     await screen.findByText("Payment gateway timeout exceeded the critical threshold.");
-    await user.type(screen.getByLabelText("Trace ID"), "missing-trace");
+    await user.type(screen.getByLabelText("Keyword"), "missing keyword");
     expect(screen.getByText("No logs match the current filters.")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Reset filters" })).toHaveLength(2);
   });
@@ -227,7 +275,7 @@ describe("LiveLogsPage", () => {
 
     renderLiveLogsPage();
 
-    await screen.findByText("Synthetic log 1");
+    await screen.findByText("Synthetic log 6");
     expect(screen.getAllByRole("row")).toHaveLength(MAX_VISIBLE_LOGS + 1);
     expect(screen.getByText("Buffered: 5")).toBeInTheDocument();
   });

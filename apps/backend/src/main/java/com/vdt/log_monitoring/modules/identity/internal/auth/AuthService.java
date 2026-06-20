@@ -30,16 +30,16 @@ public class AuthService {
 	private final JwtTokenProvider jwtTokenProvider;
 	private final StringRedisTemplate redisTemplate;
 
-	@Value("${app.security.jwt.refresh-token.prefix:identity:refresh_token:}")
+	@Value("${app.security.jwt.refresh-token.prefix}")
 	private String redisKeyPrefix;
 
-	@Value("${app.security.jwt.refresh-token.user-prefix:identity:user_refresh_token:}")
+	@Value("${app.security.jwt.refresh-token.user-prefix}")
 	private String userRefreshTokenPrefix;
 
-	@Value("${app.security.jwt.access-token.blacklist-prefix:identity:access_token:blacklist:}")
+	@Value("${app.security.jwt.access-token.blacklist-prefix}")
 	private String accessTokenBlacklistPrefix;
 
-	@Value("${app.security.jwt.refresh-token.expiration-days:7}")
+	@Value("${app.security.jwt.refresh-token.expiration-days}")
 	private long refreshTokenTtlDays;
 
 	@Transactional

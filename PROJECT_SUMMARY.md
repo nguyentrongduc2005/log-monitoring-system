@@ -89,7 +89,9 @@ log-monitoring-system/
 │   │       ├── api/              # Controller và transport DTO
 │   │       ├── modules/
 │   │       │   ├── identity/     # User, auth, role, application access
-│   │       │   ├── logs/         # Ingestion, processing, search log
+│   │       │   ├── ingestion/    # Nhận log, idempotency, publish logs.raw
+│   │       │   ├── processing/   # Future: consume logs.raw, normalize, store
+│   │       │   ├── log-query/    # Future: search log đã xử lý
 │   │       │   ├── incidents/    # Detect, group và quản lý incident
 │   │       │   ├── alerting/     # Rule, dedup và gửi cảnh báo
 │   │       │   ├── metrics/      # Future: đọc metrics/health signals

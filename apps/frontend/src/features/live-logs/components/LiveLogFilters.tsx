@@ -17,13 +17,15 @@ export default function LiveLogFilters({
   onReset
 }: LiveLogFiltersProps) {
   return (
-    <section className="rounded-2xl border border-border bg-surface p-5">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <label className="space-y-2">
-          <span className="text-sm font-medium text-text">Application</span>
+    <section className="rounded-lg border border-border bg-surface px-3 py-2">
+      <div className="grid items-end gap-2 md:grid-cols-[minmax(12rem,1.1fr)_10rem_minmax(14rem,1fr)_8rem]">
+        <label className="space-y-1">
+          <span className="text-xs font-medium uppercase text-muted">
+            Application
+          </span>
           <select
             aria-label="Application"
-            className="min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm text-text outline-none transition focus:border-primary"
+            className="min-h-9 w-full rounded-md border border-border bg-background px-2.5 text-sm text-text outline-none transition focus:border-primary"
             onChange={(event) =>
               onChange({ ...filters, applicationId: event.target.value })
             }
@@ -37,11 +39,11 @@ export default function LiveLogFilters({
             ))}
           </select>
         </label>
-        <label className="space-y-2">
-          <span className="text-sm font-medium text-text">Level</span>
+        <label className="space-y-1">
+          <span className="text-xs font-medium uppercase text-muted">Level</span>
           <select
             aria-label="Level"
-            className="min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm text-text outline-none transition focus:border-primary"
+            className="min-h-9 w-full rounded-md border border-border bg-background px-2.5 text-sm text-text outline-none transition focus:border-primary"
             onChange={(event) =>
               onChange({
                 ...filters,
@@ -57,31 +59,23 @@ export default function LiveLogFilters({
             <option value="CRITICAL">CRITICAL</option>
           </select>
         </label>
-        <label className="space-y-2">
-          <span className="text-sm font-medium text-text">Keyword</span>
+        <label className="space-y-1">
+          <span className="text-xs font-medium uppercase text-muted">
+            Keyword
+          </span>
           <input
             aria-label="Keyword"
-            className="min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm text-text outline-none transition focus:border-primary"
+            className="min-h-9 w-full rounded-md border border-border bg-background px-2.5 text-sm text-text outline-none transition focus:border-primary"
             onChange={(event) =>
               onChange({ ...filters, keyword: event.target.value })
             }
+            placeholder="timeout, unauthorized..."
             value={filters.keyword}
           />
         </label>
-        <label className="space-y-2">
-          <span className="text-sm font-medium text-text">Trace ID</span>
-          <input
-            aria-label="Trace ID"
-            className="min-h-11 w-full rounded-xl border border-border bg-surface-raised px-3 text-sm text-text outline-none transition focus:border-primary"
-            onChange={(event) =>
-              onChange({ ...filters, traceId: event.target.value })
-            }
-            value={filters.traceId}
-          />
-        </label>
-        <div className="flex items-end">
+        <div>
           <button
-            className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-border bg-surface-raised px-4 text-sm font-medium text-text transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+            className="inline-flex min-h-9 w-full items-center justify-center rounded-md border border-border bg-surface-raised px-3 text-sm font-medium text-text transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
             onClick={onReset}
             type="button"
           >

@@ -19,7 +19,18 @@ const severityOptions: AlertSeverity[] = ["CRITICAL", "ERROR", "WARN"];
 const metricOptions: AlertMetric[] = ["LOG_COUNT", "LATENCY_P95", "DISK_USAGE"];
 const operatorOptions: AlertOperator[] = [">", ">=", "<"];
 const windowOptions = [30, 60, 300, 600];
-const channelOptions: AlertChannelType[] = ["Telegram", "Email", "Webhook"];
+const channelOptions: AlertChannelType[] = ["Telegram", "WebSocket"];
+const chatRoomOptions: Record<AlertChannelType, { id: string; label: string }[]> = {
+  Telegram: [
+    { id: "room-telegram-ops-critical", label: "#ops-critical" },
+    { id: "room-telegram-payment-oncall", label: "#payment-oncall" },
+    { id: "room-telegram-platform-alerts", label: "#platform-alerts" }
+  ],
+  WebSocket: [
+    { id: "room-websocket-live-incident", label: "Live incident room" },
+    { id: "room-websocket-storage", label: "Storage incident room" }
+  ]
+};
 
 type AlertRuleBuilderProps = {
   draft: AlertRuleDraft;
@@ -40,6 +51,23 @@ export default function AlertRuleBuilder({
 }: AlertRuleBuilderProps) {
   function updateDraft(update: Partial<AlertRuleDraft>) {
     onDraftChange({ ...draft, ...update });
+  }
+
+  function updateChannel(channelType: AlertChannelType) {
+    const firstRoom = chatRoomOptions[channelType][0];
+    updateDraft({
+      channelType,
+      chatRoomId: firstRoom.id,
+      channelTarget: firstRoom.label
+    });
+  }
+
+  function updateChatRoom(chatRoomId: string) {
+    const room = chatRoomOptions[draft.channelType].find(item => item.id === chatRoomId);
+    updateDraft({
+      chatRoomId,
+      channelTarget: room?.label ?? ""
+    });
   }
 
   return (
@@ -156,14 +184,14 @@ export default function AlertRuleBuilder({
 
         <div>
           <span className="text-[11px] font-semibold uppercase text-muted">
-            4. Channel
+            4. Channel and room
           </span>
           <div className="mt-2 grid gap-2 sm:grid-cols-[8rem_1fr] xl:grid-cols-1">
             <select
               aria-label="Channel type"
               className={managementInputClass}
               onChange={event =>
-                updateDraft({ channelType: event.target.value as AlertChannelType })
+                updateChannel(event.target.value as AlertChannelType)
               }
               value={draft.channelType}
             >
@@ -173,13 +201,19 @@ export default function AlertRuleBuilder({
                 </option>
               ))}
             </select>
-            <input
-              aria-label="Channel target"
+            <select
+              aria-label="Chat room"
               className={managementInputClass}
-              onChange={event => updateDraft({ channelTarget: event.target.value })}
+              onChange={event => updateChatRoom(event.target.value)}
               required
-              value={draft.channelTarget}
-            />
+              value={draft.chatRoomId}
+            >
+              {chatRoomOptions[draft.channelType].map(room => (
+                <option key={room.id} value={room.id}>
+                  {room.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </div>

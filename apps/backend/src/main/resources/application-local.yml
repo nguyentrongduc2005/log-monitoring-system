@@ -15,11 +15,16 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-
-# clickhouse:
-#   url: ${CLICKHOUSE_URL:jdbc:clickhouse://localhost:8123/log_monitoring}
-#   username: ${CLICKHOUSE_USER:log_user}
-#   password: ${CLICKHOUSE_PASSWORD:password}
+app:
+  datasource:
+    clickhouse:
+      url: ${CLICKHOUSE_URL:jdbc:clickhouse://localhost:8123/log_monitoring}
+      username: ${CLICKHOUSE_USER:log_user}
+      password: ${CLICKHOUSE_PASSWORD:password}
+  clickhouse:
+    migration:
+      enabled: true
+      locations: classpath:db/migration/clickhouse
 
 logging:
   level:

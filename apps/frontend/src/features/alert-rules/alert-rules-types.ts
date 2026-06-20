@@ -6,7 +6,7 @@ export type AlertMetric = "LOG_COUNT" | "LATENCY_P95" | "DISK_USAGE";
 
 export type AlertOperator = ">" | ">=" | "<";
 
-export type AlertChannelType = "Telegram" | "Email" | "Webhook";
+export type AlertChannelType = "Telegram" | "WebSocket";
 
 export type AlertRule = {
   id: string;
@@ -19,6 +19,7 @@ export type AlertRule = {
   threshold: number;
   windowSeconds: number;
   channelType: AlertChannelType;
+  chatRoomId: string;
   channelTarget: string;
   status: AlertRuleStatus;
   triggered24h: number;
@@ -37,5 +38,6 @@ export type AlertRuleDraft = Pick<
   | "threshold"
   | "windowSeconds"
   | "channelType"
+  | "chatRoomId"
   | "channelTarget"
 >;

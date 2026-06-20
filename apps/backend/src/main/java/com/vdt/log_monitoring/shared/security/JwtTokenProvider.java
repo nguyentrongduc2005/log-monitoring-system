@@ -23,8 +23,8 @@ public class JwtTokenProvider {
 	private final long jwtExpirationInMs;
 
 	public JwtTokenProvider(
-		@Value("${app.security.jwt.secret:default-secret-key-that-must-be-very-long-and-secure-for-hmac-sha-256}") String secret,
-		@Value("${app.security.jwt.expiration-ms:86400000}") long jwtExpirationInMs
+		@Value("${app.security.jwt.secret}") String secret,
+		@Value("${app.security.jwt.expiration-ms}") long jwtExpirationInMs
 	) {
 		this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
 		this.jwtExpirationInMs = jwtExpirationInMs;
@@ -51,6 +51,14 @@ public class JwtTokenProvider {
 
 	public String getRoleFromToken(String token) {
 		return getClaimFromToken(token, claims -> claims.get("role", String.class));
+	}
+
+	public String getUserIdFromToken(String token) {
+		return getClaimFromToken(token, claims -> claims.get("userId", String.class));
+	}
+
+	public String getDisplayNameFromToken(String token) {
+		return getClaimFromToken(token, claims -> claims.get("displayName", String.class));
 	}
 
 	public Date getExpirationFromToken(String token) {

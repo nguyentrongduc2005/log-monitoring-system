@@ -79,9 +79,9 @@ Các chức năng chính:
 > [!NOTE]
 > Dự án đang trong giai đoạn phát triển. Frontend scaffold, Dockerfile và hạ
 > tầng Docker Compose đã được thiết lập. Backend triển khai trước các module
-> `identity`, `logs`, `alerting`, `realtime`; ingestion và processing là hai
-> component bên trong `logs`, cùng với query, trong một Spring Boot Modular
-> Monolith. Analytics là phạm vi điểm cộng.
+> `identity` và `ingestion` trong một Spring Boot Modular Monolith. `ingestion`
+> là module nhận log và publish Kafka `logs.raw`; processing/query/alerting là
+> các module/worker tách riêng theo roadmap. Analytics là phạm vi điểm cộng.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -113,9 +113,9 @@ Worker chỉ commit offset `logs.raw` sau khi ClickHouse và các Kafka event
 downstream bắt buộc đều được acknowledge. `alerts.critical` có consumer group
 và tài nguyên xử lý riêng; Kafka không tự cung cấp message priority.
 
-Business module `logs` sở hữu event contract và ClickHouse dataset.
-`ingestion`, `processing`, `query` là component nội bộ trong cùng Spring Boot
-application, không phải module hoặc service độc lập.
+Module `ingestion` sở hữu API nhận log và event contract `RawLogReceivedEvent`
+được publish vào Kafka `logs.raw`. Processing/query không nằm trong module này;
+chúng là worker/module độc lập theo roadmap để sau này có thể scale riêng.
 
 HTTP/WebSocket controller nằm ở top-level `api`; chúng chỉ chuyển request đến
 public facade của module. Business logic, persistence và Kafka/ClickHouse

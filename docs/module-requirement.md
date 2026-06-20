@@ -14,7 +14,7 @@ application, không phải microservices.
 Phạm vi bắt buộc ban đầu:
 
 - `identity`
-- `logs`
+- `ingestion`
 - `alerting`
 - `realtime`
 
@@ -26,20 +26,22 @@ Phạm vi điểm cộng/tương lai:
 - `retention`
 - `ai`
 
-Không tạo module rỗng trước khi bắt đầu use case tương ứng. Module `logs` là
-data owner duy nhất và có ba component tách biệt:
+Không tạo module rỗng trước khi bắt đầu use case tương ứng. Pipeline log được
+tách theo boundary scale: module `ingestion` sở hữu API nhận log và publish raw
+event, còn processing/query là module/worker riêng theo roadmap:
 
 ```text
-logs.ingestion
+ingestion
     -> Kafka logs.raw
-    -> logs.processing
+    -> processing
     -> ClickHouse logs
-    <- logs.query
+    <- log-query
 ```
 
-Ba component có entry point và failure path riêng nhưng cùng thuộc business
-module `logs` và chạy trong một Spring Boot application. `notification` thuộc
-`alerting`; `livestream` thuộc `realtime`.
+Các module vẫn có thể chạy trong cùng Spring Boot application ở giai đoạn
+Modular Monolith, nhưng boundary được đặt theo hướng có thể tách
+`ingestion-service`, `processing-worker` và `log-query-service` sau này.
+`notification` thuộc `alerting`; `livestream` thuộc `realtime`.
 
 Kiến trúc frontend hiện tại không thay đổi.
 
@@ -91,19 +93,11 @@ com.vdt.log_monitoring
 │   │   ├── application
 │   │   ├── model
 │   │   └── infrastructure
-│   ├── logs
-│   │   ├── api        # public module facade/contract
-│   │   ├── application
-│   │   │   ├── ingestion
-│   │   │   ├── processing
-│   │   │   └── search
-│   │   ├── domain
-│   │   ├── infrastructure
-│   │   │   ├── kafka
-│   │   │   │   ├── producer
-│   │   │   │   └── consumer
-│   │   │   └── clickhouse
-│   │   └── integrationevents
+│   ├── ingestion
+│   │   ├── api        # LogIngestionFacade, IngestionException, raw event
+│   │   └── internal   # validation, idempotency, sanitizer, Kafka producer
+│   ├── processing     # Future: Kafka consumer, parser, normalizer, writer
+│   ├── log-query      # Future: ClickHouse read/search use cases
 │   ├── alerting
 │   │   ├── api        # public module facade/contract
 │   │   ├── application
@@ -234,30 +228,27 @@ RawLogProcessingWorker
 
 Storage:
 
-- ClickHouse dataset do `logs` sở hữu.
-- `logs.processing` là writer duy nhất của ClickHouse `logs`.
-- `logs.query` chỉ được đọc dataset thông qua query adapter của module.
-- `logs.ingestion` không được truy cập ClickHouse.
+- ClickHouse dataset do module/worker `processing` sở hữu phần ghi và
+  `log-query` sở hữu phần đọc theo public query contract.
+- `processing` là writer duy nhất của ClickHouse `logs`.
+- `log-query` chỉ được đọc dataset thông qua query adapter riêng.
+- `ingestion` không được truy cập ClickHouse.
 - Không ghi log trực tiếp vào PostgreSQL.
 - Không ghi trực tiếp ClickHouse từ HTTP request.
 
-Các nhóm code bên trong `logs` có thể gồm:
+Các module code tương ứng có thể gồm:
 
 ```text
-logs
-├── api                  # LogsModuleFacade và public contract DTO
-├── application
-│   ├── ingestion       # validate và publish raw log
-│   ├── processing      # worker use case
-│   └── search          # query use case
-├── domain              # LogRecord, LogLevel, normalizer, fingerprint
-├── infrastructure
-│   ├── config           # module-owned Spring configuration
-│   ├── kafka
-│   │   ├── producer    # logs.raw, logs.live, alerts.critical và DLT tương ứng
-│   │   └── consumer    # RawLogProcessingWorker
-│   └── clickhouse      # batch writer và query repository
-└── integrationevents
+ingestion
+├── api                  # LogIngestionFacade, IngestionException, raw event
+└── internal             # validation, idempotency, sanitizer, Kafka producer
+
+processing               # Future
+├── internal             # Kafka consumer, parser, normalizer, fingerprinter
+└── integrationevents    # logs.live, alerts.critical, DLT events
+
+log-query                # Future
+└── internal             # ClickHouse query adapter and search policies
 ```
 
 Transport tương ứng nằm ngoài module:
@@ -475,9 +466,10 @@ Quy tắc tải:
 Không tạo cross-module ORM relationship hoặc repository. ID của module khác là
 logical reference và được xác minh qua public contract/event.
 
-`logs.ingestion`, `logs.processing`, `logs.query` không phải ba business module
-và không có ownership riêng. Chúng là component nội bộ của cùng data owner
-`logs`.
+`ingestion`, `processing`, `log-query` là các module/boundary riêng trong
+Modular Monolith. Chúng có thể cùng deploy trong một Spring Boot application,
+nhưng không phụ thuộc implementation nội bộ của nhau; Kafka `logs.raw` là
+contract giữa ingestion và processing.
 
 ## 8. Frontend
 

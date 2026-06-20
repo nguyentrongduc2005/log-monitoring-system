@@ -1,5 +1,8 @@
 package com.vdt.log_monitoring.shared.security;
 
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -22,6 +25,7 @@ public class SecurityConfig {
 
 	private static final String[] PUBLIC_ENDPOINTS = {
 		"/api/v1/auth/**",
+		"/ws",
 		"/v3/api-docs/**",
 		"/swagger-ui/**",
 		"/swagger-ui.html"
@@ -44,14 +48,19 @@ public class SecurityConfig {
 	};
 
 	private final JwtAuthenticationFilter jwtAuthenticationFilter;
+	private final List<String> allowedOriginPatterns;
 
-	public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+	public SecurityConfig(
+		JwtAuthenticationFilter jwtAuthenticationFilter,
+		@Value("${app.security.cors.allowed-origin-patterns}") List<String> allowedOriginPatterns
+	) {
 		this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+		this.allowedOriginPatterns = allowedOriginPatterns;
 	}
 
 	@Bean
-	public PasswordEncoder passwordEncoder() {
-		return new BCryptPasswordEncoder();
+	public PasswordEncoder passwordEncoder(@Value("${app.security.password.bcrypt-strength}") int bcryptStrength) {
+		return new BCryptPasswordEncoder(bcryptStrength);
 	}
 
 	@Bean
@@ -77,7 +86,7 @@ public class SecurityConfig {
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 		CorsConfiguration config = new CorsConfiguration();
 		config.setAllowCredentials(true);
-		config.addAllowedOriginPattern("*");
+		config.setAllowedOriginPatterns(allowedOriginPatterns);
 		config.addAllowedHeader("*");
 		config.addAllowedMethod("*");
 		source.registerCorsConfiguration("/**", config);

@@ -31,7 +31,11 @@ type LiveLogsToolbarProps = {
   paused: boolean;
   buffered: number;
   dropped: number;
+  stickyToLatest: boolean;
+  wrapLines: boolean;
+  onFollowLatest: () => void;
   onTogglePause: () => void;
+  onToggleWrap: () => void;
   onClear: () => void;
 };
 
@@ -40,7 +44,11 @@ export default function LiveLogsToolbar({
   paused,
   buffered,
   dropped,
+  stickyToLatest,
+  wrapLines,
+  onFollowLatest,
   onTogglePause,
+  onToggleWrap,
   onClear
 }: LiveLogsToolbarProps) {
   const effectiveState = paused ? "paused" : connectionState;
@@ -63,11 +71,34 @@ export default function LiveLogsToolbar({
         </span>
       ) : null}
       <button
+        className={`inline-flex min-h-10 items-center justify-center rounded-xl border px-4 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 ${
+          stickyToLatest
+            ? "border-success/60 bg-success/10 text-success hover:border-success"
+            : "border-border bg-surface-raised text-text hover:border-primary hover:text-primary"
+        }`}
+        disabled={stickyToLatest}
+        onClick={onFollowLatest}
+        type="button"
+      >
+        {stickyToLatest ? "Following latest" : "Jump to latest"}
+      </button>
+      <button
         className="inline-flex min-h-10 items-center justify-center rounded-xl border border-border bg-surface-raised px-4 text-sm font-medium text-text transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
         onClick={onTogglePause}
         type="button"
       >
         {paused ? "Resume" : "Pause"}
+      </button>
+      <button
+        className={`inline-flex min-h-10 items-center justify-center rounded-xl border px-4 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 ${
+          wrapLines
+            ? "border-primary/70 bg-primary/10 text-primary"
+            : "border-border bg-surface-raised text-text hover:border-primary hover:text-primary"
+        }`}
+        onClick={onToggleWrap}
+        type="button"
+      >
+        Wrap
       </button>
       <button
         className="inline-flex min-h-10 items-center justify-center rounded-xl border border-border bg-surface-raised px-4 text-sm font-medium text-text transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"

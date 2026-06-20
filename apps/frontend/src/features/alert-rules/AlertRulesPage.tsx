@@ -25,6 +25,7 @@ const emptyDraft: AlertRuleDraft = {
   threshold: 500,
   windowSeconds: 30,
   channelType: "Telegram",
+  chatRoomId: "room-telegram-ops-critical",
   channelTarget: "#ops-critical"
 };
 
@@ -88,6 +89,7 @@ export function Component() {
       threshold: rule.threshold,
       windowSeconds: rule.windowSeconds,
       channelType: rule.channelType,
+      chatRoomId: rule.chatRoomId,
       channelTarget: rule.channelTarget
     });
   }

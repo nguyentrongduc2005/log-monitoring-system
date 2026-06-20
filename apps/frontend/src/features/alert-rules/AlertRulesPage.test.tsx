@@ -27,6 +27,7 @@ const criticalRule: AlertRule = {
   threshold: 500,
   windowSeconds: 30,
   channelType: "Telegram",
+  chatRoomId: "room-telegram-ops-critical",
   channelTarget: "#ops-critical",
   status: "RUNNING",
   triggered24h: 14,
@@ -97,6 +98,7 @@ describe("AlertRulesPage", () => {
           severity: "CRITICAL",
           metric: "LOG_COUNT",
           threshold: 10,
+          chatRoomId: "room-telegram-ops-critical",
           channelTarget: "#ops-critical"
         }),
         undefined

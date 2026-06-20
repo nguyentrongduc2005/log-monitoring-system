@@ -19,14 +19,17 @@ spring:
     locations: classpath:db/migration/postgresql
 
   kafka:
+    listener:
+      ack-mode: manual_immediate
     consumer:
-      group-id: log-processing-group
+      group-id: ${KAFKA_CONSUMER_GROUP_LOG_PROCESSING:log-processing-group}
       auto-offset-reset: earliest
       enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: com.vdt.log_monitoring.*
+        spring.json.value.default.type: com.vdt.log_monitoring.modules.ingestion.api.events.RawLogReceivedEvent
     producer:
       acks: all
       retries: 3
@@ -39,7 +42,7 @@ spring:
         request.timeout.ms: 3000
 
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
 
 # management:
 #   endpoints:
@@ -55,6 +58,10 @@ springdoc:
 
 app:
   security:
+    cors:
+      allowed-origin-patterns: ${CORS_ALLOWED_ORIGIN_PATTERNS:*}
+    password:
+      bcrypt-strength: ${BCRYPT_STRENGTH:10}
     api-key:
       key-prefix: ${API_KEY_PREFIX:lms_live_}
       prefix-characters: ${API_KEY_PREFIX_CHARACTERS:abcdefghijklmnopqrstuvwxyz0123456789}
@@ -68,13 +75,25 @@ app:
       secret: ${JWT_SECRET:default-secret-key-that-must-be-very-long-and-secure-for-hmac-sha-256}
       expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24 hours
       access-token:
-        blacklist-prefix: "identity:access_token:blacklist:"
+        blacklist-prefix: ${JWT_ACCESS_TOKEN_BLACKLIST_PREFIX:identity:access_token:blacklist:}
       refresh-token:
-        prefix: "identity:refresh_token:"
-        user-prefix: "identity:user_refresh_token:"
-        expiration-days: 7
+        prefix: ${JWT_REFRESH_TOKEN_PREFIX:identity:refresh_token:}
+        user-prefix: ${JWT_USER_REFRESH_TOKEN_PREFIX:identity:user_refresh_token:}
+        expiration-days: ${JWT_REFRESH_TOKEN_EXPIRATION_DAYS:7}
   kafka:
     publish-timeout: ${KAFKA_PUBLISH_TIMEOUT:5s}
+    consumer-groups:
+      realtime: ${KAFKA_CONSUMER_GROUP_REALTIME:realtime-live-log-group}
+      alerts-critical: ${KAFKA_CONSUMER_GROUP_ALERTS_CRITICAL:alerts-critical-group}
+    retry:
+      auto-create-topics: ${KAFKA_RETRY_AUTO_CREATE_TOPICS:false}
+      dlt-topic-suffix: ${KAFKA_RETRY_DLT_TOPIC_SUFFIX:.DLT}
+      raw-processing-attempts: ${KAFKA_RAW_PROCESSING_RETRY_ATTEMPTS:3}
+      raw-processing-backoff-ms: ${KAFKA_RAW_PROCESSING_RETRY_BACKOFF_MS:1000}
+      realtime-delivery-attempts: ${KAFKA_REALTIME_DELIVERY_RETRY_ATTEMPTS:3}
+      realtime-delivery-backoff-ms: ${KAFKA_REALTIME_DELIVERY_RETRY_BACKOFF_MS:1000}
+      alerts-critical-delivery-attempts: ${KAFKA_ALERTS_CRITICAL_DELIVERY_RETRY_ATTEMPTS:3}
+      alerts-critical-delivery-backoff-ms: ${KAFKA_ALERTS_CRITICAL_DELIVERY_RETRY_BACKOFF_MS:1000}
     topics:
       raw: ${KAFKA_TOPIC_LOGS_RAW:logs.raw}
       raw-dlt: ${KAFKA_TOPIC_LOGS_RAW_DLT:logs.raw.DLT}
@@ -84,7 +103,12 @@ app:
       alerts-critical-dlt: ${KAFKA_TOPIC_ALERTS_CRITICAL_DLT:alerts.critical.DLT}
       incidents-ai: ${KAFKA_TOPIC_INCIDENTS_AI:incidents.ai}
       incidents-ai-dlt: ${KAFKA_TOPIC_INCIDENTS_AI_DLT:incidents.ai.DLT}
+      processing-errors: ${KAFKA_TOPIC_PROCESSING_ERRORS:processing.errors}
   logs:
     idempotency:
       key-prefix: ${LOG_INGESTION_IDEMPOTENCY_KEY_PREFIX:logs:ingestion:idempotency}
       ttl: ${LOG_INGESTION_IDEMPOTENCY_TTL:24h}
+  alerting:
+    telegram:
+      api-base-url: ${TELEGRAM_API_BASE_URL:https://api.telegram.org}
+      bot-token: ${TELEGRAM_BOT_TOKEN:}
