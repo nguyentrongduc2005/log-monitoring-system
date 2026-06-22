@@ -4,34 +4,70 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PageHeaderProvider } from "@/shared/layouts/page-header-context";
 import { Component as AlertRulesPage } from "./AlertRulesPage";
 import {
+  deleteAlertRule,
   getAlertRules,
+  getTelegramChatRooms,
   saveAlertRule,
   toggleAlertRule
 } from "./alert-rules-adapter";
-import type { AlertRule } from "./alert-rules-types";
+import { getApplications } from "@/features/applications/application-api";
+import type { AlertRule, ChatRoom } from "./alert-rules-types";
 
-vi.mock("./alert-rules-adapter", () => ({
-  getAlertRules: vi.fn(),
-  saveAlertRule: vi.fn(),
-  toggleAlertRule: vi.fn()
-}));
+vi.mock("./alert-rules-adapter", async importOriginal => {
+  const actual = await importOriginal<typeof import("./alert-rules-adapter")>();
+  return {
+    ...actual,
+    getAlertRules: vi.fn(),
+    getTelegramChatRooms: vi.fn(),
+    saveAlertRule: vi.fn(),
+    toggleAlertRule: vi.fn(),
+    deleteAlertRule: vi.fn()
+  };
+});
+
+vi.mock("@/features/applications/application-api", async importOriginal => {
+  const actual = await importOriginal<
+    typeof import("@/features/applications/application-api")
+  >();
+  return { ...actual, getApplications: vi.fn() };
+});
+
+const application = {
+  id: "00000000-0000-0000-0000-000000000101",
+  name: "billing-service",
+  displayName: "Billing Service",
+  status: "ACTIVE"
+};
+
+const room: ChatRoom = {
+  id: "00000000-0000-0000-0000-000000000201",
+  channel: "TELEGRAM",
+  name: "Ops critical",
+  chatId: "-100123456",
+  status: "ACTIVE",
+  createdAt: "2026-06-01T10:00:00Z",
+  updatedAt: "2026-06-01T10:00:00Z"
+};
 
 const criticalRule: AlertRule = {
-  id: "rule-auth-401-flood",
-  name: "Auth-401-Flood",
-  applicationName: "Payment Gateway",
-  serviceName: "auth-service",
-  severity: "CRITICAL",
-  metric: "LOG_COUNT",
-  operator: ">",
-  threshold: 500,
-  windowSeconds: 30,
-  channelType: "Telegram",
-  chatRoomId: "room-telegram-ops-critical",
-  channelTarget: "#ops-critical",
-  status: "RUNNING",
-  triggered24h: 14,
-  breached24h: 44
+  id: "00000000-0000-0000-0000-000000000301",
+  applicationId: application.id,
+  name: "Auth 401 flood",
+  description: "Detect authentication failures",
+  minSeverity: "ERROR",
+  keywordPattern: "unauthorized",
+  thresholdCount: 10,
+  thresholdWindowSeconds: 60,
+  cooldownSeconds: 300,
+  status: "ACTIVE",
+  channels: ["WEBSOCKET", "TELEGRAM"],
+  deliveryTargets: [
+    { channel: "WEBSOCKET", chatRoomId: null },
+    { channel: "TELEGRAM", chatRoomId: room.id }
+  ],
+  createdBy: "00000000-0000-0000-0000-000000000401",
+  createdAt: "2026-06-01T10:00:00Z",
+  updatedAt: "2026-06-01T10:00:00Z"
 };
 
 function renderPage() {
@@ -46,63 +82,69 @@ describe("AlertRulesPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getAlertRules).mockResolvedValue([criticalRule]);
+    vi.mocked(getApplications).mockResolvedValue([application]);
+    vi.mocked(getTelegramChatRooms).mockResolvedValue([room]);
     vi.mocked(saveAlertRule).mockResolvedValue({
       ...criticalRule,
-      id: "rule-new",
-      name: "Gateway errors",
-      serviceName: "api-gateway",
-      severity: "ERROR",
-      threshold: 10,
-      triggered24h: 0,
-      breached24h: 0
+      id: "00000000-0000-0000-0000-000000000302",
+      name: "Gateway errors"
     });
     vi.mocked(toggleAlertRule).mockResolvedValue({
       ...criticalRule,
-      status: "MUTED"
+      status: "DISABLED"
     });
+    vi.mocked(deleteAlertRule).mockResolvedValue();
   });
 
-  it("loads alert rules and mutes a rule", async () => {
+  it("loads alert rules and disables a rule", async () => {
     const user = userEvent.setup();
     renderPage();
 
-    expect(await screen.findByText("Auth-401-Flood")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Mute" }));
+    expect(await screen.findByText("Auth 401 flood")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Disable" }));
 
-    await waitFor(() =>
-      expect(toggleAlertRule).toHaveBeenCalledWith("rule-auth-401-flood")
+    await waitFor(() => expect(toggleAlertRule).toHaveBeenCalledWith(criticalRule));
+  });
+
+  it("creates a rule with WebSocket and a Telegram room", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("Auth 401 flood");
+
+    const form = screen.getByRole("button", { name: "Create rule" }).closest("form")!;
+    await user.type(within(form).getByLabelText("Rule name"), "Gateway errors");
+    await user.click(
+      within(form).getByRole("checkbox", { name: /Ops critical/ })
     );
-  });
-
-  it("creates an alert rule from the builder", async () => {
-    const user = userEvent.setup();
-    renderPage();
-
-    await screen.findByText("Auth-401-Flood");
-    const form = screen.getByRole("button", { name: "Create Rule" }).closest("form");
-    expect(form).not.toBeNull();
-    await user.clear(within(form!).getByLabelText("Rule name"));
-    await user.type(within(form!).getByLabelText("Rule name"), "Gateway errors");
-    await user.clear(within(form!).getByLabelText("Service boundary"));
-    await user.type(within(form!).getByLabelText("Service boundary"), "api-gateway");
-    await user.selectOptions(within(form!).getByLabelText("Metric"), "LOG_COUNT");
-    await user.clear(within(form!).getByLabelText("Threshold"));
-    await user.type(within(form!).getByLabelText("Threshold"), "10");
-    await user.click(within(form!).getByRole("button", { name: "Create Rule" }));
+    await user.click(within(form).getByRole("button", { name: "Create rule" }));
 
     await waitFor(() =>
       expect(saveAlertRule).toHaveBeenCalledWith(
-        expect.objectContaining({
+        {
+          applicationId: application.id,
           name: "Gateway errors",
-          serviceName: "api-gateway",
-          severity: "CRITICAL",
-          metric: "LOG_COUNT",
-          threshold: 10,
-          chatRoomId: "room-telegram-ops-critical",
-          channelTarget: "#ops-critical"
-        }),
+          description: "",
+          minSeverity: "ERROR",
+          keywordPattern: "",
+          thresholdCount: 1,
+          thresholdWindowSeconds: 60,
+          cooldownSeconds: 300,
+          websocketEnabled: true,
+          telegramChatRoomIds: [room.id]
+        },
         undefined
       )
     );
+  });
+
+  it("confirms before deleting a rule", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("Auth 401 flood");
+
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete rule" }));
+
+    await waitFor(() => expect(deleteAlertRule).toHaveBeenCalledWith(criticalRule.id));
   });
 });

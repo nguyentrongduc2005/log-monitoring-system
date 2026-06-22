@@ -1,4 +1,5 @@
 import type { FormEvent } from "react";
+import type { Application } from "@/features/applications/application-types";
 import {
   managementButtonClass,
   managementInputClass,
@@ -6,33 +7,17 @@ import {
   managementPrimaryButtonClass
 } from "@/shared/components/management-ui";
 import type {
-  AlertChannelType,
-  AlertMetric,
-  AlertOperator,
   AlertRule,
   AlertRuleDraft,
-  AlertSeverity
+  AlertSeverity,
+  ChatRoom
 } from "../alert-rules-types";
 
-const applicationOptions = ["Payment Gateway", "Auth Service", "Database Node"];
-const severityOptions: AlertSeverity[] = ["CRITICAL", "ERROR", "WARN"];
-const metricOptions: AlertMetric[] = ["LOG_COUNT", "LATENCY_P95", "DISK_USAGE"];
-const operatorOptions: AlertOperator[] = [">", ">=", "<"];
-const windowOptions = [30, 60, 300, 600];
-const channelOptions: AlertChannelType[] = ["Telegram", "WebSocket"];
-const chatRoomOptions: Record<AlertChannelType, { id: string; label: string }[]> = {
-  Telegram: [
-    { id: "room-telegram-ops-critical", label: "#ops-critical" },
-    { id: "room-telegram-payment-oncall", label: "#payment-oncall" },
-    { id: "room-telegram-platform-alerts", label: "#platform-alerts" }
-  ],
-  WebSocket: [
-    { id: "room-websocket-live-incident", label: "Live incident room" },
-    { id: "room-websocket-storage", label: "Storage incident room" }
-  ]
-};
+const severityOptions: AlertSeverity[] = ["INFO", "WARN", "ERROR", "CRITICAL"];
 
 type AlertRuleBuilderProps = {
+  applications: Application[];
+  chatRooms: ChatRoom[];
   draft: AlertRuleDraft;
   editingRule: AlertRule | null;
   saving: boolean;
@@ -42,6 +27,8 @@ type AlertRuleBuilderProps = {
 };
 
 export default function AlertRuleBuilder({
+  applications,
+  chatRooms,
   draft,
   editingRule,
   saving,
@@ -53,191 +40,195 @@ export default function AlertRuleBuilder({
     onDraftChange({ ...draft, ...update });
   }
 
-  function updateChannel(channelType: AlertChannelType) {
-    const firstRoom = chatRoomOptions[channelType][0];
+  function toggleTelegramRoom(roomId: string) {
     updateDraft({
-      channelType,
-      chatRoomId: firstRoom.id,
-      channelTarget: firstRoom.label
+      telegramChatRoomIds: draft.telegramChatRoomIds.includes(roomId)
+        ? draft.telegramChatRoomIds.filter(id => id !== roomId)
+        : [...draft.telegramChatRoomIds, roomId]
     });
   }
 
-  function updateChatRoom(chatRoomId: string) {
-    const room = chatRoomOptions[draft.channelType].find(item => item.id === chatRoomId);
-    updateDraft({
-      chatRoomId,
-      channelTarget: room?.label ?? ""
-    });
-  }
+  const hasDeliveryTarget =
+    draft.websocketEnabled || draft.telegramChatRoomIds.length > 0;
 
   return (
     <form className={managementPanelClass} onSubmit={onSubmit}>
       <div className="flex flex-col gap-3 border-b border-border bg-surface-raised/35 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-base font-semibold text-text">Rule Builder</h2>
+          <h2 className="text-base font-semibold text-text">Rule builder</h2>
           <p className="mt-1 text-sm text-muted">
-            Define automated alert logic for applications and services.
+            Match log events and route alerts to one or more destinations.
           </p>
         </div>
         <span className="rounded-md border border-border bg-background px-2 py-1 text-xs font-semibold uppercase text-muted">
-          {editingRule ? "Editing rule" : "New draft"}
+          {editingRule ? "Editing rule" : "New rule"}
         </span>
       </div>
 
-      <div className="grid gap-4 p-4 xl:grid-cols-[1.1fr_1fr_1.4fr_1fr]">
+      <div className="grid gap-4 p-4 lg:grid-cols-2 xl:grid-cols-3">
         <label className="block">
-          <span className="text-[11px] font-semibold uppercase text-muted">
-            1. Select application
-          </span>
+          <span className="text-sm font-medium text-text">Application</span>
           <select
             className={`mt-2 ${managementInputClass}`}
-            onChange={event => updateDraft({ applicationName: event.target.value })}
-            value={draft.applicationName}
+            disabled={Boolean(editingRule)}
+            onChange={event => updateDraft({ applicationId: event.target.value })}
+            required
+            value={draft.applicationId}
           >
-            {applicationOptions.map(application => (
-              <option key={application} value={application}>
-                {application}
+            <option value="">Select an application</option>
+            {applications.map(application => (
+              <option key={application.id} value={application.id}>
+                {application.displayName || application.name}
               </option>
             ))}
           </select>
+          {editingRule ? (
+            <span className="mt-1 block text-xs text-muted">
+              Application cannot be changed after creation.
+            </span>
+          ) : null}
         </label>
 
-        <label className="block">
-          <span className="text-[11px] font-semibold uppercase text-muted">
-            2. Severity level
-          </span>
-          <select
-            className={`mt-2 ${managementInputClass}`}
-            onChange={event =>
-              updateDraft({ severity: event.target.value as AlertSeverity })
-            }
-            value={draft.severity}
-          >
-            {severityOptions.map(severity => (
-              <option key={severity} value={severity}>
-                {severity[0] + severity.slice(1).toLowerCase()}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <div>
-          <span className="text-[11px] font-semibold uppercase text-muted">
-            3. Condition logic
-          </span>
-          <div className="mt-2 grid grid-cols-[1fr_auto_5rem_auto_5rem] gap-2">
-            <select
-              aria-label="Metric"
-              className={managementInputClass}
-              onChange={event =>
-                updateDraft({ metric: event.target.value as AlertMetric })
-              }
-              value={draft.metric}
-            >
-              {metricOptions.map(metric => (
-                <option key={metric} value={metric}>
-                  {metric}
-                </option>
-              ))}
-            </select>
-            <select
-              aria-label="Operator"
-              className={managementInputClass}
-              onChange={event =>
-                updateDraft({ operator: event.target.value as AlertOperator })
-              }
-              value={draft.operator}
-            >
-              {operatorOptions.map(operator => (
-                <option key={operator} value={operator}>
-                  {operator}
-                </option>
-              ))}
-            </select>
-            <input
-              aria-label="Threshold"
-              className={managementInputClass}
-              min={1}
-              onChange={event =>
-                updateDraft({ threshold: Number(event.target.value) })
-              }
-              type="number"
-              value={draft.threshold}
-            />
-            <span className="self-center text-xs text-muted">per</span>
-            <select
-              aria-label="Window"
-              className={managementInputClass}
-              onChange={event =>
-                updateDraft({ windowSeconds: Number(event.target.value) })
-              }
-              value={draft.windowSeconds}
-            >
-              {windowOptions.map(window => (
-                <option key={window} value={window}>
-                  {window < 60 ? `${window}s` : `${window / 60}min`}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div>
-          <span className="text-[11px] font-semibold uppercase text-muted">
-            4. Channel and room
-          </span>
-          <div className="mt-2 grid gap-2 sm:grid-cols-[8rem_1fr] xl:grid-cols-1">
-            <select
-              aria-label="Channel type"
-              className={managementInputClass}
-              onChange={event =>
-                updateChannel(event.target.value as AlertChannelType)
-              }
-              value={draft.channelType}
-            >
-              {channelOptions.map(channel => (
-                <option key={channel} value={channel}>
-                  {channel}
-                </option>
-              ))}
-            </select>
-            <select
-              aria-label="Chat room"
-              className={managementInputClass}
-              onChange={event => updateChatRoom(event.target.value)}
-              required
-              value={draft.chatRoomId}
-            >
-              {chatRoomOptions[draft.channelType].map(room => (
-                <option key={room.id} value={room.id}>
-                  {room.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-4 border-t border-border bg-background/30 p-4 lg:grid-cols-[1fr_16rem]">
         <label className="block">
           <span className="text-sm font-medium text-text">Rule name</span>
           <input
             className={`mt-2 ${managementInputClass}`}
+            maxLength={120}
             onChange={event => updateDraft({ name: event.target.value })}
+            placeholder="Critical payment errors"
             required
             value={draft.name}
           />
         </label>
+
         <label className="block">
-          <span className="text-sm font-medium text-text">Service boundary</span>
+          <span className="text-sm font-medium text-text">Minimum severity</span>
+          <select
+            className={`mt-2 ${managementInputClass}`}
+            onChange={event =>
+              updateDraft({ minSeverity: event.target.value as AlertSeverity })
+            }
+            value={draft.minSeverity}
+          >
+            {severityOptions.map(severity => (
+              <option key={severity} value={severity}>{severity}</option>
+            ))}
+          </select>
+        </label>
+
+        <label className="block lg:col-span-2 xl:col-span-1">
+          <span className="text-sm font-medium text-text">Keyword</span>
           <input
             className={`mt-2 ${managementInputClass}`}
-            onChange={event => updateDraft({ serviceName: event.target.value })}
+            maxLength={255}
+            onChange={event => updateDraft({ keywordPattern: event.target.value })}
+            placeholder="Optional text contained in the log message"
+            value={draft.keywordPattern}
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-medium text-text">Threshold count</span>
+          <input
+            className={`mt-2 ${managementInputClass}`}
+            min={1}
+            onChange={event => updateDraft({ thresholdCount: Number(event.target.value) })}
             required
-            value={draft.serviceName}
+            type="number"
+            value={draft.thresholdCount}
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-medium text-text">Window (seconds)</span>
+          <input
+            className={`mt-2 ${managementInputClass}`}
+            min={1}
+            onChange={event =>
+              updateDraft({ thresholdWindowSeconds: Number(event.target.value) })
+            }
+            required
+            type="number"
+            value={draft.thresholdWindowSeconds}
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-medium text-text">Cooldown (seconds)</span>
+          <input
+            className={`mt-2 ${managementInputClass}`}
+            min={1}
+            onChange={event => updateDraft({ cooldownSeconds: Number(event.target.value) })}
+            required
+            type="number"
+            value={draft.cooldownSeconds}
+          />
+        </label>
+
+        <label className="block lg:col-span-2">
+          <span className="text-sm font-medium text-text">Description</span>
+          <textarea
+            className={`mt-2 min-h-24 ${managementInputClass}`}
+            maxLength={2000}
+            onChange={event => updateDraft({ description: event.target.value })}
+            placeholder="Optional context for operators"
+            value={draft.description}
           />
         </label>
       </div>
+
+      <fieldset className="border-t border-border p-4">
+        <legend className="px-1 text-sm font-semibold text-text">
+          Notification destinations
+        </legend>
+        <div className="mt-2 grid gap-4 lg:grid-cols-2">
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-background p-4">
+            <input
+              checked={draft.websocketEnabled}
+              className="mt-1 size-4 accent-primary"
+              onChange={event => updateDraft({ websocketEnabled: event.target.checked })}
+              type="checkbox"
+            />
+            <span>
+              <span className="block font-medium text-text">WebSocket</span>
+              <span className="mt-1 block text-xs text-muted">
+                Publish to connected dashboard clients. No chat room required.
+              </span>
+            </span>
+          </label>
+
+          <div className="rounded-lg border border-border bg-background p-4">
+            <p className="font-medium text-text">Telegram chat rooms</p>
+            <p className="mt-1 text-xs text-muted">
+              Select any number of active rooms.
+            </p>
+            <div className="mt-3 max-h-40 space-y-2 overflow-y-auto">
+              {chatRooms.map(room => (
+                <label className="flex cursor-pointer items-center gap-3" key={room.id}>
+                  <input
+                    checked={draft.telegramChatRoomIds.includes(room.id)}
+                    className="size-4 accent-primary"
+                    onChange={() => toggleTelegramRoom(room.id)}
+                    type="checkbox"
+                  />
+                  <span className="text-sm text-text">{room.name}</span>
+                  <span className="ml-auto text-xs text-muted">{room.chatId}</span>
+                </label>
+              ))}
+              {chatRooms.length === 0 ? (
+                <p className="text-sm text-muted">
+                  No active Telegram rooms. Create one in Notification Channels.
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+        {!hasDeliveryTarget ? (
+          <p className="mt-3 text-sm text-warning">
+            Select WebSocket or at least one Telegram chat room.
+          </p>
+        ) : null}
+      </fieldset>
 
       <div className="flex justify-end gap-2 border-t border-border p-4">
         <button className={managementButtonClass} onClick={onReset} type="button">
@@ -245,10 +236,15 @@ export default function AlertRuleBuilder({
         </button>
         <button
           className={managementPrimaryButtonClass}
-          disabled={saving}
+          disabled={
+            saving ||
+            !draft.applicationId ||
+            !draft.name.trim() ||
+            !hasDeliveryTarget
+          }
           type="submit"
         >
-          {editingRule ? "Save Rule" : "Create Rule"}
+          {saving ? "Saving..." : editingRule ? "Save changes" : "Create rule"}
         </button>
       </div>
     </form>

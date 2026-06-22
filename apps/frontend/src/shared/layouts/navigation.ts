@@ -88,7 +88,8 @@ export const navigationGroups = [
       {
         id: "notification-channels",
         label: "Notification Channels",
-        icon: "channels"
+        icon: "channels",
+        to: "/admin/notification-channels"
       },
       {
         id: "retention-policies",

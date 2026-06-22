@@ -41,6 +41,7 @@ describe("navigation", () => {
       ["Applications", "/admin/applications"],
       ["Users & Access", "/admin/users"],
       ["Alert Rules", "/admin/alert-rules"],
+      ["Notification Channels", "/admin/notification-channels"],
       ["Retention Policies", "/admin/retention"]
     ]);
   });

@@ -42,6 +42,11 @@ export const router = createBrowserRouter([
                 lazy: () => import("@/features/alert-rules/AlertRulesPage")
               },
               {
+                path: "/admin/notification-channels",
+                lazy: () =>
+                  import("@/features/notification-channels/NotificationChannelsPage")
+              },
+              {
                 path: "/admin/retention",
                 lazy: () => import("@/features/retention/RetentionPage")
               }
