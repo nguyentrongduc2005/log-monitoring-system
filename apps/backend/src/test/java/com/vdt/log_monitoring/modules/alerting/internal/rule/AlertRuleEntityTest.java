@@ -104,4 +104,31 @@ class AlertRuleEntityTest {
 		)).isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("deliveryTargets must not be empty");
 	}
+
+	@Test
+	void createAllowsMultipleTelegramChatRooms() {
+		UUID firstChatRoomId = UUID.fromString("00000000-0000-0000-0000-000000000011");
+		UUID secondChatRoomId = UUID.fromString("00000000-0000-0000-0000-000000000012");
+
+		AlertRuleEntity rule = AlertRuleEntity.create(
+			UUID.fromString("00000000-0000-0000-0000-000000000001"),
+			"Critical checkout errors",
+			null,
+			AlertSeverity.ERROR,
+			null,
+			1,
+			60,
+			60,
+			Set.of(
+				AlertDeliveryTarget.of(AlertChannel.TELEGRAM, firstChatRoomId),
+				AlertDeliveryTarget.of(AlertChannel.TELEGRAM, secondChatRoomId),
+				AlertDeliveryTarget.channelOnly(AlertChannel.WEBSOCKET)),
+			UUID.fromString("00000000-0000-0000-0000-000000000002"));
+
+		assertThat(rule.getDeliveryTargets()).hasSize(3);
+		assertThat(rule.getDeliveryTargets())
+			.filteredOn(target -> target.getChannel() == AlertChannel.TELEGRAM)
+			.extracting(AlertDeliveryTarget::getChatRoomId)
+			.containsExactlyInAnyOrder(firstChatRoomId, secondChatRoomId);
+	}
 }

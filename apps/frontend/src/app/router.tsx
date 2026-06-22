@@ -23,6 +23,10 @@ export const router = createBrowserRouter([
             lazy: () => import("@/features/live-logs/LiveLogsPage")
           },
           {
+            path: "/alerts",
+            lazy: () => import("@/features/alerts/AlertsPage")
+          },
+          {
             path: "/profile",
             lazy: () => import("@/features/profile/ProfilePage")
           },

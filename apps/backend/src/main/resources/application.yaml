@@ -109,6 +109,12 @@ app:
       key-prefix: ${LOG_INGESTION_IDEMPOTENCY_KEY_PREFIX:logs:ingestion:idempotency}
       ttl: ${LOG_INGESTION_IDEMPOTENCY_TTL:24h}
   alerting:
+    rule-cache:
+      key-prefix: ${ALERT_RULE_CACHE_KEY_PREFIX:alerting:rules:active:}
+      ttl: ${ALERT_RULE_CACHE_TTL:5m}
+    threshold-cache:
+      key-prefix: ${ALERT_THRESHOLD_CACHE_KEY_PREFIX:alerting:evaluation:}
+      idempotency-ttl-seconds: ${ALERT_IDEMPOTENCY_TTL_SECONDS:86400}
     telegram:
       api-base-url: ${TELEGRAM_API_BASE_URL:https://api.telegram.org}
       bot-token: ${TELEGRAM_BOT_TOKEN:}

@@ -1,4 +1,5 @@
 import { act, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
 import {
   MemoryRouter,
@@ -10,6 +11,13 @@ import { AuthContext } from "@/features/auth/auth-context";
 import type { AuthContextValue } from "@/features/auth/auth-context";
 import AppLayout from "@/shared/layouts/AppLayout";
 import { PageHeader } from "@/shared/layouts/page-header-context";
+
+vi.mock("@/features/alerts/AlertCenterProvider", () => ({
+  default: ({ children }: { children: ReactNode }) => children
+}));
+vi.mock("@/features/alerts/alert-center-context", () => ({
+  useAlertCenter: () => ({ openCount: 0 })
+}));
 
 function createMatchMedia(desktop: boolean) {
   let matches = desktop;

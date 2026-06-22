@@ -2,8 +2,6 @@ package com.vdt.log_monitoring.modules.alerting.internal.rule;
 
 import java.time.Instant;
 import java.util.Collections;
-import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -140,40 +138,6 @@ public class AlertRuleEntity {
 		);
 	}
 
-	public static AlertRuleEntity restore(
-		UUID id,
-		UUID applicationId,
-		String name,
-		String description,
-		AlertSeverity minSeverity,
-		String keywordPattern,
-		int thresholdCount,
-		int thresholdWindowSeconds,
-		int cooldownSeconds,
-		AlertRuleStatus status,
-		Set<AlertDeliveryTarget> deliveryTargets,
-		UUID createdBy,
-		Instant createdAt,
-		Instant updatedAt
-	) {
-		return new AlertRuleEntity(
-			Objects.requireNonNull(id, "id must not be null"),
-			Objects.requireNonNull(applicationId, "applicationId must not be null"),
-			requireText(name, "name"),
-			trimOptional(description),
-			Objects.requireNonNull(minSeverity, "minSeverity must not be null"),
-			trimOptional(keywordPattern),
-			requirePositive(thresholdCount, "thresholdCount"),
-			requirePositive(thresholdWindowSeconds, "thresholdWindowSeconds"),
-			requirePositive(cooldownSeconds, "cooldownSeconds"),
-			Objects.requireNonNull(status, "status must not be null"),
-			copyDeliveryTargets(deliveryTargets),
-			Objects.requireNonNull(createdBy, "createdBy must not be null"),
-			Objects.requireNonNull(createdAt, "createdAt must not be null"),
-			Objects.requireNonNull(updatedAt, "updatedAt must not be null")
-		);
-	}
-
 	public void updateRule(
 		String name,
 		String description,
@@ -218,20 +182,7 @@ public class AlertRuleEntity {
 	}
 
 	private static Set<AlertDeliveryTarget> copyDeliveryTargets(Set<AlertDeliveryTarget> deliveryTargets) {
-		if (deliveryTargets == null || deliveryTargets.isEmpty()) {
-			throw new IllegalArgumentException("deliveryTargets must not be empty");
-		}
-		Set<AlertDeliveryTarget> copy = new HashSet<>(deliveryTargets);
-		if (copy.contains(null)) {
-			throw new IllegalArgumentException("deliveryTargets must not contain null");
-		}
-		EnumSet<AlertChannel> channels = copy.stream()
-			.map(AlertDeliveryTarget::getChannel)
-			.collect(Collectors.toCollection(() -> EnumSet.noneOf(AlertChannel.class)));
-		if (channels.size() != copy.size()) {
-			throw new IllegalArgumentException("deliveryTargets must not contain duplicate channels");
-		}
-		return copy;
+		return AlertDeliveryTarget.copyOf(deliveryTargets);
 	}
 
 	private static int requirePositive(int value, String fieldName) {

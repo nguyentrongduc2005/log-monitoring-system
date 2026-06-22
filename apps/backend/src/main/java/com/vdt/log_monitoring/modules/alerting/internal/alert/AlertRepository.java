@@ -1,6 +1,7 @@
 package com.vdt.log_monitoring.modules.alerting.internal.alert;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,4 +15,11 @@ public interface AlertRepository extends JpaRepository<AlertEntity, UUID> {
 			AlertStatus status);
 
 	List<AlertEntity> findByRuleIdOrderByTriggeredAtDesc(UUID ruleId);
+
+	List<AlertEntity> findByApplicationIdInOrderByTriggeredAtDesc(List<UUID> applicationIds);
+
+	Optional<AlertEntity> findFirstByRuleIdAndFingerprintAndStatusNotOrderByTriggeredAtDesc(
+			UUID ruleId,
+			String fingerprint,
+			AlertStatus excludedStatus);
 }

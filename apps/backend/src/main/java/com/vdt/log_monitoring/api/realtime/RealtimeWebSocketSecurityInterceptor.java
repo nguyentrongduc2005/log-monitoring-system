@@ -34,8 +34,8 @@ import com.vdt.log_monitoring.shared.security.JwtTokenProvider;
 @Component
 public class RealtimeWebSocketSecurityInterceptor implements ChannelInterceptor {
 
-	private static final Pattern LIVE_LOG_DESTINATION = Pattern.compile(
-		"^/topic/applications/([0-9a-fA-F-]{36})/logs$"
+	private static final Pattern APPLICATION_DESTINATION = Pattern.compile(
+		"^/topic/applications/([0-9a-fA-F-]{36})/(?:logs|alerts)$"
 	);
 
 	private final JwtTokenProvider jwtTokenProvider;
@@ -68,7 +68,7 @@ public class RealtimeWebSocketSecurityInterceptor implements ChannelInterceptor 
 		}
 
 		if (StompCommand.SUBSCRIBE.equals(command)) {
-			authorizeLiveLogSubscription(accessor);
+			authorizeApplicationSubscription(accessor);
 		}
 
 		return message;
@@ -104,13 +104,13 @@ public class RealtimeWebSocketSecurityInterceptor implements ChannelInterceptor 
 		}
 	}
 
-	private void authorizeLiveLogSubscription(StompHeaderAccessor accessor) {
+	private void authorizeApplicationSubscription(StompHeaderAccessor accessor) {
 		String destination = accessor.getDestination();
 		if (!StringUtils.hasText(destination)) {
 			throw new AccessDeniedException("Missing WebSocket subscription destination");
 		}
 
-		Matcher matcher = LIVE_LOG_DESTINATION.matcher(destination);
+		Matcher matcher = APPLICATION_DESTINATION.matcher(destination);
 		if (!matcher.matches()) {
 			return;
 		}
@@ -118,7 +118,7 @@ public class RealtimeWebSocketSecurityInterceptor implements ChannelInterceptor 
 		AuthenticatedUserPrincipal principal = currentPrincipal(accessor);
 		UUID applicationId = UUID.fromString(matcher.group(1));
 		if (!applicationAccessFacade.canViewApplication(principal.userId(), applicationId)) {
-			throw new AccessDeniedException("User is not allowed to subscribe to this live log stream");
+			throw new AccessDeniedException("User is not allowed to subscribe to this application stream");
 		}
 	}
 

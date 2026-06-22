@@ -1,6 +1,8 @@
 package com.vdt.log_monitoring.modules.alerting.internal.rule;
 
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 import jakarta.persistence.Column;
@@ -34,6 +36,20 @@ public class AlertDeliveryTarget {
 
 	public static AlertDeliveryTarget channelOnly(AlertChannel channel) {
 		return of(channel, null);
+	}
+
+	public static Set<AlertDeliveryTarget> copyOf(Set<AlertDeliveryTarget> targets) {
+		if (targets == null || targets.isEmpty()) {
+			throw new IllegalArgumentException("deliveryTargets must not be empty");
+		}
+		Set<AlertDeliveryTarget> copy = new HashSet<>();
+		for (AlertDeliveryTarget target : targets) {
+			if (target == null) {
+				throw new IllegalArgumentException("deliveryTargets must not contain null");
+			}
+			copy.add(AlertDeliveryTarget.of(target.channel, target.chatRoomId));
+		}
+		return copy;
 	}
 
 	@Override

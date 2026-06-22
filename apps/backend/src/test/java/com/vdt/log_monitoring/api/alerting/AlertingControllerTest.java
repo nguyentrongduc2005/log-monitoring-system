@@ -26,6 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.vdt.log_monitoring.modules.alerting.api.AlertingFacade;
 import com.vdt.log_monitoring.modules.identity.api.IdentityFacade;
+import com.vdt.log_monitoring.modules.identity.api.ApplicationAccessFacade;
 import com.vdt.log_monitoring.shared.security.JwtTokenProvider;
 
 @WebMvcTest({
@@ -51,6 +52,9 @@ class AlertingControllerTest {
 
 	@MockBean
 	private IdentityFacade identityFacade;
+
+	@MockBean
+	private ApplicationAccessFacade applicationAccessFacade;
 
 	@MockBean
 	private JwtTokenProvider jwtTokenProvider;
@@ -140,6 +144,9 @@ class AlertingControllerTest {
 	@Test
 	void authenticatedUserAcknowledgesAlert() throws Exception {
 		when(identityFacade.findUserByEmail("engineer@example.com")).thenReturn(userDto());
+		when(applicationAccessFacade.findVisibleApplications(USER_ID, "ADMIN"))
+			.thenReturn(List.of(applicationDto()));
+		when(alertingFacade.findAlertById(ALERT_ID)).thenReturn(alertDto());
 		when(alertingFacade.acknowledgeAlert(ALERT_ID, USER_ID)).thenReturn(alertDto());
 
 		mockMvc.perform(put("/api/v1/alerts/{id}/acknowledge", ALERT_ID)
@@ -147,6 +154,24 @@ class AlertingControllerTest {
 				.with(csrf()))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.status").value("ACKNOWLEDGED"));
+	}
+
+	@Test
+	void authenticatedUserListsAlertsFromVisibleApplications() throws Exception {
+		when(identityFacade.findUserByEmail("engineer@example.com")).thenReturn(userDto());
+		when(applicationAccessFacade.findVisibleApplications(USER_ID, "ADMIN"))
+			.thenReturn(List.of(applicationDto()));
+		when(alertingFacade.findAlerts(List.of(APP_ID), "OPEN", "ERROR"))
+			.thenReturn(List.of(alertDto()));
+
+		mockMvc.perform(get("/api/v1/alerts")
+				.with(user("engineer@example.com").roles("ENGINEER"))
+				.param("status", "OPEN")
+				.param("severity", "ERROR"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data[0].applicationId").value(APP_ID.toString()));
+
+		verify(alertingFacade).findAlerts(List.of(APP_ID), "OPEN", "ERROR");
 	}
 
 	private static IdentityFacade.UserDto userDto() {
@@ -160,6 +185,11 @@ class AlertingControllerTest {
 			NOW,
 			NOW
 		);
+	}
+
+	private static ApplicationAccessFacade.ApplicationDto applicationDto() {
+		return new ApplicationAccessFacade.ApplicationDto(
+			APP_ID, "checkout-api", "Checkout API", null, "ACTIVE", NOW, NOW);
 	}
 
 	private static AlertingFacade.AlertRuleDto ruleDto() {

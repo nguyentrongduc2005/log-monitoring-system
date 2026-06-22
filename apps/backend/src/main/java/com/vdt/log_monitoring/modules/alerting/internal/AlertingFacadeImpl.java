@@ -11,6 +11,8 @@ import org.springframework.stereotype.Component;
 import com.vdt.log_monitoring.modules.alerting.api.AlertingFacade;
 import com.vdt.log_monitoring.modules.alerting.internal.alert.AlertEntity;
 import com.vdt.log_monitoring.modules.alerting.internal.alert.AlertService;
+import com.vdt.log_monitoring.modules.alerting.internal.evaluation.AlertEvaluationCandidate;
+import com.vdt.log_monitoring.modules.alerting.internal.evaluation.AlertEvaluationService;
 import com.vdt.log_monitoring.modules.alerting.internal.notification.ChatRoomEntity;
 import com.vdt.log_monitoring.modules.alerting.internal.notification.ChatRoomService;
 import com.vdt.log_monitoring.modules.alerting.internal.notification.telegram.TelegramChatDiscoveryService;
@@ -25,6 +27,7 @@ public class AlertingFacadeImpl implements AlertingFacade {
 
 	private final AlertRuleService alertRuleService;
 	private final AlertService alertService;
+	private final AlertEvaluationService alertEvaluationService;
 	private final ChatRoomService chatRoomService;
 	private final TelegramChatDiscoveryService telegramChatDiscoveryService;
 
@@ -83,8 +86,9 @@ public class AlertingFacadeImpl implements AlertingFacade {
 	}
 
 	@Override
-	public List<AlertDto> evaluate(AlertCandidate candidate) {
-		return alertService.evaluate(new AlertService.AlertCandidateData(
+	public List<AlertDto> evaluate(AlertingFacade.AlertCandidate candidate) {
+		return alertEvaluationService.evaluate(
+			new AlertEvaluationCandidate(
 				candidate.eventId(),
 				candidate.ingestionId(),
 				candidate.applicationId(),
@@ -94,18 +98,30 @@ public class AlertingFacadeImpl implements AlertingFacade {
 				candidate.message(),
 				candidate.fingerprint(),
 				candidate.logTimestamp())).stream()
-				.map(dispatch -> mapAlert(dispatch.alert(), dispatch.rule()))
+				.map(this::mapAlert)
 				.toList();
 	}
 
 	@Override
+	public List<AlertDto> findAlerts(List<UUID> applicationIds, String status, String severity) {
+		return alertService.listAlerts(applicationIds, status, severity).stream()
+			.map(this::mapAlert)
+			.toList();
+	}
+
+	@Override
+	public AlertDto findAlertById(UUID alertId) {
+		return mapAlert(alertService.getAlertById(alertId));
+	}
+
+	@Override
 	public AlertDto acknowledgeAlert(UUID alertId, UUID acknowledgedBy) {
-		return mapAlert(alertService.acknowledgeAlert(alertId, acknowledgedBy), null);
+		return mapAlert(alertService.acknowledgeAlert(alertId, acknowledgedBy));
 	}
 
 	@Override
 	public AlertDto resolveAlert(UUID alertId, UUID resolvedBy) {
-		return mapAlert(alertService.resolveAlert(alertId, resolvedBy), null);
+		return mapAlert(alertService.resolveAlert(alertId, resolvedBy));
 	}
 
 	@Override
@@ -160,7 +176,7 @@ public class AlertingFacadeImpl implements AlertingFacade {
 				rule.getUpdatedAt());
 	}
 
-	private AlertDto mapAlert(AlertEntity alert, AlertRuleEntity dispatchedRule) {
+	private AlertDto mapAlert(AlertEntity alert) {
 		return new AlertDto(
 				alert.getId(),
 				alert.getRuleId(),

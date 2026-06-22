@@ -14,12 +14,20 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class AlertDetectionConsumer {
 
-    private final AlertDetectionService alertDetectionService;
+	private final AlertDetectionService alertDetectionService;
 
-    @RetryableTopic(attempts = "${app.kafka.retry.alerts-critical-delivery-attempts}", autoCreateTopics = "${app.kafka.retry.auto-create-topics}", backoff = @Backoff(delayExpression = "${app.kafka.retry.alerts-critical-delivery-backoff-ms}"), dltTopicSuffix = "${app.kafka.retry.dlt-topic-suffix}")
-    @KafkaListener(topics = "${app.kafka.topics.alerts-critical}", groupId = "${app.kafka.consumer-groups.alerts-critical}")
-    public void consume(CriticalLogDetectedEvent event, Acknowledgment acknowledgment) {
-        alertDetectionService.detect(event);
-        acknowledgment.acknowledge();
-    }
+	@RetryableTopic(
+		attempts = "${app.kafka.retry.alerts-critical-delivery-attempts}",
+		autoCreateTopics = "${app.kafka.retry.auto-create-topics}",
+		backoff = @Backoff(delayExpression = "${app.kafka.retry.alerts-critical-delivery-backoff-ms}"),
+		dltTopicSuffix = "${app.kafka.retry.dlt-topic-suffix}"
+	)
+	@KafkaListener(
+		topics = "${app.kafka.topics.alerts-critical}",
+		groupId = "${app.kafka.consumer-groups.alerts-critical}"
+	)
+	public void consume(CriticalLogDetectedEvent event, Acknowledgment acknowledgment) {
+		alertDetectionService.detect(event);
+		acknowledgment.acknowledge();
+	}
 }

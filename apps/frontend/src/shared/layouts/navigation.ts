@@ -43,7 +43,7 @@ export const navigationGroups = [
         to: "/logs"
       },
       { id: "log-search", label: "Log Search", icon: "search" },
-      { id: "alerts", label: "Alerts", icon: "alerts" },
+      { id: "alerts", label: "Alerts", icon: "alerts", to: "/alerts" },
       { id: "incidents", label: "Incidents", icon: "incidents" }
     ]
   },

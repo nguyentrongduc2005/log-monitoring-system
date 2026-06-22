@@ -11,8 +11,8 @@ API_KEY="${API_KEY:-${LMS_API_KEY:-}}"
 MODE="${MODE:-batch}"
 BATCH_SIZE="${BATCH_SIZE:-100}"
 REPEAT="${REPEAT:-1}"
-SLEEP_MS="${SLEEP_MS:-0}"
-FOREVER="${FOREVER:-0}"
+SLEEP_MS="${SLEEP_MS:-1000}"
+FOREVER="${FOREVER:-1}"
 
 usage() {
   cat <<'EOF'
@@ -33,8 +33,8 @@ Environment variables:
   MODE                    batch or single (default: batch)
   BATCH_SIZE              Logs per batch, 1-500 (default: 100)
   REPEAT                  Number of times to resend the file (default: 1)
-  SLEEP_MS                Delay between requests in milliseconds (default: 0)
-  FOREVER                 Set to 1 to keep resending until Ctrl+C (default: 0)
+  SLEEP_MS                Delay between requests in milliseconds (default: 1000)
+  FOREVER                 Keep resending until Ctrl+C (default: 1; set 0 for one run)
 EOF
 }
 

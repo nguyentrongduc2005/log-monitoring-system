@@ -2,108 +2,110 @@ package com.vdt.log_monitoring.modules.alerting.internal.alert;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
-import com.vdt.log_monitoring.modules.alerting.internal.notification.NotificationDispatcher;
 import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertChannel;
+import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertDeliveryTarget;
+import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertRuleDefinition;
 import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertRuleEntity;
-import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertRuleService;
 import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertSeverity;
 
 class AlertServiceTest {
 
-	private static final UUID APPLICATION_ID =
-		UUID.fromString("00000000-0000-0000-0000-000000000101");
-	private static final UUID CREATED_BY =
-		UUID.fromString("00000000-0000-0000-0000-000000000102");
-
-	private final AlertRepository alertRepository = org.mockito.Mockito.mock();
-	private final AlertRuleService alertRuleService = org.mockito.Mockito.mock();
-	private final NotificationDispatcher notificationDispatcher = org.mockito.Mockito.mock();
-	private final AlertService alertService = new AlertService(
-		alertRepository,
-		alertRuleService,
-		notificationDispatcher
-	);
+	private final AlertRepository repository = mock();
+	private final AlertService service = new AlertService(repository);
 
 	@Test
-	void evaluateCreatesAlertAndDispatchesWhenRuleMatches() {
-		AlertRuleEntity rule = rule("Payment failures", AlertSeverity.ERROR, "payment");
-		when(alertRuleService.findActiveRules(APPLICATION_ID)).thenReturn(List.of(rule));
-		when(alertRepository.save(any(AlertEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+	void triggerCreatesOccurrenceWhenNoActiveAlertExists() {
+		AlertRuleDefinition rule = rule();
+		when(repository.findFirstByRuleIdAndFingerprintAndStatusNotOrderByTriggeredAtDesc(
+			rule.id(), "checkout-payment", AlertStatus.RESOLVED)).thenReturn(Optional.empty());
+		when(repository.save(any(AlertEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-		List<AlertService.AlertDispatch> dispatches = alertService.evaluate(candidate(
-			"ERROR",
-			"Payment failed after checkout"
-		));
+		AlertEntity alert = service.trigger(
+			rule, occurrence(), AlertSeverity.ERROR, 3, Instant.parse("2026-06-18T03:59:00Z"));
 
-		assertThat(dispatches).hasSize(1);
-		AlertEntity alert = dispatches.getFirst().alert();
-		assertThat(alert.getRuleId()).isEqualTo(rule.getId());
-		assertThat(alert.getApplicationId()).isEqualTo(APPLICATION_ID);
-		assertThat(alert.getSeverity()).isEqualTo(AlertSeverity.ERROR);
-		assertThat(alert.getMessage()).isEqualTo("Payment failed after checkout");
-		assertThat(alert.getDeliveryChannels()).containsExactlyInAnyOrder(
-			AlertChannel.TELEGRAM,
-			AlertChannel.WEBSOCKET
-		);
-
-		ArgumentCaptor<AlertEntity> alertCaptor = ArgumentCaptor.forClass(AlertEntity.class);
-		verify(alertRepository).save(alertCaptor.capture());
-		verify(notificationDispatcher).dispatch(alertCaptor.getValue(), rule);
+		assertThat(alert.getOccurrenceCount()).isEqualTo(3);
+		assertThat(alert.getFirstSeenAt()).isEqualTo(Instant.parse("2026-06-18T03:59:00Z"));
+		assertThat(alert.getDeliveryTargets()).hasSize(1);
+		verify(repository).save(alert);
 	}
 
 	@Test
-	void evaluateSkipsRuleWhenKeywordDoesNotMatch() {
-		AlertRuleEntity rule = rule("Payment failures", AlertSeverity.ERROR, "payment");
-		when(alertRuleService.findActiveRules(APPLICATION_ID)).thenReturn(List.of(rule));
+	void triggerReusesExistingUnresolvedOccurrence() {
+		AlertRuleDefinition rule = rule();
+		AlertEntity existing = existingAlert(rule);
+		when(repository.findFirstByRuleIdAndFingerprintAndStatusNotOrderByTriggeredAtDesc(
+			rule.id(), "checkout-payment", AlertStatus.RESOLVED)).thenReturn(Optional.of(existing));
 
-		List<AlertService.AlertDispatch> dispatches = alertService.evaluate(candidate(
-			"CRITICAL",
-			"Database connection failed"
-		));
+		AlertEntity result = service.trigger(
+			rule, occurrence(), AlertSeverity.ERROR, 3, Instant.parse("2026-06-18T03:59:00Z"));
 
-		assertThat(dispatches).isEmpty();
-		verify(alertRepository, never()).save(any());
-		verify(notificationDispatcher, never()).dispatch(any(), any());
+		assertThat(result).isSameAs(existing);
+		assertThat(result.getOccurrenceCount()).isEqualTo(2);
+		verify(repository, never()).save(any());
 	}
 
-	private AlertRuleEntity rule(String name, AlertSeverity severity, String keyword) {
-		return AlertRuleEntity.create(
-			APPLICATION_ID,
-			name,
-			null,
-			severity,
-			keyword,
-			1,
-			60,
-			60,
-			AlertRuleEntity.channelOnlyTargets(Set.of(AlertChannel.TELEGRAM, AlertChannel.WEBSOCKET)),
-			CREATED_BY
-		);
+	@Test
+	void recordOccurrenceUpdatesActiveAlertDuringCooldown() {
+		AlertRuleDefinition rule = rule();
+		AlertEntity existing = existingAlert(rule);
+		when(repository.findFirstByRuleIdAndFingerprintAndStatusNotOrderByTriggeredAtDesc(
+			rule.id(), "checkout-payment", AlertStatus.RESOLVED)).thenReturn(Optional.of(existing));
+
+		service.recordOccurrence(
+			rule.id(), "checkout-payment", Instant.parse("2026-06-18T04:00:00Z"));
+
+		assertThat(existing.getOccurrenceCount()).isEqualTo(2);
+		assertThat(existing.getLastSeenAt()).isEqualTo(Instant.parse("2026-06-18T04:00:00Z"));
 	}
 
-	private AlertService.AlertCandidateData candidate(String severity, String message) {
-		return new AlertService.AlertCandidateData(
-			UUID.fromString("00000000-0000-0000-0000-000000000201"),
-			UUID.fromString("00000000-0000-0000-0000-000000000202"),
-			APPLICATION_ID,
-			"checkout-api",
-			"Checkout API",
-			severity,
-			message,
-			"checkout-payment",
-			Instant.parse("2026-06-18T04:00:00Z")
-		);
+	@Test
+	void listAlertsFiltersVisibleApplicationsByStatusAndSeverity() {
+		AlertRuleDefinition rule = rule();
+		AlertEntity openError = existingAlert(rule);
+		AlertEntity resolvedError = existingAlert(rule);
+		resolvedError.resolve(UUID.randomUUID());
+		when(repository.findByApplicationIdInOrderByTriggeredAtDesc(List.of(rule.applicationId())))
+			.thenReturn(List.of(openError, resolvedError));
+
+		List<AlertEntity> result = service.listAlerts(
+			List.of(rule.applicationId()), "OPEN", "ERROR");
+
+		assertThat(result).containsExactly(openError);
+	}
+
+	private AlertRuleDefinition rule() {
+		return AlertRuleDefinition.from(AlertRuleEntity.create(
+			UUID.fromString("00000000-0000-0000-0000-000000000101"),
+			"Payment failures", null, AlertSeverity.ERROR, "payment", 3, 60, 120,
+			AlertRuleEntity.channelOnlyTargets(Set.of(AlertChannel.WEBSOCKET)),
+			UUID.fromString("00000000-0000-0000-0000-000000000102")));
+	}
+
+	private AlertOccurrenceData occurrence() {
+		return new AlertOccurrenceData(
+			UUID.randomUUID(), UUID.randomUUID(), rule().applicationId(),
+			"checkout-api", "Checkout API", "Payment failed", "checkout-payment",
+			Instant.parse("2026-06-18T04:00:00Z"));
+	}
+
+	private AlertEntity existingAlert(AlertRuleDefinition rule) {
+		return AlertEntity.create(
+			rule.id(), rule.applicationId(), UUID.randomUUID(), UUID.randomUUID(),
+			"checkout-api", "Checkout API", AlertSeverity.ERROR, "Payment failed",
+			"checkout-payment", Instant.parse("2026-06-18T03:59:00Z"),
+			Set.of(AlertDeliveryTarget.channelOnly(AlertChannel.WEBSOCKET)));
 	}
 }

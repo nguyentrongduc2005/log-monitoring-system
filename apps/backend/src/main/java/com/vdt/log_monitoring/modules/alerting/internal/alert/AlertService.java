@@ -2,6 +2,8 @@ package com.vdt.log_monitoring.modules.alerting.internal.alert;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 
 import lombok.RequiredArgsConstructor;
@@ -9,10 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.vdt.log_monitoring.modules.alerting.api.AlertingException;
-import com.vdt.log_monitoring.modules.alerting.internal.notification.NotificationDispatcher;
-import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertRuleEntity;
-import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertRuleService;
-import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertRuleStatus;
+import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertRuleDefinition;
 import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertSeverity;
 
 @Service
@@ -20,16 +19,40 @@ import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertSeverity;
 public class AlertService {
 
 	private final AlertRepository alertRepository;
-	private final AlertRuleService alertRuleService;
-	private final NotificationDispatcher notificationDispatcher;
 
 	@Transactional
-	public List<AlertDispatch> evaluate(AlertCandidateData candidate) {
-		AlertSeverity candidateSeverity = parseSeverity(candidate.severity());
-		return alertRuleService.findActiveRules(candidate.applicationId()).stream()
-				.filter(rule -> matches(rule, candidateSeverity, candidate.message()))
-				.map(rule -> createAndDispatchAlert(rule, candidate, candidateSeverity))
-				.toList();
+	public AlertEntity trigger(
+		AlertRuleDefinition rule,
+		AlertOccurrenceData occurrence,
+		AlertSeverity severity,
+		long initialCount,
+		Instant firstSeenAt
+	) {
+		return findActiveOccurrence(rule.id(), occurrence.fingerprint())
+			.map(alert -> {
+				alert.retrigger(occurrence.logTimestamp());
+				return alert;
+			})
+			.orElseGet(() -> alertRepository.save(AlertEntity.create(
+				rule.id(),
+				occurrence.applicationId(),
+				occurrence.eventId(),
+				occurrence.ingestionId(),
+				occurrence.applicationName(),
+				occurrence.applicationDisplayName(),
+				severity,
+				occurrence.message(),
+				occurrence.fingerprint(),
+				occurrence.logTimestamp(),
+				rule.toDeliveryTargets(),
+				initialCount,
+				firstSeenAt)));
+	}
+
+	@Transactional
+	public void recordOccurrence(UUID ruleId, String fingerprint, Instant occurredAt) {
+		findActiveOccurrence(ruleId, fingerprint)
+			.ifPresent(alert -> alert.recordOccurrence(occurredAt));
 	}
 
 	@Transactional
@@ -37,6 +60,19 @@ public class AlertService {
 		AlertEntity alert = getAlertById(alertId);
 		alert.acknowledge(acknowledgedBy);
 		return alert;
+	}
+
+	@Transactional(readOnly = true)
+	public List<AlertEntity> listAlerts(List<UUID> applicationIds, String status, String severity) {
+		if (applicationIds == null || applicationIds.isEmpty()) {
+			return List.of();
+		}
+		AlertStatus parsedStatus = parseOptionalStatus(status);
+		AlertSeverity parsedSeverity = parseOptionalSeverity(severity);
+		return alertRepository.findByApplicationIdInOrderByTriggeredAtDesc(applicationIds).stream()
+			.filter(alert -> parsedStatus == null || alert.getStatus() == parsedStatus)
+			.filter(alert -> parsedSeverity == null || alert.getSeverity() == parsedSeverity)
+			.toList();
 	}
 
 	@Transactional
@@ -49,70 +85,35 @@ public class AlertService {
 	@Transactional(readOnly = true)
 	public AlertEntity getAlertById(UUID alertId) {
 		return alertRepository.findById(alertId)
-				.orElseThrow(() -> new AlertingException(
-						AlertingException.ErrorCode.ALERT_NOT_FOUND,
-						"Alert not found"));
+			.orElseThrow(() -> new AlertingException(
+				AlertingException.ErrorCode.ALERT_NOT_FOUND,
+				"Alert not found"));
 	}
 
-	private AlertDispatch createAndDispatchAlert(
-			AlertRuleEntity rule,
-			AlertCandidateData candidate,
-			AlertSeverity severity) {
-		AlertEntity alert = alertRepository.save(AlertEntity.create(
-				rule.getId(),
-				candidate.applicationId(),
-				candidate.eventId(),
-				candidate.ingestionId(),
-				candidate.applicationName(),
-				candidate.applicationDisplayName(),
-				severity,
-				candidate.message(),
-				candidate.fingerprint(),
-				candidate.logTimestamp(),
-				rule.getDeliveryTargets()));
-		notificationDispatcher.dispatch(alert, rule);
-		return new AlertDispatch(alert, rule);
+	private Optional<AlertEntity> findActiveOccurrence(UUID ruleId, String fingerprint) {
+		return alertRepository.findFirstByRuleIdAndFingerprintAndStatusNotOrderByTriggeredAtDesc(
+			ruleId, fingerprint, AlertStatus.RESOLVED);
 	}
 
-	private boolean matches(AlertRuleEntity rule, AlertSeverity severity, String message) {
-		return rule.getStatus() == AlertRuleStatus.ACTIVE
-				&& severity.ordinal() >= rule.getMinSeverity().ordinal()
-				&& matchesKeyword(rule, message);
-	}
-
-	private boolean matchesKeyword(AlertRuleEntity rule, String message) {
-		String keywordPattern = rule.getKeywordPattern();
-		if (keywordPattern == null || keywordPattern.isBlank()) {
-			return true;
+	private AlertStatus parseOptionalStatus(String status) {
+		if (status == null || status.isBlank()) {
+			return null;
 		}
-		return message != null
-				&& message.toLowerCase().contains(keywordPattern.toLowerCase());
+		try {
+			return AlertStatus.valueOf(status.trim().toUpperCase(Locale.ROOT));
+		} catch (IllegalArgumentException exception) {
+			throw new AlertingException(AlertingException.ErrorCode.INVALID_ALERT_STATUS, "Invalid alert status");
+		}
 	}
 
-	private AlertSeverity parseSeverity(String severity) {
+	private AlertSeverity parseOptionalSeverity(String severity) {
+		if (severity == null || severity.isBlank()) {
+			return null;
+		}
 		try {
 			return AlertSeverity.from(severity);
 		} catch (IllegalArgumentException exception) {
-			throw new AlertingException(
-					AlertingException.ErrorCode.INVALID_ALERT_SEVERITY,
-					"Invalid alert severity");
+			throw new AlertingException(AlertingException.ErrorCode.INVALID_ALERT_SEVERITY, "Invalid alert severity");
 		}
-	}
-
-	public record AlertCandidateData(
-			UUID eventId,
-			UUID ingestionId,
-			UUID applicationId,
-			String applicationName,
-			String applicationDisplayName,
-			String severity,
-			String message,
-			String fingerprint,
-			Instant logTimestamp) {
-	}
-
-	public record AlertDispatch(
-			AlertEntity alert,
-			AlertRuleEntity rule) {
 	}
 }

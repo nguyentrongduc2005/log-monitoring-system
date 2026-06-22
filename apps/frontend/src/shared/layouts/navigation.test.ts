@@ -38,6 +38,7 @@ describe("navigation", () => {
     expect(implemented).toEqual([
       ["Overview", "/"],
       ["Live Logs", "/logs"],
+      ["Alerts", "/alerts"],
       ["Applications", "/admin/applications"],
       ["Users & Access", "/admin/users"],
       ["Alert Rules", "/admin/alert-rules"],

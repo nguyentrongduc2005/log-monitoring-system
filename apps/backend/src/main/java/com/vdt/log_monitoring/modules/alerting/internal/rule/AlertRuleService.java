@@ -2,10 +2,7 @@ package com.vdt.log_monitoring.modules.alerting.internal.rule;
 
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -13,9 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.vdt.log_monitoring.modules.alerting.api.AlertingException;
 import com.vdt.log_monitoring.modules.alerting.api.AlertingFacade.AlertDeliveryTargetCommand;
-import com.vdt.log_monitoring.modules.alerting.internal.notification.ChatRoomEntity;
-import com.vdt.log_monitoring.modules.alerting.internal.notification.ChatRoomRepository;
-import com.vdt.log_monitoring.modules.alerting.internal.notification.ChatRoomStatus;
+import com.vdt.log_monitoring.modules.alerting.internal.cache.AlertRuleCache;
 import com.vdt.log_monitoring.modules.identity.api.ApplicationAccessFacade;
 
 @Service
@@ -23,8 +18,9 @@ import com.vdt.log_monitoring.modules.identity.api.ApplicationAccessFacade;
 public class AlertRuleService {
 
 	private final AlertRuleRepository alertRuleRepository;
-	private final ChatRoomRepository chatRoomRepository;
 	private final ApplicationAccessFacade applicationAccessFacade;
+	private final AlertRuleCache alertRuleCache;
+	private final AlertDeliveryTargetResolver deliveryTargetResolver;
 
 	@Transactional
 	public AlertRuleEntity createRule(
@@ -49,7 +45,7 @@ public class AlertRuleService {
 			);
 		}
 
-		return alertRuleRepository.save(AlertRuleEntity.create(
+		AlertRuleEntity rule = alertRuleRepository.save(AlertRuleEntity.create(
 			applicationId,
 			normalizedName,
 			description,
@@ -58,9 +54,11 @@ public class AlertRuleService {
 			thresholdCount,
 			thresholdWindowSeconds,
 			cooldownSeconds,
-			parseDeliveryTargets(channels, deliveryTargets),
+			deliveryTargetResolver.resolve(channels, deliveryTargets),
 			createdBy
 		));
+		alertRuleCache.evictAfterCommit(applicationId);
+		return rule;
 	}
 
 	@Transactional
@@ -97,8 +95,9 @@ public class AlertRuleService {
 			thresholdCount,
 			thresholdWindowSeconds,
 			cooldownSeconds,
-			parseDeliveryTargets(channels, deliveryTargets)
+			deliveryTargetResolver.resolve(channels, deliveryTargets)
 		);
+		alertRuleCache.evictAfterCommit(rule.getApplicationId());
 		return rule;
 	}
 
@@ -106,6 +105,7 @@ public class AlertRuleService {
 	public AlertRuleEntity changeStatus(UUID ruleId, String status) {
 		AlertRuleEntity rule = getRuleById(ruleId);
 		rule.changeStatus(parseStatus(status));
+		alertRuleCache.evictAfterCommit(rule.getApplicationId());
 		return rule;
 	}
 
@@ -113,6 +113,7 @@ public class AlertRuleService {
 	public void deleteRule(UUID ruleId) {
 		AlertRuleEntity rule = getRuleById(ruleId);
 		alertRuleRepository.delete(rule);
+		alertRuleCache.evictAfterCommit(rule.getApplicationId());
 	}
 
 	@Transactional(readOnly = true)
@@ -133,11 +134,12 @@ public class AlertRuleService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<AlertRuleEntity> findActiveRules(UUID applicationId) {
-		return alertRuleRepository.findByApplicationIdAndStatus(
-			applicationId,
-			AlertRuleStatus.ACTIVE
-		);
+	public List<AlertRuleDefinition> findActiveRules(UUID applicationId) {
+		return alertRuleCache.getActiveRules(applicationId, () ->
+			alertRuleRepository.findByApplicationIdAndStatus(applicationId, AlertRuleStatus.ACTIVE)
+				.stream()
+				.map(AlertRuleDefinition::from)
+				.toList());
 	}
 
 	private AlertRuleStatus parseStatus(String status) {
@@ -160,81 +162,6 @@ public class AlertRuleService {
 				"Invalid alert severity"
 			);
 		}
-	}
-
-	private Set<AlertChannel> parseChannels(List<String> channels) {
-		if (channels == null || channels.isEmpty()) {
-			throw new AlertingException(
-				AlertingException.ErrorCode.INVALID_ALERT_CHANNEL,
-				"At least one alert channel is required"
-			);
-		}
-
-		try {
-			return channels.stream()
-				.map(this::parseChannel)
-				.collect(Collectors.toUnmodifiableSet());
-		} catch (IllegalArgumentException exception) {
-			throw new AlertingException(
-				AlertingException.ErrorCode.INVALID_ALERT_CHANNEL,
-				"Invalid alert channel"
-			);
-		}
-	}
-
-	private Set<AlertDeliveryTarget> parseDeliveryTargets(
-		List<String> channels,
-		List<AlertDeliveryTargetCommand> deliveryTargets
-	) {
-		if (deliveryTargets == null || deliveryTargets.isEmpty()) {
-			return AlertRuleEntity.channelOnlyTargets(parseChannels(channels));
-		}
-
-		try {
-			Set<AlertDeliveryTarget> parsedTargets = deliveryTargets.stream()
-				.map(this::parseDeliveryTarget)
-				.collect(Collectors.toUnmodifiableSet());
-			if (parsedTargets.size() != deliveryTargets.size()) {
-				throw new IllegalArgumentException("duplicate delivery target");
-			}
-			long channelCount = parsedTargets.stream()
-				.map(AlertDeliveryTarget::getChannel)
-				.distinct()
-				.count();
-			if (channelCount != parsedTargets.size()) {
-				throw new IllegalArgumentException("duplicate delivery channel");
-			}
-			return parsedTargets;
-		} catch (IllegalArgumentException exception) {
-			throw new AlertingException(
-				AlertingException.ErrorCode.INVALID_CHAT_ROOM,
-				"Invalid alert delivery target"
-			);
-		}
-	}
-
-	private AlertDeliveryTarget parseDeliveryTarget(AlertDeliveryTargetCommand target) {
-		if (target == null) {
-			throw new IllegalArgumentException("delivery target must not be null");
-		}
-		AlertChannel channel = parseChannel(target.channel());
-		UUID chatRoomId = Objects.requireNonNull(target.chatRoomId(), "chatRoomId must not be null");
-		ChatRoomEntity chatRoom = chatRoomRepository.findById(chatRoomId)
-			.orElseThrow(() -> new AlertingException(
-				AlertingException.ErrorCode.CHAT_ROOM_NOT_FOUND,
-				"Chat room not found"
-			));
-		if (chatRoom.getStatus() != ChatRoomStatus.ACTIVE || chatRoom.getChannel() != channel) {
-			throw new IllegalArgumentException("chat room does not match channel");
-		}
-		return AlertDeliveryTarget.of(channel, chatRoomId);
-	}
-
-	private AlertChannel parseChannel(String channel) {
-		if (channel == null || channel.isBlank()) {
-			throw new IllegalArgumentException("channel must not be blank");
-		}
-		return AlertChannel.valueOf(channel.trim().toUpperCase(Locale.ROOT));
 	}
 
 	private static String requireText(String value, String fieldName) {

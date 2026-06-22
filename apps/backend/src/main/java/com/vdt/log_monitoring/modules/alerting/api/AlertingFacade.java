@@ -20,6 +20,10 @@ public interface AlertingFacade {
 
 	List<AlertDto> evaluate(AlertCandidate candidate);
 
+	List<AlertDto> findAlerts(List<UUID> applicationIds, String status, String severity);
+
+	AlertDto findAlertById(UUID alertId);
+
 	AlertDto acknowledgeAlert(UUID alertId, UUID acknowledgedBy);
 
 	AlertDto resolveAlert(UUID alertId, UUID resolvedBy);
@@ -149,98 +153,3 @@ public interface AlertingFacade {
 		Instant updatedAt
 	) {}
 }
-
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-    
-
-    
-            
-            
-            
-            
-            
-            
-            
-            
-    
-
-    
-            
-            
-            
-            
-            
-            
-            
-            
-            
-    
-
-    
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-    
-
-    
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-    

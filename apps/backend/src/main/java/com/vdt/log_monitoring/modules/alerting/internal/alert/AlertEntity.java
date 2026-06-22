@@ -2,8 +2,6 @@ package com.vdt.log_monitoring.modules.alerting.internal.alert;
 
 import java.time.Instant;
 import java.util.Collections;
-import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -79,6 +77,15 @@ public class AlertEntity {
 	@Column(name = "triggered_at", nullable = false)
 	private Instant triggeredAt;
 
+	@Column(name = "occurrence_count", nullable = false)
+	private long occurrenceCount;
+
+	@Column(name = "first_seen_at", nullable = false)
+	private Instant firstSeenAt;
+
+	@Column(name = "last_seen_at", nullable = false)
+	private Instant lastSeenAt;
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 32)
 	private AlertStatus status;
@@ -129,7 +136,30 @@ public class AlertEntity {
 			String fingerprint,
 			Instant logTimestamp,
 			Set<AlertDeliveryTarget> deliveryTargets) {
+		return create(
+			ruleId, applicationId, eventId, ingestionId, applicationName,
+			applicationDisplayName, severity, message, fingerprint, logTimestamp,
+			deliveryTargets, 1, logTimestamp);
+	}
+
+	public static AlertEntity create(
+			UUID ruleId,
+			UUID applicationId,
+			UUID eventId,
+			UUID ingestionId,
+			String applicationName,
+			String applicationDisplayName,
+			AlertSeverity severity,
+			String message,
+			String fingerprint,
+			Instant logTimestamp,
+			Set<AlertDeliveryTarget> deliveryTargets,
+			long occurrenceCount,
+			Instant firstSeenAt) {
 		Instant now = Instant.now();
+		if (occurrenceCount < 1) {
+			throw new IllegalArgumentException("occurrenceCount must be positive");
+		}
 		return new AlertEntity(
 				UUID.randomUUID(),
 				Objects.requireNonNull(ruleId, "ruleId must not be null"),
@@ -143,6 +173,9 @@ public class AlertEntity {
 				requireText(fingerprint, "fingerprint"),
 				Objects.requireNonNull(logTimestamp, "logTimestamp must not be null"),
 				now,
+				occurrenceCount,
+				Objects.requireNonNull(firstSeenAt, "firstSeenAt must not be null"),
+				logTimestamp,
 				AlertStatus.OPEN,
 				copyDeliveryTargets(deliveryTargets),
 				null,
@@ -151,6 +184,27 @@ public class AlertEntity {
 				null,
 				now,
 				now);
+	}
+
+	public void recordOccurrence(Instant occurredAt) {
+		Instant timestamp = Objects.requireNonNull(occurredAt, "occurredAt must not be null");
+		occurrenceCount++;
+		if (timestamp.isBefore(firstSeenAt)) {
+			firstSeenAt = timestamp;
+		}
+		if (timestamp.isAfter(lastSeenAt)) {
+			lastSeenAt = timestamp;
+		}
+	}
+
+	public void retrigger(Instant occurredAt) {
+		recordOccurrence(occurredAt);
+		status = AlertStatus.OPEN;
+		acknowledgedBy = null;
+		acknowledgedAt = null;
+		resolvedBy = null;
+		resolvedAt = null;
+		triggeredAt = Instant.now();
 	}
 
 	public void acknowledge(UUID acknowledgedBy) {
@@ -176,20 +230,7 @@ public class AlertEntity {
 	}
 
 	private static Set<AlertDeliveryTarget> copyDeliveryTargets(Set<AlertDeliveryTarget> deliveryTargets) {
-		if (deliveryTargets == null || deliveryTargets.isEmpty()) {
-			throw new IllegalArgumentException("deliveryTargets must not be empty");
-		}
-		Set<AlertDeliveryTarget> copy = new HashSet<>(deliveryTargets);
-		if (copy.contains(null)) {
-			throw new IllegalArgumentException("deliveryTargets must not contain null");
-		}
-		EnumSet<AlertChannel> channels = copy.stream()
-				.map(AlertDeliveryTarget::getChannel)
-				.collect(Collectors.toCollection(() -> EnumSet.noneOf(AlertChannel.class)));
-		if (channels.size() != copy.size()) {
-			throw new IllegalArgumentException("deliveryTargets must not contain duplicate channels");
-		}
-		return copy;
+		return AlertDeliveryTarget.copyOf(deliveryTargets);
 	}
 
 	private static String requireText(String value, String fieldName) {

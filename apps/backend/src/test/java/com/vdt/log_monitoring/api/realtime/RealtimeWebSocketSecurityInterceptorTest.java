@@ -110,8 +110,35 @@ class RealtimeWebSocketSecurityInterceptorTest {
 
 		assertThatThrownBy(() -> interceptor.preSend(message, null))
 			.isInstanceOf(AccessDeniedException.class)
-			.hasMessage("User is not allowed to subscribe to this live log stream");
+			.hasMessage("User is not allowed to subscribe to this application stream");
 		verify(applicationAccessFacade).canViewApplication(USER_ID, OTHER_APPLICATION_ID);
+	}
+
+	@Test
+	void subscribeAllowsAuthorizedAlertApplication() {
+		when(applicationAccessFacade.canViewApplication(USER_ID, APPLICATION_ID)).thenReturn(true);
+		Message<byte[]> message = message(
+			StompCommand.SUBSCRIBE,
+			"/topic/applications/" + APPLICATION_ID + "/alerts",
+			null,
+			authenticatedUser());
+
+		assertThatCode(() -> interceptor.preSend(message, null)).doesNotThrowAnyException();
+		verify(applicationAccessFacade).canViewApplication(USER_ID, APPLICATION_ID);
+	}
+
+	@Test
+	void subscribeRejectsUnauthorizedAlertApplication() {
+		when(applicationAccessFacade.canViewApplication(USER_ID, OTHER_APPLICATION_ID)).thenReturn(false);
+		Message<byte[]> message = message(
+			StompCommand.SUBSCRIBE,
+			"/topic/applications/" + OTHER_APPLICATION_ID + "/alerts",
+			null,
+			authenticatedUser());
+
+		assertThatThrownBy(() -> interceptor.preSend(message, null))
+			.isInstanceOf(AccessDeniedException.class)
+			.hasMessage("User is not allowed to subscribe to this application stream");
 	}
 
 	@Test

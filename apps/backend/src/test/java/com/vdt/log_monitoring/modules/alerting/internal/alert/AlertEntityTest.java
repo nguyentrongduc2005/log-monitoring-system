@@ -43,6 +43,9 @@ class AlertEntityTest {
 		assertThat(alert.getFingerprint()).isEqualTo("checkout-payment-failure");
 		assertThat(alert.getLogTimestamp()).isEqualTo(logTimestamp);
 		assertThat(alert.getTriggeredAt()).isNotNull();
+		assertThat(alert.getOccurrenceCount()).isEqualTo(1);
+		assertThat(alert.getFirstSeenAt()).isEqualTo(logTimestamp);
+		assertThat(alert.getLastSeenAt()).isEqualTo(logTimestamp);
 		assertThat(alert.getStatus()).isEqualTo(AlertStatus.OPEN);
 		assertThat(alert.getDeliveryChannels()).containsExactlyInAnyOrder(
 			AlertChannel.TELEGRAM,
@@ -75,5 +78,24 @@ class AlertEntityTest {
 		assertThat(alert.getAcknowledgedAt()).isNotNull();
 		assertThat(alert.getResolvedBy()).isEqualTo(userId);
 		assertThat(alert.getResolvedAt()).isNotNull();
+	}
+
+	@Test
+	void retriggerReopensAcknowledgedOccurrenceAndIncrementsCount() {
+		Instant firstSeenAt = Instant.parse("2026-06-18T03:00:00Z");
+		AlertEntity alert = AlertEntity.create(
+			UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+			"checkout-api", null, AlertSeverity.ERROR, "Failure", "failure",
+			firstSeenAt, Set.of(AlertDeliveryTarget.channelOnly(AlertChannel.WEBSOCKET)));
+		alert.acknowledge(UUID.randomUUID());
+		Instant nextOccurrence = Instant.parse("2026-06-18T03:01:00Z");
+
+		alert.retrigger(nextOccurrence);
+
+		assertThat(alert.getStatus()).isEqualTo(AlertStatus.OPEN);
+		assertThat(alert.getOccurrenceCount()).isEqualTo(2);
+		assertThat(alert.getLastSeenAt()).isEqualTo(nextOccurrence);
+		assertThat(alert.getAcknowledgedBy()).isNull();
+		assertThat(alert.getAcknowledgedAt()).isNull();
 	}
 }

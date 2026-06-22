@@ -11,23 +11,24 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-import com.vdt.log_monitoring.modules.alerting.api.AlertingFacade;
+import com.vdt.log_monitoring.modules.alerting.internal.evaluation.AlertEvaluationCandidate;
+import com.vdt.log_monitoring.modules.alerting.internal.evaluation.AlertEvaluationService;
 import com.vdt.log_monitoring.modules.processing.api.events.CriticalLogDetectedEvent;
 
 class AlertDetectionServiceTest {
 
 	@Test
 	void detectMapsCriticalLogEventToAlertCandidate() {
-		AlertingFacade alertingFacade = mock();
-		AlertDetectionService service = new AlertDetectionService(alertingFacade);
+		AlertEvaluationService evaluationService = mock();
+		AlertDetectionService service = new AlertDetectionService(evaluationService);
 		CriticalLogDetectedEvent event = event("trace-1");
 
 		service.detect(event);
 
-		ArgumentCaptor<AlertingFacade.AlertCandidate> captor =
-			ArgumentCaptor.forClass(AlertingFacade.AlertCandidate.class);
-		verify(alertingFacade).evaluate(captor.capture());
-		AlertingFacade.AlertCandidate candidate = captor.getValue();
+		ArgumentCaptor<AlertEvaluationCandidate> captor =
+			ArgumentCaptor.forClass(AlertEvaluationCandidate.class);
+		verify(evaluationService).evaluate(captor.capture());
+		AlertEvaluationCandidate candidate = captor.getValue();
 		assertThat(candidate.eventId()).isEqualTo(event.eventId());
 		assertThat(candidate.applicationId()).isEqualTo(event.applicationId());
 		assertThat(candidate.severity()).isEqualTo(event.level());
@@ -37,13 +38,13 @@ class AlertDetectionServiceTest {
 
 	@Test
 	void detectAcceptsLegacyEventWithoutTraceId() {
-		AlertingFacade alertingFacade = mock();
-		AlertDetectionService service = new AlertDetectionService(alertingFacade);
+		AlertEvaluationService evaluationService = mock();
+		AlertDetectionService service = new AlertDetectionService(evaluationService);
 		CriticalLogDetectedEvent event = event(null);
 
 		service.detect(event);
 
-		verify(alertingFacade).evaluate(any());
+		verify(evaluationService).evaluate(any());
 	}
 
 	private CriticalLogDetectedEvent event(String traceId) {
