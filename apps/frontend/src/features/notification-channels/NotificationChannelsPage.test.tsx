@@ -45,13 +45,14 @@ describe("NotificationChannelsPage", () => {
     vi.clearAllMocks();
     vi.mocked(getTelegramChatRooms).mockResolvedValue([room]);
     vi.mocked(discoverTelegramChats).mockResolvedValue([
-      { chatId: "-100999", name: "Platform alerts", type: "SUPERGROUP" }
+      { chatId: "-5305813424", name: "payment service", type: "GROUP" },
+      { chatId: "-5383753962", name: "system admin", type: "GROUP" }
     ]);
     vi.mocked(createTelegramChatRoom).mockResolvedValue({
       ...room,
       id: "00000000-0000-0000-0000-000000000202",
-      name: "Platform alerts",
-      chatId: "-100999"
+      name: "payment service",
+      chatId: "-5305813424"
     });
     vi.mocked(changeChatRoomStatus).mockResolvedValue({
       ...room,
@@ -66,17 +67,16 @@ describe("NotificationChannelsPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Discover groups" }));
     await waitFor(() => expect(discoverTelegramChats).toHaveBeenCalled());
-    await user.selectOptions(
-      screen.getByLabelText("Discovered Telegram group"),
-      "-100999"
-    );
+    expect(await screen.findByText("Found 2 Telegram groups")).toBeInTheDocument();
+    expect(screen.getByText("system admin")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /payment service/ }));
     const form = screen.getByRole("button", { name: "Register room" }).closest("form")!;
     await user.click(within(form).getByRole("button", { name: "Register room" }));
 
     await waitFor(() =>
       expect(createTelegramChatRoom).toHaveBeenCalledWith({
-        name: "Platform alerts",
-        chatId: "-100999",
+        name: "payment service",
+        chatId: "-5305813424",
         description: undefined
       })
     );

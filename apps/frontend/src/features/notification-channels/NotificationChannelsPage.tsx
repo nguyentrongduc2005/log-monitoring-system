@@ -64,6 +64,7 @@ export function Component() {
   async function discoverChats() {
     setDiscovering(true);
     setDiscoveryError(null);
+    setDiscoveredChats([]);
     try {
       setDiscoveredChats(await discoverTelegramChats());
     } catch (discoverError) {
@@ -209,6 +210,48 @@ export function Component() {
             />
           </label>
         </div>
+        {discoveredChats.length > 0 ? (
+          <div className="mx-4 mb-4 rounded-lg border border-primary/25 bg-primary/5 p-3">
+            <p className="text-sm font-medium text-text">
+              Found {discoveredChats.length} Telegram {discoveredChats.length === 1 ? "group" : "groups"}
+            </p>
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              {discoveredChats.map(chat => {
+                const selected = chat.chatId === chatId;
+                return (
+                  <button
+                    aria-pressed={selected}
+                    className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition ${
+                      selected
+                        ? "border-primary bg-primary/10"
+                        : "border-border bg-background hover:border-primary/60"
+                    }`}
+                    key={chat.chatId}
+                    onClick={() => selectDiscoveredChat(chat.chatId)}
+                    type="button"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium text-text">
+                        {chat.name}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-muted">
+                        {chat.type} · {chat.chatId}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-xs font-semibold text-primary">
+                      {selected ? "Selected" : "Use group"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+        {!discovering && discoveredChats.length === 0 && !discoveryError ? (
+          <p className="mx-4 mb-4 text-xs text-muted">
+            Click Discover groups to load Telegram groups visible to the configured bot.
+          </p>
+        ) : null}
         {discoveryError ? (
           <p className="mx-4 mb-4 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
             {discoveryError}
