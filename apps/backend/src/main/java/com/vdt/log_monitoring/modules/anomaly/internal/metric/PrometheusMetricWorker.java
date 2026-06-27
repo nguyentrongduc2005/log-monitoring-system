@@ -32,6 +32,21 @@ public class PrometheusMetricWorker {
         if (diskUsage != null) {
             log.info("Disk Usage: {}", diskUsage);
         }
+
+        String diskWriteRate = prometheusMetricService.getDiskWriteRate();
+        if (diskWriteRate != null) {
+            log.info("Disk Write Rate (B/s): {}", diskWriteRate);
+        }
+
+        String networkReceiveRate = prometheusMetricService.getNetworkReceiveRate();
+        if (networkReceiveRate != null) {
+            log.info("Network Receive Rate (B/s): {}", networkReceiveRate);
+        }
+
+        String networkTransmitRate = prometheusMetricService.getNetworkTransmitRate();
+        if (networkTransmitRate != null) {
+            log.info("Network Transmit Rate (B/s): {}", networkTransmitRate);
+        }
         
         // TODO: In Phase 2, parse responses and update Redis state for anomaly scoring.
     }

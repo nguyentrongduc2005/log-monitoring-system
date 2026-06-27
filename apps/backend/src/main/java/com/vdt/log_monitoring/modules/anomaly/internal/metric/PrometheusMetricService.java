@@ -47,6 +47,33 @@ public class PrometheusMetricService {
         return executeQuery(query, "Disk Usage");
     }
 
+    /**
+     * Query Node Exporter Disk Write Rate (Bytes/sec).
+     * Useful for detecting runaway logs, database dumps, or ransomware.
+     */
+    public String getDiskWriteRate() {
+        String query = "sum by (instance) (rate(node_disk_written_bytes_total[1m]))";
+        return executeQuery(query, "Disk Write Rate");
+    }
+
+    /**
+     * Query Node Exporter Network Receive Rate (Bytes/sec).
+     * Useful for detecting DDoS attacks or massive data ingestion spikes.
+     */
+    public String getNetworkReceiveRate() {
+        String query = "sum by (instance) (rate(node_network_receive_bytes_total[1m]))";
+        return executeQuery(query, "Network Receive Rate");
+    }
+
+    /**
+     * Query Node Exporter Network Transmit Rate (Bytes/sec).
+     * Useful for detecting data exfiltration or massive downloads.
+     */
+    public String getNetworkTransmitRate() {
+        String query = "sum by (instance) (rate(node_network_transmit_bytes_total[1m]))";
+        return executeQuery(query, "Network Transmit Rate");
+    }
+
     private String executeQuery(String query, String metricName) {
         try {
             String queryUrl = prometheusUrl + "/api/v1/query?query=" + query;
