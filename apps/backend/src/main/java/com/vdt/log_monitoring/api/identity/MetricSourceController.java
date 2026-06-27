@@ -14,8 +14,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.vdt.log_monitoring.api.identity.dto.MetricSourceDto.MetricSourceRequest;
 import com.vdt.log_monitoring.api.identity.dto.MetricSourceDto.MetricSourceResponse;
-import com.vdt.log_monitoring.modules.identity.internal.metricsource.MetricSourceEntity;
-import com.vdt.log_monitoring.modules.identity.internal.metricsource.MetricSourceService;
+import com.vdt.log_monitoring.modules.identity.api.MetricSourceFacade;
+import com.vdt.log_monitoring.modules.identity.api.MetricSourceFacade.MetricSourceDto;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,11 +27,11 @@ import com.vdt.log_monitoring.shared.dto.ApiResponse;
 @RequiredArgsConstructor
 public class MetricSourceController {
 
-	private final MetricSourceService service;
+	private final MetricSourceFacade facade;
 
 	@GetMapping("/applications/{applicationId}/metric-sources")
 	public ResponseEntity<ApiResponse<MetricSourceResponse>> getMetricSource(@PathVariable UUID applicationId) {
-		return service.findByApplicationId(applicationId)
+		return facade.findByApplicationId(applicationId)
 			.map(this::mapToResponse)
 			.map(ApiResponse::success)
 			.map(ResponseEntity::ok)
@@ -43,7 +43,7 @@ public class MetricSourceController {
 		@PathVariable UUID applicationId,
 		@RequestBody @Valid MetricSourceRequest request
 	) {
-		MetricSourceEntity saved = service.save(
+		MetricSourceDto saved = facade.save(
 			applicationId,
 			request.targetHost(),
 			request.targetPort(),
@@ -59,7 +59,7 @@ public class MetricSourceController {
 		@PathVariable UUID applicationId,
 		@RequestBody @Valid MetricSourceRequest request
 	) {
-		MetricSourceEntity saved = service.save(
+		MetricSourceDto saved = facade.save(
 			applicationId,
 			request.targetHost(),
 			request.targetPort(),
@@ -72,13 +72,13 @@ public class MetricSourceController {
 
 	@DeleteMapping("/metric-sources/{applicationId}")
 	public ResponseEntity<Void> deleteMetricSource(@PathVariable UUID applicationId) {
-		service.deleteByApplicationId(applicationId);
+		facade.deleteByApplicationId(applicationId);
 		return ResponseEntity.noContent().build();
 	}
 
 	@PostMapping("/metric-sources/test-connection")
 	public ResponseEntity<ApiResponse<Boolean>> testConnection(@RequestBody @Valid MetricSourceRequest request) {
-		boolean isUp = service.testConnection(
+		boolean isUp = facade.testConnection(
 			request.targetHost(),
 			request.targetPort(),
 			request.metricsPath()
@@ -86,17 +86,17 @@ public class MetricSourceController {
 		return ResponseEntity.ok(ApiResponse.success(isUp));
 	}
 
-	private MetricSourceResponse mapToResponse(MetricSourceEntity entity) {
+	private MetricSourceResponse mapToResponse(MetricSourceDto dto) {
 		return MetricSourceResponse.builder()
-			.id(entity.getId())
-			.applicationId(entity.getApplicationId())
-			.targetHost(entity.getTargetHost())
-			.targetPort(entity.getTargetPort())
-			.metricsPath(entity.getMetricsPath())
-			.scrapeInterval(entity.getScrapeInterval())
-			.enabled(entity.isEnabled())
-			.createdAt(entity.getCreatedAt())
-			.updatedAt(entity.getUpdatedAt())
+			.id(dto.id())
+			.applicationId(dto.applicationId())
+			.targetHost(dto.targetHost())
+			.targetPort(dto.targetPort())
+			.metricsPath(dto.metricsPath())
+			.scrapeInterval(dto.scrapeInterval())
+			.enabled(dto.enabled())
+			.createdAt(dto.createdAt())
+			.updatedAt(dto.updatedAt())
 			.build();
 	}
 }
