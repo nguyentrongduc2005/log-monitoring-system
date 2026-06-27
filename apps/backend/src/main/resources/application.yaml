@@ -85,6 +85,7 @@ app:
     consumer-groups:
       realtime: ${KAFKA_CONSUMER_GROUP_REALTIME:realtime-live-log-group}
       alerts-critical: ${KAFKA_CONSUMER_GROUP_ALERTS_CRITICAL:alerts-critical-group}
+      anomaly-signals: ${KAFKA_CONSUMER_GROUP_ANOMALY_SIGNALS:anomaly-signals-group}
     retry:
       auto-create-topics: ${KAFKA_RETRY_AUTO_CREATE_TOPICS:false}
       dlt-topic-suffix: ${KAFKA_RETRY_DLT_TOPIC_SUFFIX:.DLT}
@@ -104,6 +105,8 @@ app:
       incidents-ai: ${KAFKA_TOPIC_INCIDENTS_AI:incidents.ai}
       incidents-ai-dlt: ${KAFKA_TOPIC_INCIDENTS_AI_DLT:incidents.ai.DLT}
       processing-errors: ${KAFKA_TOPIC_PROCESSING_ERRORS:processing.errors}
+      anomaly-signals: ${KAFKA_TOPIC_ANOMALY_SIGNALS:logs.anomaly.signals}
+      anomaly-signals-dlt: ${KAFKA_TOPIC_ANOMALY_SIGNALS_DLT:logs.anomaly.signals.DLT}
   logs:
     idempotency:
       key-prefix: ${LOG_INGESTION_IDEMPOTENCY_KEY_PREFIX:logs:ingestion:idempotency}

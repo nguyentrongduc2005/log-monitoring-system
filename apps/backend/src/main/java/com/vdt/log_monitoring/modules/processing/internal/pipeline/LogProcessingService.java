@@ -7,6 +7,7 @@ import com.vdt.log_monitoring.modules.processing.internal.model.ProcessedLog;
 import com.vdt.log_monitoring.modules.processing.internal.model.RawLogEnvelope;
 import com.vdt.log_monitoring.modules.processing.internal.publisher.CriticalLogDetectedPublisher;
 import com.vdt.log_monitoring.modules.processing.internal.publisher.RealtimeLogPublisher;
+import com.vdt.log_monitoring.modules.processing.internal.publisher.AnomalySignalPublisher;
 import com.vdt.log_monitoring.modules.processing.internal.storage.LogWriter;
 
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ public class LogProcessingService {
     private final LogWriter logWriter;
     private final RealtimeLogPublisher realtimeLogPublisher;
     private final CriticalLogDetectedPublisher criticalLogDetectedPublisher;
+    private final AnomalySignalPublisher anomalySignalPublisher;
 
     public void process(RawLogEnvelope envelope) {
         ProcessedLog normalizedLog = normalize(envelope);
@@ -30,6 +32,26 @@ public class LogProcessingService {
 
         if (storedLog.shouldPublishCriticalAlert()) {
             publishCriticalAlert(storedLog);
+        }
+        
+        checkAndPublishAnomalySignal(storedLog);
+    }
+
+    private void checkAndPublishAnomalySignal(ProcessedLog log) {
+        // Log level rule
+        if (log.level().name().equals("ERROR") || log.level().name().equals("CRITICAL")) {
+            anomalySignalPublisher.publish(log, "LEVEL_" + log.level().name());
+            return; // Already matched, no need to check keywords
+        }
+
+        // Keyword matching rule
+        String messageLower = log.message().toLowerCase();
+        String[] keywords = {"failed", "timeout", "denied", "exception", "unauthorized", "out of memory"};
+        for (String keyword : keywords) {
+            if (messageLower.contains(keyword)) {
+                anomalySignalPublisher.publish(log, "KEYWORD_MATCH_" + keyword.toUpperCase().replace(" ", "_"));
+                return;
+            }
         }
     }
 
