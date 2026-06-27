@@ -1,7 +1,9 @@
 .PHONY: infra-up infra-down backend frontend api build test lint clean
 
 infra-up:
-	docker compose up -d postgres clickhouse redis kafka
+	@WSL_IP=$$(hostname -I | awk '{print $$1}'); \
+	export WSL_IP; \
+	docker compose up -d
 
 infra-down:
 	docker compose down
