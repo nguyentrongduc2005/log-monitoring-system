@@ -102,8 +102,6 @@ app:
       live-dlt: ${KAFKA_TOPIC_LOGS_LIVE_DLT:logs.live.DLT}
       alerts-critical: ${KAFKA_TOPIC_ALERTS_CRITICAL:alerts.critical}
       alerts-critical-dlt: ${KAFKA_TOPIC_ALERTS_CRITICAL_DLT:alerts.critical.DLT}
-      incidents-ai: ${KAFKA_TOPIC_INCIDENTS_AI:incidents.ai}
-      incidents-ai-dlt: ${KAFKA_TOPIC_INCIDENTS_AI_DLT:incidents.ai.DLT}
       processing-errors: ${KAFKA_TOPIC_PROCESSING_ERRORS:processing.errors}
       anomaly-signals: ${KAFKA_TOPIC_ANOMALY_SIGNALS:logs.anomaly.signals}
       anomaly-signals-dlt: ${KAFKA_TOPIC_ANOMALY_SIGNALS_DLT:logs.anomaly.signals.DLT}
