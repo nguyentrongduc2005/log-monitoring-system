@@ -28,7 +28,8 @@ public class SecurityConfig {
 		"/ws",
 		"/v3/api-docs/**",
 		"/swagger-ui/**",
-		"/swagger-ui.html"
+		"/swagger-ui.html",
+		"/internal/prometheus/**"
 	};
 
 	private static final String[] PUBLIC_LOG_INGESTION_ENDPOINTS = {
