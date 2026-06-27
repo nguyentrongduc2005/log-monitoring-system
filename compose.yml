@@ -106,6 +106,18 @@ services:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
       
+  payment-node-exporter:
+    image: prom/node-exporter:latest
+    container_name: payment-node-exporter
+    ports:
+      - "9101:9100"
+
+  order-node-exporter:
+    image: prom/node-exporter:latest
+    container_name: order-node-exporter
+    ports:
+      - "9102:9100"
+
   prometheus:
     image: prom/prometheus:v3.2.1
     ports:
