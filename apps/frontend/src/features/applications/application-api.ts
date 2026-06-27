@@ -129,3 +129,48 @@ export async function revokeApiKey(
     `/applications/${applicationId}/api-keys/${apiKeyId}/revoke`
   );
 }
+
+export async function getMetricSource(
+  applicationId: string
+): Promise<import("./application-types").MetricSource | null> {
+  const response = await apiClient.get<import("./application-types").MetricSource>(
+    `/applications/${applicationId}/metric-sources`
+  );
+
+  return response.status === 204 ? null : response.data;
+}
+
+export async function saveMetricSource(
+  applicationId: string,
+  request: import("./application-types").MetricSourceRequest
+): Promise<import("./application-types").MetricSource> {
+  const response = await apiClient.post<import("./application-types").MetricSource>(
+    `/applications/${applicationId}/metric-sources`,
+    request
+  );
+
+  return response.data;
+}
+
+export async function updateMetricSource(
+  applicationId: string,
+  request: import("./application-types").MetricSourceRequest
+): Promise<import("./application-types").MetricSource> {
+  const response = await apiClient.put<import("./application-types").MetricSource>(
+    `/metric-sources/${applicationId}`,
+    request
+  );
+
+  return response.data;
+}
+
+export async function testMetricSourceConnection(
+  request: import("./application-types").MetricSourceRequest
+): Promise<boolean> {
+  const response = await apiClient.post<boolean>(
+    `/metric-sources/test-connection`,
+    request
+  );
+
+  return response.data;
+}

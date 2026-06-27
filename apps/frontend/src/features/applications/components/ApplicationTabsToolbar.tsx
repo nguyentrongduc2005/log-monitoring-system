@@ -4,7 +4,7 @@ import {
 } from "@/shared/components/management-ui";
 import type { Application } from "../application-types";
 
-export type ApplicationTab = "applications" | "api-keys";
+export type ApplicationTab = "applications" | "api-keys" | "metric-sources";
 
 type ApplicationTabsToolbarProps = {
   activeTab: ApplicationTab;
@@ -52,6 +52,17 @@ export default function ApplicationTabsToolbar({
         >
           API keys
         </button>
+        <button
+          className={`rounded px-3 py-2 text-sm font-semibold transition ${
+            activeTab === "metric-sources"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted hover:text-text"
+          }`}
+          onClick={() => onTabChange("metric-sources")}
+          type="button"
+        >
+          Metric Source
+        </button>
       </div>
 
       {activeTab === "applications" ? (
@@ -67,7 +78,7 @@ export default function ApplicationTabsToolbar({
         </label>
       ) : null}
 
-      {activeTab === "api-keys" ? (
+      {activeTab === "api-keys" || activeTab === "metric-sources" ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <label className="block min-w-72">
             <span className="sr-only">Select application</span>
@@ -87,16 +98,18 @@ export default function ApplicationTabsToolbar({
               ))}
             </select>
           </label>
-          <button
-            className={managementPrimaryButtonClass}
-            disabled={
-              !selectedApplication || selectedApplication.status !== "ACTIVE"
-            }
-            onClick={onCreateKey}
-            type="button"
-          >
-            Create API key
-          </button>
+          {activeTab === "api-keys" && (
+            <button
+              className={managementPrimaryButtonClass}
+              disabled={
+                !selectedApplication || selectedApplication.status !== "ACTIVE"
+              }
+              onClick={onCreateKey}
+              type="button"
+            >
+              Create API key
+            </button>
+          )}
         </div>
       ) : null}
     </div>

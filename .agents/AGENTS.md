@@ -90,6 +90,7 @@ After changing files:
 3. Regenerate OpenAPI/frontend types when controller or DTO contracts change.
 4. Update affected official documentation.
 5. Report unrun checks, failures, deviations, and residual risks.
+6. Commit changes to Git using conventional commit messages when a feature or task implementation is complete.
 
 ## Skills
 
@@ -132,3 +133,4 @@ strategy, or acceptance criteria.
 - Treat source code and executable configuration as implementation truth.
 - Never claim verification passed unless it was actually run.
 - Preserve the frontend architecture unless the user explicitly changes it.
+- Always commit changes to Git using standard conventional commit messages after completing a feature or bug fix.

@@ -24,6 +24,7 @@ import ApiKeysPanel from "./components/ApiKeysPanel";
 import ApplicationFormDialog from "./components/ApplicationFormDialog";
 import ApplicationSummary from "./components/ApplicationSummary";
 import ApplicationsTable from "./components/ApplicationsTable";
+import MetricSourceConfig from "./components/MetricSourceConfig";
 import ApplicationTabsToolbar from "./components/ApplicationTabsToolbar";
 import type { ApplicationTab } from "./components/ApplicationTabsToolbar";
 import RawApiKeyDialog from "./components/RawApiKeyDialog";
@@ -324,6 +325,10 @@ export function Component() {
             onRotate={apiKey => setConfirmAction({ type: "rotate", apiKey })}
             selectedApplication={selectedApplication}
           />
+        ) : null}
+
+        {activeTab === "metric-sources" && selectedApplication ? (
+          <MetricSourceConfig applicationId={selectedApplication.id!} />
         ) : null}
       </section>
 
