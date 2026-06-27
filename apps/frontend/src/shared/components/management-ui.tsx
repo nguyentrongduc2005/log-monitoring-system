@@ -131,3 +131,6 @@ export const managementTableHeaderClass =
 
 export const managementTableRowClass =
   "border-b border-border transition last:border-0 odd:bg-background/20 hover:bg-surface-raised/40";
+
+export const managementLabelClass =
+  "mb-1.5 block text-sm font-medium text-muted-foreground";
