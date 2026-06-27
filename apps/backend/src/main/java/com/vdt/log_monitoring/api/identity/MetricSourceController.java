@@ -20,23 +20,26 @@ import com.vdt.log_monitoring.modules.identity.internal.metricsource.MetricSourc
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
+import com.vdt.log_monitoring.shared.dto.ApiResponse;
+
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/v1")
 @RequiredArgsConstructor
 public class MetricSourceController {
 
 	private final MetricSourceService service;
 
 	@GetMapping("/applications/{applicationId}/metric-sources")
-	public ResponseEntity<MetricSourceResponse> getMetricSource(@PathVariable UUID applicationId) {
+	public ResponseEntity<ApiResponse<MetricSourceResponse>> getMetricSource(@PathVariable UUID applicationId) {
 		return service.findByApplicationId(applicationId)
 			.map(this::mapToResponse)
+			.map(ApiResponse::success)
 			.map(ResponseEntity::ok)
 			.orElse(ResponseEntity.noContent().build());
 	}
 
 	@PostMapping("/applications/{applicationId}/metric-sources")
-	public ResponseEntity<MetricSourceResponse> saveMetricSource(
+	public ResponseEntity<ApiResponse<MetricSourceResponse>> saveMetricSource(
 		@PathVariable UUID applicationId,
 		@RequestBody @Valid MetricSourceRequest request
 	) {
@@ -48,11 +51,11 @@ public class MetricSourceController {
 			request.scrapeInterval(),
 			request.enabled()
 		);
-		return ResponseEntity.ok(mapToResponse(saved));
+		return ResponseEntity.ok(ApiResponse.success(mapToResponse(saved)));
 	}
 
 	@PutMapping("/metric-sources/{applicationId}")
-	public ResponseEntity<MetricSourceResponse> updateMetricSource(
+	public ResponseEntity<ApiResponse<MetricSourceResponse>> updateMetricSource(
 		@PathVariable UUID applicationId,
 		@RequestBody @Valid MetricSourceRequest request
 	) {
@@ -64,7 +67,7 @@ public class MetricSourceController {
 			request.scrapeInterval(),
 			request.enabled()
 		);
-		return ResponseEntity.ok(mapToResponse(saved));
+		return ResponseEntity.ok(ApiResponse.success(mapToResponse(saved)));
 	}
 
 	@DeleteMapping("/metric-sources/{applicationId}")
@@ -74,13 +77,13 @@ public class MetricSourceController {
 	}
 
 	@PostMapping("/metric-sources/test-connection")
-	public ResponseEntity<Boolean> testConnection(@RequestBody @Valid MetricSourceRequest request) {
+	public ResponseEntity<ApiResponse<Boolean>> testConnection(@RequestBody @Valid MetricSourceRequest request) {
 		boolean isUp = service.testConnection(
 			request.targetHost(),
 			request.targetPort(),
 			request.metricsPath()
 		);
-		return ResponseEntity.ok(isUp);
+		return ResponseEntity.ok(ApiResponse.success(isUp));
 	}
 
 	private MetricSourceResponse mapToResponse(MetricSourceEntity entity) {

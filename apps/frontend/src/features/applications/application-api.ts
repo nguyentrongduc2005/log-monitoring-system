@@ -133,44 +133,44 @@ export async function revokeApiKey(
 export async function getMetricSource(
   applicationId: string
 ): Promise<import("./application-types").MetricSource | null> {
-  const response = await apiClient.get<import("./application-types").MetricSource>(
+  const response = await apiClient.get<ApiEnvelope<import("./application-types").MetricSource>>(
     `/applications/${applicationId}/metric-sources`
   );
 
-  return response.status === 204 ? null : response.data;
+  return response.status === 204 ? null : requireData(response.data, "Unable to load metric source");
 }
 
 export async function saveMetricSource(
   applicationId: string,
   request: import("./application-types").MetricSourceRequest
 ): Promise<import("./application-types").MetricSource> {
-  const response = await apiClient.post<import("./application-types").MetricSource>(
+  const response = await apiClient.post<ApiEnvelope<import("./application-types").MetricSource>>(
     `/applications/${applicationId}/metric-sources`,
     request
   );
 
-  return response.data;
+  return requireData(response.data, "Unable to save metric source");
 }
 
 export async function updateMetricSource(
   applicationId: string,
   request: import("./application-types").MetricSourceRequest
 ): Promise<import("./application-types").MetricSource> {
-  const response = await apiClient.put<import("./application-types").MetricSource>(
+  const response = await apiClient.put<ApiEnvelope<import("./application-types").MetricSource>>(
     `/metric-sources/${applicationId}`,
     request
   );
 
-  return response.data;
+  return requireData(response.data, "Unable to update metric source");
 }
 
 export async function testMetricSourceConnection(
   request: import("./application-types").MetricSourceRequest
 ): Promise<boolean> {
-  const response = await apiClient.post<boolean>(
+  const response = await apiClient.post<ApiEnvelope<boolean>>(
     `/metric-sources/test-connection`,
     request
   );
 
-  return response.data;
+  return requireData(response.data, "Unable to test connection");
 }
