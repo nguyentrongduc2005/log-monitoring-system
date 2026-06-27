@@ -3,7 +3,7 @@ package com.vdt.log_monitoring.modules.anomaly.internal.consumer;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
-import com.vdt.log_monitoring.shared.event.AnomalySignalEvent;
+import com.vdt.log_monitoring.modules.processing.api.events.AnomalySignalEvent;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j

@@ -6,7 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
-import com.vdt.log_monitoring.shared.event.AnomalySignalEvent;
+import com.vdt.log_monitoring.modules.processing.api.events.AnomalySignalEvent;
 import com.vdt.log_monitoring.modules.processing.internal.model.ProcessedLog;
 
 @Component

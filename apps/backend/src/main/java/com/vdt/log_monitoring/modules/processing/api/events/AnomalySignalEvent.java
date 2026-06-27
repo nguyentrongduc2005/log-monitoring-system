@@ -1,4 +1,4 @@
-package com.vdt.log_monitoring.shared.event;
+package com.vdt.log_monitoring.modules.processing.api.events;
 
 import java.time.Instant;
 import java.util.UUID;
