@@ -27,6 +27,9 @@ public class AlertRuleRequest {
 	@NotBlank(message = "Minimum severity is required")
 	private String minSeverity;
 
+	@NotBlank(message = "Severity is required")
+	private String severity;
+
 	@Size(max = 255, message = "Keyword pattern cannot exceed 255 characters")
 	private String keywordPattern;
 

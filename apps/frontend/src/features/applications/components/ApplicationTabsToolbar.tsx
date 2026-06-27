@@ -33,7 +33,7 @@ export default function ApplicationTabsToolbar({
         <button
           className={`rounded px-3 py-2 text-sm font-semibold transition ${
             activeTab === "applications"
-              ? "bg-primary text-black"
+              ? "bg-primary text-primary-foreground"
               : "text-muted hover:text-text"
           }`}
           onClick={() => onTabChange("applications")}
@@ -44,7 +44,7 @@ export default function ApplicationTabsToolbar({
         <button
           className={`rounded px-3 py-2 text-sm font-semibold transition ${
             activeTab === "api-keys"
-              ? "bg-primary text-black"
+              ? "bg-primary text-primary-foreground"
               : "text-muted hover:text-text"
           }`}
           onClick={() => onTabChange("api-keys")}

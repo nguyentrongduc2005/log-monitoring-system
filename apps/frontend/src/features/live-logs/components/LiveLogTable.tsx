@@ -2,11 +2,18 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import type { LiveLogEntry } from "@/features/live-logs/live-logs-types";
 
-const levelClasses = {
-  INFO: "border-primary text-primary",
-  WARN: "border-warning text-warning",
-  ERROR: "border-error text-error",
-  CRITICAL: "border-error bg-error/15 text-error"
+const severityRowStyles = {
+  INFO: "border-l-[#5e6ad2]/70",
+  WARN: "border-l-[#f59e0b]/70 bg-[#f59e0b]/2",
+  ERROR: "border-l-[#ef4444]/80 bg-[#ef4444]/2",
+  CRITICAL: "border-l-[#ef4444] bg-[#ef4444]/5"
+} as const;
+
+const levelLabelClasses = {
+  INFO: "text-[#5e6ad2] bg-[#5e6ad2]/10 border-[#5e6ad2]/20",
+  WARN: "text-[#f59e0b] bg-[#f59e0b]/10 border-[#f59e0b]/20",
+  ERROR: "text-[#ef4444] bg-[#ef4444]/10 border-[#ef4444]/20",
+  CRITICAL: "text-[#ef4444] bg-[#ef4444]/20 border-[#ef4444] animate-live"
 } as const;
 
 export default function LiveLogTable({
@@ -95,7 +102,7 @@ export default function LiveLogTable({
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-background shadow-inner">
       <div className="flex items-center justify-between border-b border-border bg-surface px-3 py-2 font-mono text-[11px] uppercase text-muted">
-        <span>Time / Level / App / Message</span>
+        <span>Time / App / Message</span>
         <span>{entries.length} visible</span>
       </div>
       <div
@@ -112,11 +119,10 @@ export default function LiveLogTable({
         <div role="table" aria-label="Live log stream">
           <div role="rowgroup">
             <div
-              className="sticky top-0 z-10 grid min-w-[980px] grid-cols-[11rem_5.5rem_12rem_minmax(24rem,1fr)_12rem] border-b border-border bg-surface px-3 py-1.5 font-mono text-[11px] uppercase text-muted"
+              className="sticky top-0 z-10 grid min-w-[900px] grid-cols-[11rem_10rem_minmax(24rem,1fr)_10rem] border-b border-border bg-surface px-3 py-1.5 font-mono text-[11px] uppercase text-muted"
               role="row"
             >
               <span role="columnheader">Timestamp</span>
-              <span role="columnheader">Level</span>
               <span role="columnheader">Application</span>
               <span role="columnheader">Message</span>
               <span role="columnheader">Trace</span>
@@ -125,39 +131,39 @@ export default function LiveLogTable({
           <div className="font-mono text-xs" role="rowgroup">
             {entries.map((entry) => (
               <button
-                className={`grid min-w-[980px] w-full grid-cols-[11rem_5.5rem_12rem_minmax(24rem,1fr)_12rem] items-start border-l-2 border-b border-border/50 px-3 py-1.5 text-left transition hover:bg-surface-raised ${
+                className={`grid min-w-[900px] w-full grid-cols-[11rem_10rem_minmax(24rem,1fr)_10rem] items-start border-l-[3px] border-b border-border/50 px-3 py-1.5 text-left transition hover:bg-surface-raised ${
                   selectedEntryId === entry.id
                     ? "border-l-primary bg-primary/10"
-                    : "border-l-transparent odd:bg-surface/15"
+                    : `${severityRowStyles[entry.level]} odd:bg-surface/10`
                 }`}
                 key={entry.id}
                 onClick={() => onSelect(entry)}
                 role="row"
                 type="button"
               >
-                <span className="whitespace-nowrap text-muted" role="cell">
+                <span className="whitespace-nowrap text-[#62666d]" role="cell">
                   {entry.timestamp}
                 </span>
-                <span role="cell">
-                  <span
-                    className={`inline-flex min-w-16 justify-center rounded border px-1.5 py-0.5 text-[11px] font-semibold ${levelClasses[entry.level]}`}
-                  >
-                    {entry.level}
-                  </span>
-                </span>
-                <span className="truncate pr-4 text-text" role="cell">
+                <span className="truncate pr-4 text-[#8a8f98]" role="cell">
                   {entry.applicationName}
                 </span>
                 <span
-                  className={`pr-4 leading-5 text-text ${
+                  className={`pr-4 leading-5 text-[#f7f8f8] flex items-start gap-1.5 min-w-0 ${
                     wrapLines ? "whitespace-pre-wrap break-words" : "truncate"
                   }`}
                   role="cell"
                 >
-                  {highlightKeyword(entry.message, keyword)}
+                  <span
+                    className={`inline-flex shrink-0 items-center justify-center rounded border px-1 py-0.5 text-[9px] font-bold tracking-wider uppercase leading-none ${levelLabelClasses[entry.level]}`}
+                  >
+                    {entry.level}
+                  </span>
+                  <span className={wrapLines ? "break-words" : "truncate"}>
+                    {highlightKeyword(entry.message, keyword)}
+                  </span>
                 </span>
-                <span className="truncate text-muted" role="cell">
-                  {entry.traceId || "n/a"}
+                <span className="truncate text-[#8a8f98] font-mono" role="cell">
+                  {entry.traceId || "—"}
                 </span>
               </button>
             ))}

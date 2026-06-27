@@ -90,7 +90,7 @@ export function Component() {
         actions={
           <div className="flex flex-wrap gap-2">
             <button
-              className="rounded-xl border border-border bg-surface-raised px-4 py-2 text-sm font-medium text-text transition hover:border-primary hover:text-primary"
+              className="rounded-lg border border-border bg-surface-raised px-4 py-2 text-sm font-medium text-text transition hover:border-primary hover:text-primary"
               disabled={loading}
               onClick={() => void loadUsers()}
               type="button"
@@ -98,7 +98,7 @@ export function Component() {
               Refresh
             </button>
             <button
-              className="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-black transition hover:bg-primary-hover"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary-hover"
               onClick={() => setShowCreate(true)}
               type="button"
             >
@@ -110,19 +110,19 @@ export function Component() {
       />
 
       <section className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-border bg-surface p-4">
+        <div className="rounded-lg border border-border bg-surface p-4">
           <p className="text-sm text-muted">Total users</p>
           <p className="mt-2 text-2xl font-semibold text-text">
             {userPage.totalElements}
           </p>
         </div>
-        <div className="rounded-2xl border border-border bg-surface p-4">
+        <div className="rounded-lg border border-border bg-surface p-4">
           <p className="text-sm text-muted">Active on page</p>
           <p className="mt-2 text-2xl font-semibold text-success">
             {activeUsers}
           </p>
         </div>
-        <div className="rounded-2xl border border-border bg-surface p-4">
+        <div className="rounded-lg border border-border bg-surface p-4">
           <p className="text-sm text-muted">Admins on page</p>
           <p className="mt-2 text-2xl font-semibold text-primary">
             {adminUsers}
@@ -130,14 +130,14 @@ export function Component() {
         </div>
       </section>
 
-      <section className="grid gap-4 rounded-2xl border border-border bg-surface p-4 lg:grid-cols-[minmax(0,1fr)_180px_180px_160px]">
+      <section className="grid gap-4 rounded-lg border border-border bg-surface p-4 lg:grid-cols-[minmax(0,1fr)_180px_180px_160px]">
         <label className="block">
           <span className="text-xs font-medium uppercase tracking-wide text-muted">
             Search
           </span>
           <input
             aria-label="Search users"
-            className="mt-2 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="mt-2 w-full rounded-lg border border-border bg-background px-4 py-3 text-sm text-text outline-none placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/20"
             onChange={event => {
               setSearch(event.target.value);
               resetPage();
@@ -152,7 +152,7 @@ export function Component() {
           </span>
           <select
             aria-label="Filter by role"
-            className="mt-2 min-h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="mt-2 min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             onChange={event => {
               setRoleFilter(event.target.value as UserRole | "");
               resetPage();
@@ -170,7 +170,7 @@ export function Component() {
           </span>
           <select
             aria-label="Filter by status"
-            className="mt-2 min-h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="mt-2 min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             onChange={event => {
               const nextStatus = event.target.value as UserStatus | "";
               setStatusFilter(nextStatus);
@@ -203,16 +203,16 @@ export function Component() {
       </section>
 
       {loading ? (
-        <section className="rounded-2xl border border-border bg-surface px-5 py-10 text-sm text-muted">
+        <section className="rounded-lg border border-border bg-surface px-5 py-10 text-sm text-muted">
           Loading users...
         </section>
       ) : null}
 
       {!loading && error ? (
-        <section className="rounded-2xl border border-error/30 bg-error/10 p-5">
+        <section className="rounded-lg border border-error/30 bg-error/10 p-5">
           <p className="text-sm text-error">{error}</p>
           <button
-            className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-black"
+            className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
             onClick={() => void loadUsers()}
             type="button"
           >
@@ -230,7 +230,7 @@ export function Component() {
       ) : null}
 
       {!loading && !error ? (
-        <section className="flex flex-col gap-3 rounded-2xl border border-border bg-surface px-4 py-3 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
+        <section className="flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 py-3 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
           <p>
             Page {currentPage} of {userPage.totalPages || 1} ·{" "}
             {userPage.totalElements} matching users

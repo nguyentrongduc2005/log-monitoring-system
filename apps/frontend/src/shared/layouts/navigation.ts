@@ -9,14 +9,11 @@ export type NavigationItemId =
   | "alerts"
   | "incidents"
   | "application-health"
-  | "ai-insights"
   | "applications"
   | "users-access"
   | "alert-rules"
   | "notification-channels"
-  | "retention-policies"
-  | "system-operations"
-  | "settings";
+  | "retention-policies";
 
 export type NavigationItem = {
   id: NavigationItemId;
@@ -40,12 +37,22 @@ export const navigationGroups = [
         id: "live-logs",
         label: "Live Logs",
         icon: "live-logs",
-        to: "/logs"
+        to: "/logs",
       },
-      { id: "log-search", label: "Log Search", icon: "search" },
+      {
+        id: "log-search",
+        label: "Log Search",
+        icon: "search",
+        to: "/logs/search",
+      },
       { id: "alerts", label: "Alerts", icon: "alerts", to: "/alerts" },
-      { id: "incidents", label: "Incidents", icon: "incidents" }
-    ]
+      {
+        id: "incidents",
+        label: "Incidents",
+        icon: "incidents",
+        to: "/incidents",
+      },
+    ],
   },
   {
     label: "Analytics",
@@ -53,10 +60,10 @@ export const navigationGroups = [
       {
         id: "application-health",
         label: "Application Health",
-        icon: "health"
+        icon: "health",
+        to: "/analytics/application-health",
       },
-      { id: "ai-insights", label: "AI Insights", icon: "ai" }
-    ]
+    ],
   },
   {
     label: "Resources",
@@ -65,9 +72,9 @@ export const navigationGroups = [
         id: "applications",
         label: "Applications",
         icon: "applications",
-        to: "/admin/applications"
-      }
-    ]
+        to: "/admin/applications",
+      },
+    ],
   },
   {
     label: "Administration",
@@ -77,39 +84,33 @@ export const navigationGroups = [
         id: "users-access",
         label: "Users & Access",
         icon: "users",
-        to: "/admin/users"
+        to: "/admin/users",
       },
       {
         id: "alert-rules",
         label: "Alert Rules",
         icon: "rules",
-        to: "/admin/alert-rules"
+        to: "/admin/alert-rules",
       },
       {
         id: "notification-channels",
         label: "Notification Channels",
         icon: "channels",
-        to: "/admin/notification-channels"
+        to: "/admin/notification-channels",
       },
       {
         id: "retention-policies",
         label: "Retention Policies",
         icon: "retention",
-        to: "/admin/retention"
+        to: "/admin/retention",
       },
-      {
-        id: "system-operations",
-        label: "System Operations",
-        icon: "operations"
-      },
-      { id: "settings", label: "Settings", icon: "settings" }
-    ]
-  }
+    ],
+  },
 ] as const satisfies readonly NavigationGroup[];
 
 export function getNavigationGroups(role?: UserRole) {
   return navigationGroups.filter(
-    (group) => !("roles" in group) || group.roles.includes(role as "ADMIN")
+    (group) => !("roles" in group) || group.roles.includes(role as "ADMIN"),
   );
 }
 

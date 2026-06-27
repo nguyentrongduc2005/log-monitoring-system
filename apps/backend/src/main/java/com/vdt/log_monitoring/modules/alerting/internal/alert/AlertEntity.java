@@ -11,6 +11,12 @@ import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertChannel;
 import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertDeliveryTarget;
 import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertSeverity;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
@@ -49,14 +55,11 @@ public class AlertEntity {
 	@Column(name = "application_id", nullable = false)
 	private UUID applicationId;
 
-	@Column(name = "event_id", nullable = false)
-	private UUID eventId;
-
-	@Column(name = "ingestion_id", nullable = false)
-	private UUID ingestionId;
-
 	@Column(name = "application_name", nullable = false, length = 100)
 	private String applicationName;
+
+	@Column(name = "rule_name", nullable = false, length = 255)
+	private String ruleName;
 
 	@Column(name = "application_display_name", length = 150)
 	private String applicationDisplayName;
@@ -65,14 +68,9 @@ public class AlertEntity {
 	@Column(nullable = false, length = 32)
 	private AlertSeverity severity;
 
-	@Column(nullable = false, columnDefinition = "TEXT")
-	private String message;
-
-	@Column(nullable = false, length = 128)
-	private String fingerprint;
-
-	@Column(name = "log_timestamp", nullable = false)
-	private Instant logTimestamp;
+	@JdbcTypeCode(SqlTypes.JSON)
+	@Column(name = "log_samples", columnDefinition = "jsonb")
+	private List<AlertLogSample> logSamples = new ArrayList<>();
 
 	@Column(name = "triggered_at", nullable = false)
 	private Instant triggeredAt;
@@ -127,35 +125,16 @@ public class AlertEntity {
 	public static AlertEntity create(
 			UUID ruleId,
 			UUID applicationId,
-			UUID eventId,
-			UUID ingestionId,
 			String applicationName,
 			String applicationDisplayName,
+			String ruleName,
 			AlertSeverity severity,
-			String message,
-			String fingerprint,
-			Instant logTimestamp,
-			Set<AlertDeliveryTarget> deliveryTargets) {
-		return create(
-			ruleId, applicationId, eventId, ingestionId, applicationName,
-			applicationDisplayName, severity, message, fingerprint, logTimestamp,
-			deliveryTargets, 1, logTimestamp);
-	}
-
-	public static AlertEntity create(
-			UUID ruleId,
-			UUID applicationId,
-			UUID eventId,
-			UUID ingestionId,
-			String applicationName,
-			String applicationDisplayName,
-			AlertSeverity severity,
-			String message,
-			String fingerprint,
-			Instant logTimestamp,
+			List<AlertLogSample> logSamples,
+			Instant triggeredAt,
+			Instant firstSeenAt,
+			Instant lastSeenAt,
 			Set<AlertDeliveryTarget> deliveryTargets,
-			long occurrenceCount,
-			Instant firstSeenAt) {
+			long occurrenceCount) {
 		Instant now = Instant.now();
 		if (occurrenceCount < 1) {
 			throw new IllegalArgumentException("occurrenceCount must be positive");
@@ -164,18 +143,15 @@ public class AlertEntity {
 				UUID.randomUUID(),
 				Objects.requireNonNull(ruleId, "ruleId must not be null"),
 				Objects.requireNonNull(applicationId, "applicationId must not be null"),
-				Objects.requireNonNull(eventId, "eventId must not be null"),
-				Objects.requireNonNull(ingestionId, "ingestionId must not be null"),
 				requireText(applicationName, "applicationName"),
+				requireText(ruleName, "ruleName"),
 				trimOptional(applicationDisplayName),
 				Objects.requireNonNull(severity, "severity must not be null"),
-				requireText(message, "message"),
-				requireText(fingerprint, "fingerprint"),
-				Objects.requireNonNull(logTimestamp, "logTimestamp must not be null"),
+				logSamples == null ? new ArrayList<>() : new ArrayList<>(logSamples),
 				now,
 				occurrenceCount,
 				Objects.requireNonNull(firstSeenAt, "firstSeenAt must not be null"),
-				logTimestamp,
+				Objects.requireNonNull(lastSeenAt, "lastSeenAt must not be null"),
 				AlertStatus.OPEN,
 				copyDeliveryTargets(deliveryTargets),
 				null,

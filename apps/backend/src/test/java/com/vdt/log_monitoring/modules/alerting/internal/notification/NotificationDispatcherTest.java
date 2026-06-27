@@ -4,12 +4,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
 import com.vdt.log_monitoring.modules.alerting.internal.alert.AlertEntity;
+import com.vdt.log_monitoring.modules.alerting.internal.alert.AlertLogSample;
 import com.vdt.log_monitoring.modules.alerting.internal.notification.telegram.TelegramNotifier;
 import com.vdt.log_monitoring.modules.alerting.internal.notification.websocket.WebSocketAlertPublisher;
 import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertChannel;
@@ -36,16 +38,16 @@ class NotificationDispatcherTest {
 		AlertDeliveryTarget websocket = AlertDeliveryTarget.channelOnly(AlertChannel.WEBSOCKET);
 		AlertRuleEntity ruleEntity = AlertRuleEntity.create(
 			UUID.fromString("00000000-0000-0000-0000-000000000001"),
-			"Payment failures", null, AlertSeverity.ERROR, "payment", 1, 60, 60,
+			"Payment failures", null, AlertSeverity.ERROR, AlertSeverity.CRITICAL, "payment", 1, 60, 60,
 			Set.of(firstTelegram, secondTelegram, websocket),
 			UUID.fromString("00000000-0000-0000-0000-000000000002"));
 		AlertRuleDefinition rule = AlertRuleDefinition.from(ruleEntity);
 		DeliveryTarget firstTelegramTarget = target(rule, firstTelegram.getChatRoomId());
 		DeliveryTarget secondTelegramTarget = target(rule, secondTelegram.getChatRoomId());
 		AlertEntity alert = AlertEntity.create(
-			rule.id(), rule.applicationId(), UUID.randomUUID(), UUID.randomUUID(),
-			"checkout-api", "Checkout API", AlertSeverity.ERROR, "Payment failed",
-			"checkout-payment", Instant.parse("2026-06-18T04:00:00Z"), rule.toDeliveryTargets());
+			rule.id(), rule.applicationId(),
+			"checkout-api", "Checkout API", rule.name(), AlertSeverity.ERROR, List.of(new AlertLogSample("ERROR", "Payment failed")),
+			Instant.parse("2026-06-18T04:00:00Z"), Instant.parse("2026-06-18T04:00:00Z"), Instant.parse("2026-06-18T04:00:00Z"), rule.toDeliveryTargets(), 1);
 
 		dispatcher.dispatch(alert, rule);
 

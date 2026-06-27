@@ -6,15 +6,12 @@ export type AlertApplication = { id: string; name: string };
 export type Alert = {
   id: string;
   ruleId: string;
+  ruleName?: string | null;
   applicationId: string;
-  eventId?: string;
-  ingestionId?: string;
   applicationName: string;
   applicationDisplayName?: string | null;
   severity: AlertSeverity;
-  message: string;
-  fingerprint: string;
-  logTimestamp: string;
+  logSamples?: { level: string; message: string }[];
   triggeredAt: string;
   status: AlertStatus;
   dispatchedChannels?: string[];

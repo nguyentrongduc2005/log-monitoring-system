@@ -87,38 +87,45 @@ public class TelegramNotifier {
 			? "Any message"
 			: "Contains “%s”".formatted(rule.keywordPattern());
 
+		java.util.List<com.vdt.log_monitoring.modules.alerting.internal.alert.AlertLogSample> samples = alert.getLogSamples();
+		String logMessagesText = samples == null || samples.isEmpty()
+			? "<i>No log samples available</i>"
+			: samples.stream()
+				.limit(2)
+				.map(msg -> "<pre>[" + msg.level() + "] " + escapeHtml(msg.message(), MAX_LOG_MESSAGE_LENGTH / 2) + "</pre>")
+				.collect(java.util.stream.Collectors.joining("\n"));
+
 		return """
-				%s <b>%s ALERT</b>
-
-				<b>Application:</b> %s
-				<b>Service:</b> <code>%s</code>
-				<b>Rule:</b> %s
-				<b>Match:</b> Severity ≥ %s · %s
-				<b>Threshold:</b> %d events / %ds
-				<b>Occurrences:</b> %d
-				<b>First seen:</b> %s
-				<b>Last seen:</b> %s
-
-				<b>Log message</b>
-				<pre>%s</pre>
-
-				<code>Alert %s · Fingerprint %s</code>
+				%s <b>%s ALERT: %s</b>
+				━━━━━━━━━━━━━━━━━━━━━
+				🎯 <b>App:</b> %s (<code>%s</code>)
+				📊 <b>Count:</b> %d times
+				⏱️ <b>Threshold:</b> %d events / %ds
+				🔍 <b>Match:</b> Severity ≥ %s | %s
+				
+				🕒 <b>First:</b> %s
+				🕒 <b>Last:</b> %s
+				
+				📝 <b>Log Samples (Top %d):</b>
+				%s
+				━━━━━━━━━━━━━━━━━━━━━
+				🆔 <code>Alert ID: %s</code>
 				""".formatted(
 				severityIcon(alert),
 				alert.getSeverity().name(),
+				escapeHtml(rule.name(), MAX_LABEL_LENGTH),
 				escapeHtml(displayName, MAX_LABEL_LENGTH),
 				escapeHtml(alert.getApplicationName(), MAX_LABEL_LENGTH),
-				escapeHtml(rule.name(), MAX_LABEL_LENGTH),
-				rule.minSeverity().name(),
-				escapeHtml(keyword, MAX_KEYWORD_LENGTH),
+				alert.getOccurrenceCount(),
 				rule.thresholdCount(),
 				rule.thresholdWindowSeconds(),
-				alert.getOccurrenceCount(),
+				rule.minSeverity().name(),
+				escapeHtml(keyword, MAX_KEYWORD_LENGTH),
 				TELEGRAM_TIME.format(alert.getFirstSeenAt()),
 				TELEGRAM_TIME.format(alert.getLastSeenAt()),
-				escapeHtml(alert.getMessage(), MAX_LOG_MESSAGE_LENGTH),
-				shorten(alert.getId().toString()),
-				shorten(alert.getFingerprint())).trim();
+				alert.getLogSamples() != null ? alert.getLogSamples().size() : 0,
+				logMessagesText,
+				shorten(alert.getId().toString())).trim();
 	}
 
 	private String severityIcon(AlertEntity alert) {

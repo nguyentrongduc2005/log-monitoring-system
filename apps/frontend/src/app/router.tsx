@@ -6,7 +6,7 @@ import AppLayout from "@/shared/layouts/AppLayout";
 export const router = createBrowserRouter([
   {
     path: "/login",
-    lazy: () => import("@/features/auth/LoginPage")
+    lazy: () => import("@/features/auth/LoginPage"),
   },
   {
     element: <ProtectedRoute />,
@@ -16,48 +16,61 @@ export const router = createBrowserRouter([
         children: [
           {
             path: "/",
-            lazy: () => import("@/features/dashboard/DashboardPage")
+            lazy: () => import("@/features/dashboard/DashboardPage"),
           },
           {
             path: "/logs",
-            lazy: () => import("@/features/live-logs/LiveLogsPage")
+            lazy: () => import("@/features/live-logs/LiveLogsPage"),
+          },
+          {
+            path: "/logs/search",
+            lazy: () => import("@/features/log-search/LogSearchPage"),
           },
           {
             path: "/alerts",
-            lazy: () => import("@/features/alerts/AlertsPage")
+            lazy: () => import("@/features/alerts/AlertsPage"),
+          },
+          {
+            path: "/incidents",
+            lazy: () => import("@/features/incidents/IncidentsPage"),
+          },
+          {
+            path: "/analytics/application-health",
+            lazy: () =>
+              import("@/features/application-health/ApplicationHealthPage"),
           },
           {
             path: "/profile",
-            lazy: () => import("@/features/profile/ProfilePage")
+            lazy: () => import("@/features/profile/ProfilePage"),
           },
           {
             element: <AdminRoute />,
             children: [
               {
                 path: "/admin/applications",
-                lazy: () => import("@/features/applications/ApplicationsPage")
+                lazy: () => import("@/features/applications/ApplicationsPage"),
               },
               {
                 path: "/admin/users",
-                lazy: () => import("@/features/user-access/UserAccessPage")
+                lazy: () => import("@/features/user-access/UserAccessPage"),
               },
               {
                 path: "/admin/alert-rules",
-                lazy: () => import("@/features/alert-rules/AlertRulesPage")
+                lazy: () => import("@/features/alert-rules/AlertRulesPage"),
               },
               {
                 path: "/admin/notification-channels",
                 lazy: () =>
-                  import("@/features/notification-channels/NotificationChannelsPage")
+                  import("@/features/notification-channels/NotificationChannelsPage"),
               },
               {
                 path: "/admin/retention",
-                lazy: () => import("@/features/retention/RetentionPage")
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  }
+                lazy: () => import("@/features/retention/RetentionPage"),
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
 ]);

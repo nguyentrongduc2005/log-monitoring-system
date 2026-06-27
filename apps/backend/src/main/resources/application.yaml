@@ -118,3 +118,10 @@ app:
     telegram:
       api-base-url: ${TELEGRAM_API_BASE_URL:https://api.telegram.org}
       bot-token: ${TELEGRAM_BOT_TOKEN:}
+  incident:
+    ai:
+      provider: ${INCIDENT_AI_PROVIDER:gemini}
+      api-base-url: ${INCIDENT_AI_API_BASE_URL:https://generativelanguage.googleapis.com}
+      api-key: ${INCIDENT_AI_API_KEY:}
+      model: ${INCIDENT_AI_MODEL:gemini-3.1-flash-lite}
+      timeout: ${INCIDENT_AI_TIMEOUT:30s}

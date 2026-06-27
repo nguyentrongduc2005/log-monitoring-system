@@ -24,11 +24,11 @@ public class AlertService {
 	public AlertEntity trigger(
 		AlertRuleDefinition rule,
 		AlertOccurrenceData occurrence,
-		AlertSeverity severity,
 		long initialCount,
-		Instant firstSeenAt
+		Instant firstSeenAt,
+		List<AlertLogSample> logSamples
 	) {
-		return findActiveOccurrence(rule.id(), occurrence.fingerprint())
+		return findActiveOccurrence(rule.id(), occurrence.applicationId())
 			.map(alert -> {
 				alert.retrigger(occurrence.logTimestamp());
 				return alert;
@@ -36,23 +36,49 @@ public class AlertService {
 			.orElseGet(() -> alertRepository.save(AlertEntity.create(
 				rule.id(),
 				occurrence.applicationId(),
-				occurrence.eventId(),
-				occurrence.ingestionId(),
 				occurrence.applicationName(),
 				occurrence.applicationDisplayName(),
-				severity,
-				occurrence.message(),
-				occurrence.fingerprint(),
+				rule.name(),
+				rule.severity(),
+				logSamples,
+				firstSeenAt,
+				firstSeenAt,
 				occurrence.logTimestamp(),
 				rule.toDeliveryTargets(),
-				initialCount,
-				firstSeenAt)));
+				initialCount)));
 	}
 
 	@Transactional
-	public void recordOccurrence(UUID ruleId, String fingerprint, Instant occurredAt) {
-		findActiveOccurrence(ruleId, fingerprint)
+	public void recordOccurrence(UUID ruleId, UUID applicationId, Instant occurredAt) {
+		findActiveOccurrence(ruleId, applicationId)
 			.ifPresent(alert -> alert.recordOccurrence(occurredAt));
+	}
+
+	@Transactional
+	public Optional<AlertEntity> recordOccurrenceOrTrigger(
+		AlertRuleDefinition rule,
+		AlertOccurrenceData occurrence,
+		long initialCount,
+		Instant firstSeenAt,
+		List<AlertLogSample> logSamples
+	) {
+		Optional<AlertEntity> activeAlert = findActiveOccurrence(rule.id(), occurrence.applicationId());
+		activeAlert.ifPresent(alert -> alert.recordOccurrence(occurrence.logTimestamp()));
+		return activeAlert.isPresent()
+			? Optional.empty()
+			: Optional.of(alertRepository.save(AlertEntity.create(
+				rule.id(),
+				occurrence.applicationId(),
+				occurrence.applicationName(),
+				occurrence.applicationDisplayName(),
+				rule.name(),
+				rule.severity(),
+				logSamples,
+				firstSeenAt,
+				firstSeenAt,
+				occurrence.logTimestamp(),
+				rule.toDeliveryTargets(),
+				initialCount)));
 	}
 
 	@Transactional
@@ -75,6 +101,21 @@ public class AlertService {
 			.toList();
 	}
 
+	@Transactional(readOnly = true)
+	public List<AlertEntity> findAlertsInWindow(
+		UUID applicationId,
+		Instant windowStart,
+		Instant windowEnd
+	) {
+		if (applicationId == null || windowStart == null || windowEnd == null || windowStart.isAfter(windowEnd)) {
+			return List.of();
+		}
+		return alertRepository.findByApplicationIdAndFirstSeenAtBetweenOrderByTriggeredAtDesc(
+			applicationId,
+			windowStart,
+			windowEnd);
+	}
+
 	@Transactional
 	public AlertEntity resolveAlert(UUID alertId, UUID resolvedBy) {
 		AlertEntity alert = getAlertById(alertId);
@@ -90,9 +131,9 @@ public class AlertService {
 				"Alert not found"));
 	}
 
-	private Optional<AlertEntity> findActiveOccurrence(UUID ruleId, String fingerprint) {
-		return alertRepository.findFirstByRuleIdAndFingerprintAndStatusNotOrderByTriggeredAtDesc(
-			ruleId, fingerprint, AlertStatus.RESOLVED);
+	private Optional<AlertEntity> findActiveOccurrence(UUID ruleId, UUID applicationId) {
+		return alertRepository.findFirstByRuleIdAndApplicationIdAndStatusNotOrderByTriggeredAtDesc(
+			ruleId, applicationId, AlertStatus.RESOLVED);
 	}
 
 	private AlertStatus parseOptionalStatus(String status) {

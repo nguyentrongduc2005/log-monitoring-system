@@ -22,6 +22,8 @@ public interface AlertingFacade {
 
 	List<AlertDto> findAlerts(List<UUID> applicationIds, String status, String severity);
 
+	List<AlertDto> findAlertsInWindow(UUID applicationId, Instant windowStart, Instant windowEnd);
+
 	AlertDto findAlertById(UUID alertId);
 
 	AlertDto acknowledgeAlert(UUID alertId, UUID acknowledgedBy);
@@ -41,6 +43,7 @@ public interface AlertingFacade {
 		String name,
 		String description,
 		String minSeverity,
+		String severity,
 		String keywordPattern,
 		int thresholdCount,
 		int thresholdWindowSeconds,
@@ -54,6 +57,7 @@ public interface AlertingFacade {
 		String name,
 		String description,
 		String minSeverity,
+		String severity,
 		String keywordPattern,
 		int thresholdCount,
 		int thresholdWindowSeconds,
@@ -93,6 +97,7 @@ public interface AlertingFacade {
 		String name,
 		String description,
 		String minSeverity,
+		String severity,
 		String keywordPattern,
 		int thresholdCount,
 		int thresholdWindowSeconds,
@@ -132,16 +137,16 @@ public interface AlertingFacade {
 	record AlertDto(
 		UUID id,
 		UUID ruleId,
+		String ruleName,
 		UUID applicationId,
-		UUID eventId,
-		UUID ingestionId,
 		String applicationName,
 		String applicationDisplayName,
 		String severity,
-		String message,
-		String fingerprint,
-		Instant logTimestamp,
+		List<com.vdt.log_monitoring.api.alerting.dto.AlertLogSampleDto> logSamples,
 		Instant triggeredAt,
+		long occurrenceCount,
+		Instant firstSeenAt,
+		Instant lastSeenAt,
 		String status,
 		List<String> dispatchedChannels,
 		List<AlertDeliveryTargetDto> deliveryTargets,

@@ -2,6 +2,7 @@ package com.vdt.log_monitoring.modules.alerting.internal.evaluation;
 
 import java.util.List;
 
+import com.vdt.log_monitoring.modules.alerting.internal.alert.AlertLogSample;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,7 @@ public class AlertEvaluationService {
 	private final AlertRuleMatcher ruleMatcher;
 	private final AlertThresholdCache thresholdCache;
 	private final AlertService alertService;
+	private final AlertLogEvidenceReader evidenceReader;
 	private final NotificationDispatcher notificationDispatcher;
 	private final AlertEvaluationLifecycle lifecycle;
 
@@ -47,13 +49,17 @@ public class AlertEvaluationService {
 		AlertSeverity severity
 	) {
 		ThresholdDecision decision = thresholdCache.evaluate(
-			rule, candidate.eventId(), candidate.fingerprint(), candidate.logTimestamp());
+			rule, candidate.applicationId(), candidate.eventId(), candidate.logTimestamp());
 		registerRollback(rule, candidate, decision);
 
 		return switch (decision.type()) {
-			case TRIGGERED -> List.of(trigger(rule, candidate, severity, decision));
+			case TRIGGERED -> {
+				List<AlertLogSample> logSamples = evidenceReader.findTopErrorLogSamples(
+					candidate.applicationId(), decision.firstSeenAt(), candidate.logTimestamp());
+				yield List.of(trigger(rule, candidate, decision, logSamples));
+			}
 			case COOLDOWN -> {
-				alertService.recordOccurrence(rule.id(), candidate.fingerprint(), candidate.logTimestamp());
+				// Cập nhật số lượng occurrence_count và last_seen_at sẽ được đồng bộ ngầm qua AlertSyncScheduler
 				yield List.of();
 			}
 			case DUPLICATE, BELOW_THRESHOLD -> List.of();
@@ -63,15 +69,15 @@ public class AlertEvaluationService {
 	private AlertEntity trigger(
 		AlertRuleDefinition rule,
 		AlertEvaluationCandidate candidate,
-		AlertSeverity severity,
-		ThresholdDecision decision
+		ThresholdDecision decision,
+		List<AlertLogSample> logSamples
 	) {
 		AlertEntity alert = alertService.trigger(
 			rule,
 			candidate.toOccurrenceData(),
-			severity,
 			decision.count(),
-			decision.firstSeenAt());
+			decision.firstSeenAt(),
+			logSamples);
 		lifecycle.afterCommit(() -> notificationDispatcher.dispatch(alert, rule));
 		return alert;
 	}
@@ -86,7 +92,7 @@ public class AlertEvaluationService {
 		}
 		lifecycle.afterRollback(() -> {
 			try {
-				thresholdCache.rollback(rule, candidate.eventId(), candidate.fingerprint(), decision);
+				thresholdCache.rollback(rule, candidate.applicationId(), candidate.eventId(), decision);
 			} catch (RuntimeException exception) {
 				log.error(
 					"Failed to roll back Redis alert evaluation ruleId={} eventId={}",

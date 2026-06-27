@@ -131,7 +131,7 @@ export default function AccessDialog({ user, onClose }: AccessDialogProps) {
       footer={
         <>
           <button
-            className="min-h-11 rounded-xl border border-border px-5 text-sm font-medium text-text transition hover:bg-surface-raised"
+            className="min-h-11 rounded-lg border border-border px-5 text-sm font-medium text-text transition hover:bg-surface-raised"
             disabled={saving}
             onClick={onClose}
             type="button"
@@ -139,7 +139,7 @@ export default function AccessDialog({ user, onClose }: AccessDialogProps) {
             Close
           </button>
           <button
-            className="min-h-11 rounded-xl bg-primary px-5 text-sm font-semibold text-black transition hover:bg-primary-hover disabled:opacity-50"
+            className="min-h-11 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:opacity-50"
             disabled={loading || saving || !user.id}
             onClick={() => void saveAccess()}
             type="button"
@@ -154,17 +154,17 @@ export default function AccessDialog({ user, onClose }: AccessDialogProps) {
     >
       {loading ? (
         <div className="space-y-3">
-          <div className="h-12 animate-pulse rounded-xl bg-surface-raised" />
-          <div className="h-20 animate-pulse rounded-xl bg-surface-raised" />
-          <div className="h-20 animate-pulse rounded-xl bg-surface-raised" />
-          <div className="h-20 animate-pulse rounded-xl bg-surface-raised" />
+          <div className="h-12 animate-pulse rounded-lg bg-surface-raised" />
+          <div className="h-20 animate-pulse rounded-lg bg-surface-raised" />
+          <div className="h-20 animate-pulse rounded-lg bg-surface-raised" />
+          <div className="h-20 animate-pulse rounded-lg bg-surface-raised" />
         </div>
       ) : null}
 
       {!loading ? (
         <div className="space-y-5">
           <section className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-xl border border-border bg-background p-4">
+            <div className="rounded-lg border border-border bg-background p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-muted">
                 Applications
               </p>
@@ -172,7 +172,7 @@ export default function AccessDialog({ user, onClose }: AccessDialogProps) {
                 {applications.length}
               </p>
             </div>
-            <div className="rounded-xl border border-border bg-background p-4">
+            <div className="rounded-lg border border-border bg-background p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-muted">
                 Assigned
               </p>
@@ -180,7 +180,7 @@ export default function AccessDialog({ user, onClose }: AccessDialogProps) {
                 {selectedGrantCount}
               </p>
             </div>
-            <div className="rounded-xl border border-border bg-background p-4">
+            <div className="rounded-lg border border-border bg-background p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-muted">
                 Unassigned
               </p>
@@ -199,14 +199,14 @@ export default function AccessDialog({ user, onClose }: AccessDialogProps) {
             </div>
             <input
               aria-label="Search applications"
-              className="min-h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm text-text outline-none placeholder:text-muted/70 hover:border-muted/60 focus:border-primary focus:ring-2 focus:ring-primary/20 sm:max-w-xs"
+              className="min-h-11 w-full rounded-lg border border-border bg-background px-3.5 text-sm text-text outline-none placeholder:text-muted/70 hover:border-muted/60 focus:border-primary focus:ring-2 focus:ring-primary/20 sm:max-w-xs"
               onChange={event => setSearch(event.target.value)}
               placeholder="Search applications..."
               value={search}
             />
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-border bg-background">
+          <div className="overflow-hidden rounded-lg border border-border bg-background">
             <div className="hidden grid-cols-[minmax(0,1fr)_13rem] border-b border-border bg-surface-raised/60 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted sm:grid">
               <span>Application</span>
               <span>Permission</span>
@@ -238,7 +238,7 @@ export default function AccessDialog({ user, onClose }: AccessDialogProps) {
                   </div>
                   <select
                     aria-label={`Access for ${application.displayName || application.name}`}
-                    className={`min-h-11 rounded-xl border px-3.5 text-sm font-medium outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 ${
+                    className={`min-h-11 rounded-lg border px-3.5 text-sm font-medium outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20 ${
                       selections[application.id] === "MANAGE"
                         ? "border-primary/40 bg-primary/10 text-primary"
                         : selections[application.id] === "VIEW"
@@ -270,7 +270,7 @@ export default function AccessDialog({ user, onClose }: AccessDialogProps) {
             ) : null}
           </div>
 
-          <div className="flex gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+          <div className="flex gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
             <span
               aria-hidden="true"
               className="grid size-5 shrink-0 place-items-center rounded-full bg-primary/15 text-xs font-bold text-primary"
@@ -284,12 +284,12 @@ export default function AccessDialog({ user, onClose }: AccessDialogProps) {
           </div>
 
           {success ? (
-            <p className="rounded-xl border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+            <p className="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
               {success}
             </p>
           ) : null}
           {error ? (
-            <p className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
+            <p className="rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
               {error}
             </p>
           ) : null}

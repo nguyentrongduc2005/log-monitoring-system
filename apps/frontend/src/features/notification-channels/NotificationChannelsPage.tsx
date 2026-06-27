@@ -129,12 +129,9 @@ export function Component() {
   return (
     <div className="space-y-5">
       <PageHeader title="Notification Channels" />
-      <div>
-        <h1 className="text-2xl font-semibold text-text">Notification Channels</h1>
-        <p className="mt-1 text-sm text-muted">
-          Register Telegram groups that can receive alert notifications.
-        </p>
-      </div>
+      <p className="text-sm text-muted">
+        Register Telegram groups that can receive alert notifications.
+      </p>
 
       <section className="grid gap-3 md:grid-cols-3">
         <MetricCard label="Telegram rooms" value={rooms.length} />

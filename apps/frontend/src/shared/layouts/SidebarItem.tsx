@@ -2,7 +2,7 @@ import { NavLink } from "react-router-dom";
 import { AppIcon } from "@/shared/components/AppIcon";
 import {
   formatNavigationBadge,
-  type NavigationItem
+  type NavigationItem,
 } from "@/shared/layouts/navigation";
 
 type SidebarItemProps = {
@@ -12,24 +12,20 @@ type SidebarItemProps = {
 };
 
 const itemClasses =
-  "group relative flex min-h-10 w-full items-center gap-3 rounded-md border-l-2 px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70";
+  "group relative flex min-h-9 w-full items-center gap-2.5 rounded-md border px-2.5 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5e6ad2]/70";
 
 function ItemContent({
   item,
-  badgeCount
+  badgeCount,
 }: Pick<SidebarItemProps, "item" | "badgeCount">) {
   const badge = formatNavigationBadge(badgeCount);
 
   return (
     <>
-      <AppIcon
-        className="shrink-0 text-current"
-        name={item.icon}
-        size={19}
-      />
-      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+      <AppIcon className="shrink-0 text-current" name={item.icon} size={18} />
+      <span className="min-w-0 flex-1 truncate leading-5">{item.label}</span>
       {badge ? (
-        <span className="min-w-5 rounded-full bg-primary/15 px-1.5 py-0.5 text-center text-[10px] font-semibold leading-4 text-primary">
+        <span className="min-w-5 rounded-full border border-[#5e6ad2]/30 bg-[#5e6ad2]/10 px-1.5 py-0.5 text-center text-[10px] font-semibold leading-4 text-[#828fff]">
           {badge}
         </span>
       ) : null}
@@ -40,7 +36,7 @@ function ItemContent({
 export default function SidebarItem({
   item,
   badgeCount,
-  onNavigate
+  onNavigate,
 }: SidebarItemProps) {
   if (item.to) {
     return (
@@ -48,11 +44,11 @@ export default function SidebarItem({
         className={({ isActive }) =>
           `${itemClasses} ${
             isActive
-              ? "border-primary bg-primary/10 font-medium text-primary"
-              : "border-transparent text-muted hover:bg-surface-raised hover:text-text"
+              ? "border-[#5e6ad2]/45 bg-[#5e6ad2]/10 font-medium text-[#f7f8f8]"
+              : "border-transparent text-[#8a8f98] hover:border-[#34343a] hover:bg-[#18191a] hover:text-[#f7f8f8]"
           }`
         }
-        end={item.to === "/"}
+        end={item.to === "/" || item.to === "/logs"}
         onClick={onNavigate}
         to={item.to}
       >
@@ -64,7 +60,7 @@ export default function SidebarItem({
   return (
     <button
       aria-label={`${item.label}, currently unavailable`}
-      className={`${itemClasses} border-transparent text-muted hover:bg-surface-raised hover:text-text`}
+      className={`${itemClasses} border-transparent text-[#62666d] hover:border-[#34343a] hover:bg-[#18191a] hover:text-[#8a8f98]`}
       type="button"
     >
       <ItemContent badgeCount={badgeCount} item={item} />

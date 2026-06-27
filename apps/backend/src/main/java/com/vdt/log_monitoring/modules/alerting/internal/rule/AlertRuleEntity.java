@@ -62,6 +62,10 @@ public class AlertRuleEntity {
 	@Column(name = "min_severity", nullable = false, length = 32)
 	private AlertSeverity minSeverity;
 
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false, length = 32)
+	private AlertSeverity severity;
+
 	@Column(name = "keyword_pattern", length = 255)
 	private String keywordPattern;
 
@@ -112,6 +116,7 @@ public class AlertRuleEntity {
 		String name,
 		String description,
 		AlertSeverity minSeverity,
+		AlertSeverity severity,
 		String keywordPattern,
 		int thresholdCount,
 		int thresholdWindowSeconds,
@@ -126,6 +131,7 @@ public class AlertRuleEntity {
 			requireText(name, "name"),
 			trimOptional(description),
 			Objects.requireNonNull(minSeverity, "minSeverity must not be null"),
+			Objects.requireNonNull(severity, "severity must not be null"),
 			trimOptional(keywordPattern),
 			requirePositive(thresholdCount, "thresholdCount"),
 			requirePositive(thresholdWindowSeconds, "thresholdWindowSeconds"),
@@ -142,6 +148,7 @@ public class AlertRuleEntity {
 		String name,
 		String description,
 		AlertSeverity minSeverity,
+		AlertSeverity severity,
 		String keywordPattern,
 		int thresholdCount,
 		int thresholdWindowSeconds,
@@ -151,6 +158,7 @@ public class AlertRuleEntity {
 		this.name = requireText(name, "name");
 		this.description = trimOptional(description);
 		this.minSeverity = Objects.requireNonNull(minSeverity, "minSeverity must not be null");
+		this.severity = Objects.requireNonNull(severity, "severity must not be null");
 		this.keywordPattern = trimOptional(keywordPattern);
 		this.thresholdCount = requirePositive(thresholdCount, "thresholdCount");
 		this.thresholdWindowSeconds = requirePositive(thresholdWindowSeconds, "thresholdWindowSeconds");

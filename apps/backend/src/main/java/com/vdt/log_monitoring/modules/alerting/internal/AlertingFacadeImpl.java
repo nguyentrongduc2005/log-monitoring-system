@@ -8,6 +8,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import com.vdt.log_monitoring.modules.alerting.api.AlertingException;
 import com.vdt.log_monitoring.modules.alerting.api.AlertingFacade;
 import com.vdt.log_monitoring.modules.alerting.internal.alert.AlertEntity;
 import com.vdt.log_monitoring.modules.alerting.internal.alert.AlertService;
@@ -38,6 +39,7 @@ public class AlertingFacadeImpl implements AlertingFacade {
 				command.name(),
 				command.description(),
 				command.minSeverity(),
+				command.severity(),
 				command.keywordPattern(),
 				command.thresholdCount(),
 				command.thresholdWindowSeconds(),
@@ -54,6 +56,7 @@ public class AlertingFacadeImpl implements AlertingFacade {
 				command.name(),
 				command.description(),
 				command.minSeverity(),
+				command.severity(),
 				command.keywordPattern(),
 				command.thresholdCount(),
 				command.thresholdWindowSeconds(),
@@ -105,6 +108,14 @@ public class AlertingFacadeImpl implements AlertingFacade {
 	@Override
 	public List<AlertDto> findAlerts(List<UUID> applicationIds, String status, String severity) {
 		return alertService.listAlerts(applicationIds, status, severity).stream()
+			.map(this::mapAlert)
+			.toList();
+	}
+
+	@Override
+	public List<AlertDto> findAlertsInWindow(UUID applicationId, java.time.Instant windowStart,
+			java.time.Instant windowEnd) {
+		return alertService.findAlertsInWindow(applicationId, windowStart, windowEnd).stream()
 			.map(this::mapAlert)
 			.toList();
 	}
@@ -164,6 +175,7 @@ public class AlertingFacadeImpl implements AlertingFacade {
 				rule.getName(),
 				rule.getDescription(),
 				rule.getMinSeverity().name(),
+				rule.getSeverity().name(),
 				rule.getKeywordPattern(),
 				rule.getThresholdCount(),
 				rule.getThresholdWindowSeconds(),
@@ -180,16 +192,16 @@ public class AlertingFacadeImpl implements AlertingFacade {
 		return new AlertDto(
 				alert.getId(),
 				alert.getRuleId(),
+				alert.getRuleName(),
 				alert.getApplicationId(),
-				alert.getEventId(),
-				alert.getIngestionId(),
 				alert.getApplicationName(),
 				alert.getApplicationDisplayName(),
 				alert.getSeverity().name(),
-				alert.getMessage(),
-				alert.getFingerprint(),
-				alert.getLogTimestamp(),
+				alert.getLogSamples().stream().map(sample -> new com.vdt.log_monitoring.api.alerting.dto.AlertLogSampleDto(sample.level(), sample.message())).toList(),
 				alert.getTriggeredAt(),
+				alert.getOccurrenceCount(),
+				alert.getFirstSeenAt(),
+				alert.getLastSeenAt(),
 				alert.getStatus().name(),
 				mapDeliveryChannels(alert),
 				mapDeliveryTargets(alert.getDeliveryTargets()),

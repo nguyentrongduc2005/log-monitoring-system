@@ -15,6 +15,7 @@ export type AlertRule = {
   name: string;
   description?: string | null;
   minSeverity: AlertSeverity;
+  severity: AlertSeverity;
   keywordPattern?: string | null;
   thresholdCount: number;
   thresholdWindowSeconds: number;
@@ -32,6 +33,7 @@ export type AlertRuleDraft = {
   name: string;
   description: string;
   minSeverity: AlertSeverity;
+  severity: AlertSeverity;
   keywordPattern: string;
   thresholdCount: number;
   thresholdWindowSeconds: number;
@@ -45,6 +47,7 @@ export type AlertRuleRequest = {
   name: string;
   description?: string;
   minSeverity: AlertSeverity;
+  severity: AlertSeverity;
   keywordPattern?: string;
   thresholdCount: number;
   thresholdWindowSeconds: number;

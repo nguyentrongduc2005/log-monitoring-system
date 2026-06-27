@@ -20,6 +20,7 @@ class AlertRuleEntityTest {
 			" Critical checkout errors ",
 			" Notify checkout failures ",
 			AlertSeverity.ERROR,
+			AlertSeverity.ERROR,
 			" payment failed ",
 			3,
 			300,
@@ -57,6 +58,7 @@ class AlertRuleEntityTest {
 			"Critical checkout errors",
 			null,
 			AlertSeverity.ERROR,
+			AlertSeverity.ERROR,
 			null,
 			1,
 			60,
@@ -69,6 +71,7 @@ class AlertRuleEntityTest {
 			" Critical logs ",
 			" Telegram only ",
 			AlertSeverity.CRITICAL,
+			AlertSeverity.CRITICAL,
 			" OutOfMemory ",
 			2,
 			120,
@@ -80,6 +83,7 @@ class AlertRuleEntityTest {
 		assertThat(rule.getName()).isEqualTo("Critical logs");
 		assertThat(rule.getDescription()).isEqualTo("Telegram only");
 		assertThat(rule.getMinSeverity()).isEqualTo(AlertSeverity.CRITICAL);
+		assertThat(rule.getSeverity()).isEqualTo(AlertSeverity.CRITICAL);
 		assertThat(rule.getKeywordPattern()).isEqualTo("OutOfMemory");
 		assertThat(rule.getThresholdCount()).isEqualTo(2);
 		assertThat(rule.getThresholdWindowSeconds()).isEqualTo(120);
@@ -94,6 +98,7 @@ class AlertRuleEntityTest {
 			UUID.fromString("00000000-0000-0000-0000-000000000001"),
 			"Critical checkout errors",
 			null,
+			AlertSeverity.ERROR,
 			AlertSeverity.ERROR,
 			null,
 			1,
@@ -114,6 +119,7 @@ class AlertRuleEntityTest {
 			UUID.fromString("00000000-0000-0000-0000-000000000001"),
 			"Critical checkout errors",
 			null,
+			AlertSeverity.ERROR,
 			AlertSeverity.ERROR,
 			null,
 			1,

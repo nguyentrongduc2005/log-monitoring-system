@@ -46,7 +46,7 @@ class AlertThresholdCacheTest {
 			.thenReturn(List.of(2L, 3L, firstSeenAt.toEpochMilli()));
 
 		ThresholdDecision decision = cache.evaluate(
-			rule(), UUID.randomUUID(), "checkout-payment", Instant.parse("2026-06-18T04:00:00Z"));
+			rule(), UUID.randomUUID(), UUID.randomUUID(), Instant.parse("2026-06-18T04:00:00Z"));
 
 		assertThat(decision.type()).isEqualTo(DecisionType.TRIGGERED);
 		assertThat(decision.count()).isEqualTo(3);
@@ -63,7 +63,7 @@ class AlertThresholdCacheTest {
 			.thenReturn(List.of(-1L, 0L, 0L));
 
 		ThresholdDecision decision = cache.evaluate(
-			rule(), UUID.randomUUID(), "checkout-payment", Instant.parse("2026-06-18T04:00:00Z"));
+			rule(), UUID.randomUUID(), UUID.randomUUID(), Instant.parse("2026-06-18T04:00:00Z"));
 
 		assertThat(decision.type()).isEqualTo(DecisionType.DUPLICATE);
 		assertThat(decision.count()).isZero();
@@ -75,6 +75,7 @@ class AlertThresholdCacheTest {
 			"Payment failures",
 			null,
 			AlertSeverity.ERROR,
+			AlertSeverity.CRITICAL,
 			"payment",
 			3,
 			60,

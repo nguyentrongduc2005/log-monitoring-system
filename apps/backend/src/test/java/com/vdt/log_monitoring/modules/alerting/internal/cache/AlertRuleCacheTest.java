@@ -85,6 +85,7 @@ class AlertRuleCacheTest {
 			"Payment failures",
 			null,
 			AlertSeverity.ERROR,
+			AlertSeverity.CRITICAL,
 			"payment",
 			3,
 			60,

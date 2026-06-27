@@ -27,7 +27,7 @@ class AlertRuleMatcherTest {
 
 	private AlertRuleDefinition rule(AlertSeverity severity, String keyword) {
 		return AlertRuleDefinition.from(AlertRuleEntity.create(
-			UUID.randomUUID(), "Rule", null, severity, keyword, 1, 60, 60,
+			UUID.randomUUID(), "Rule", null, severity, AlertSeverity.CRITICAL, keyword, 1, 60, 60,
 			AlertRuleEntity.channelOnlyTargets(Set.of(AlertChannel.WEBSOCKET)), UUID.randomUUID()));
 	}
 }

@@ -55,6 +55,7 @@ const criticalRule: AlertRule = {
   name: "Auth 401 flood",
   description: "Detect authentication failures",
   minSeverity: "ERROR",
+  severity: "CRITICAL",
   keywordPattern: "unauthorized",
   thresholdCount: 10,
   thresholdWindowSeconds: 60,
@@ -111,8 +112,10 @@ describe("AlertRulesPage", () => {
     renderPage();
     await screen.findByText("Auth 401 flood");
 
+    await user.click(screen.getByRole("button", { name: "New Alert Rule" }));
     const form = screen.getByRole("button", { name: "Create rule" }).closest("form")!;
     await user.type(within(form).getByLabelText("Rule name"), "Gateway errors");
+    await user.click(within(form).getByRole("button", { name: /Select chat rooms/i }));
     await user.click(
       within(form).getByRole("checkbox", { name: /Ops critical/ })
     );
@@ -125,6 +128,7 @@ describe("AlertRulesPage", () => {
           name: "Gateway errors",
           description: "",
           minSeverity: "ERROR",
+          severity: "CRITICAL",
           keywordPattern: "",
           thresholdCount: 1,
           thresholdWindowSeconds: 60,

@@ -54,6 +54,7 @@ function toRequest(draft: AlertRuleDraft, includeApplication: boolean): AlertRul
     name: draft.name.trim(),
     description: draft.description.trim() || undefined,
     minSeverity: draft.minSeverity,
+    severity: draft.severity,
     keywordPattern: draft.keywordPattern.trim() || undefined,
     thresholdCount: draft.thresholdCount,
     thresholdWindowSeconds: draft.thresholdWindowSeconds,

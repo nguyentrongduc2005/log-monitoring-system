@@ -111,7 +111,9 @@ export default function AlertRuleInventory({
                     {applicationNames.get(rule.applicationId) || rule.applicationId}
                   </p>
                   <p className="mt-2 text-xs text-muted">
-                    Severity ≥ <span className="font-semibold text-text">{rule.minSeverity}</span>
+                    Min severity: <span className="font-semibold text-text">{rule.minSeverity}</span>
+                    <span className="mx-2 opacity-50">|</span>
+                    Alert: <span className="font-semibold text-text">{rule.severity}</span>
                     {rule.keywordPattern ? ` · contains “${rule.keywordPattern}”` : ""}
                   </p>
                 </div>

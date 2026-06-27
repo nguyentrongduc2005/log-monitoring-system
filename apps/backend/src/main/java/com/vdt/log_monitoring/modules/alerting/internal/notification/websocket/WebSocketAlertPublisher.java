@@ -17,13 +17,12 @@ public class WebSocketAlertPublisher {
 		realtimeFacade.publishAlertNotification(new AlertNotificationMessage(
 				alert.getId(),
 				alert.getRuleId(),
+				alert.getRuleName(),
 				alert.getApplicationId(),
 				alert.getApplicationName(),
 				alert.getApplicationDisplayName(),
 				alert.getSeverity().name(),
-				alert.getMessage(),
-				alert.getFingerprint(),
-				alert.getLogTimestamp(),
+				alert.getLogSamples().stream().map(sample -> new com.vdt.log_monitoring.api.alerting.dto.AlertLogSampleDto(sample.level(), sample.message())).toList(),
 				alert.getTriggeredAt()));
 	}
 }

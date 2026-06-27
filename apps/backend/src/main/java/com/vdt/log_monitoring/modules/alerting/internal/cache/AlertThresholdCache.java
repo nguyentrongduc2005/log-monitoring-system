@@ -30,6 +30,8 @@ public class AlertThresholdCache {
 		  redis.call('HSET', KEYS[2], 'firstSeenAt', ARGV[5])
 		  redis.call('EXPIRE', KEYS[2], ARGV[2])
 		end
+		redis.call('HSET', KEYS[2], 'lastSeenAt', ARGV[5])
+		redis.call('SADD', KEYS[4], KEYS[2])
 		local firstSeenAt = redis.call('HGET', KEYS[2], 'firstSeenAt')
 		if redis.call('EXISTS', KEYS[3]) == 1 then
 		  return {1, count, tonumber(firstSeenAt)}
@@ -63,10 +65,10 @@ public class AlertThresholdCache {
 	@Value("${app.alerting.threshold-cache.idempotency-ttl-seconds}")
 	private long idempotencyTtlSeconds;
 
-	public ThresholdDecision evaluate(AlertRuleDefinition rule, UUID eventId, String fingerprint, Instant occurredAt) {
+	public ThresholdDecision evaluate(AlertRuleDefinition rule, UUID applicationId, UUID eventId, Instant occurredAt) {
 		List<?> result = redisTemplate.execute(
 			EVALUATE_SCRIPT,
-			keys(rule.id(), eventId, fingerprint),
+			keys(rule.id(), applicationId, eventId),
 			Integer.toString(rule.thresholdCount()),
 			Integer.toString(rule.thresholdWindowSeconds()),
 			Integer.toString(rule.cooldownSeconds()),
@@ -85,34 +87,25 @@ public class AlertThresholdCache {
 
 	public void rollback(
 			AlertRuleDefinition rule,
+			UUID applicationId,
 			UUID eventId,
-			String fingerprint,
 			ThresholdDecision decision) {
 		if (decision.type() == DecisionType.DUPLICATE) {
 			return;
 		}
 		redisTemplate.execute(
 			ROLLBACK_SCRIPT,
-			keys(rule.id(), eventId, fingerprint),
+			keys(rule.id(), applicationId, eventId),
 			decision.type() == DecisionType.TRIGGERED ? "1" : "0");
 	}
 
-	private List<String> keys(UUID ruleId, UUID eventId, String fingerprint) {
-		String scope = ruleId + ":" + fingerprintHash(fingerprint);
+	private List<String> keys(UUID ruleId, UUID applicationId, UUID eventId) {
+		String scope = ruleId + ":" + applicationId;
 		return List.of(
 			keyPrefix + "event:" + ruleId + ":" + eventId,
 			keyPrefix + "window:" + scope,
-			keyPrefix + "cooldown:" + scope);
-	}
-
-	private String fingerprintHash(String fingerprint) {
-		try {
-			byte[] digest = MessageDigest.getInstance("SHA-256")
-				.digest(fingerprint.getBytes(StandardCharsets.UTF_8));
-			return HexFormat.of().formatHex(digest);
-		} catch (NoSuchAlgorithmException exception) {
-			throw new IllegalStateException("SHA-256 algorithm is not available", exception);
-		}
+			keyPrefix + "cooldown:" + scope,
+			keyPrefix + "dirty_alerts");
 	}
 
 	public enum DecisionType {

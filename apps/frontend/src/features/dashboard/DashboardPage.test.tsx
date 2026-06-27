@@ -7,36 +7,42 @@ import type { OverviewSnapshot } from "@/features/dashboard/overview-types";
 import { PageHeaderProvider } from "@/shared/layouts/page-header-context";
 
 vi.mock("@/features/dashboard/overview-adapter", () => ({
-  getOverviewSnapshot: vi.fn()
+  getOverviewSnapshot: vi.fn(),
+}));
+
+vi.mock("echarts-for-react", () => ({
+  default: () => <div aria-label="Rendered log volume chart" />,
 }));
 
 const baseSnapshot: OverviewSnapshot = {
+  window: "Last 15 minutes",
+  generatedAt: "2026-06-23T10:30:00Z",
   metrics: [
     {
-      id: "accepted",
-      label: "Logs accepted/min",
-      value: "14,820",
-      tone: "success"
+      id: "logs-per-minute",
+      label: "Logs/min",
+      value: "1,228",
+      tone: "success",
     },
     { id: "error-rate", label: "Error rate", value: "2.4%", tone: "warning" },
     {
       id: "critical-alerts",
-      label: "Critical alerts",
+      label: "Open critical",
       value: "3",
-      tone: "error"
+      tone: "error",
     },
     {
       id: "active-apps",
       label: "Active applications",
       value: "12",
-      tone: "neutral"
+      tone: "neutral",
     },
     {
       id: "lag",
       label: "Processing lag",
       value: "380 ms",
-      tone: "success"
-    }
+      tone: "success",
+    },
   ],
   pipeline: [
     { id: "1", label: "Ingestion API", state: "healthy", detail: "ok" },
@@ -48,12 +54,18 @@ const baseSnapshot: OverviewSnapshot = {
       id: "6",
       label: "Alerting / Telegram",
       state: "healthy",
-      detail: "ok"
-    }
+      detail: "ok",
+    },
   ],
   volume: [
     { time: "09:55", INFO: 20, WARN: 5, ERROR: 2, CRITICAL: 1 },
-    { time: "10:00", INFO: 24, WARN: 6, ERROR: 3, CRITICAL: 1 }
+    { time: "10:00", INFO: 24, WARN: 6, ERROR: 3, CRITICAL: 1 },
+  ],
+  levelDistribution: [
+    { level: "INFO", count: 44, percentage: 74 },
+    { level: "WARN", count: 11, percentage: 18 },
+    { level: "ERROR", count: 5, percentage: 7 },
+    { level: "CRITICAL", count: 2, percentage: 1 },
   ],
   noisyApplications: [
     {
@@ -64,38 +76,35 @@ const baseSnapshot: OverviewSnapshot = {
       errorCount: 132,
       criticalCount: 8,
       errorRate: "2.2%",
-      lastSeen: "10:15 UTC"
-    }
+      lastSeen: "10:15 UTC",
+    },
   ],
   criticalAlerts: [
     {
       id: "critical-1",
       severity: "CRITICAL",
       application: "checkout-api",
-      fingerprint: "PAYMENT_GATEWAY_TIMEOUT",
-      message: "Payment gateway timeout crossed alert threshold.",
+      logSamples: [{ level: "CRITICAL", message: "Payment gateway timeout crossed alert threshold." }],
       occurrences: 28,
       lastSeen: "10:15 UTC",
-      deliveryState: "Delivered"
-    }
+      deliveryState: "Delivered",
+    },
   ],
-  demoReadiness: {
-    accepted: 500,
-    rejected: 0,
-    duration: "2.0s",
-    p95AckLatency: "84 ms",
-    streamStatus: "Smooth",
-    buffered: 8,
-    dropped: 0
+  notificationSummary: {
+    sent: 32,
+    failed: 3,
+    dedupSuppressed: 128,
+    deliveryRate: "91.4%",
+    lastFailure: "10:23 UTC",
   },
-  authorizedApplications: 12
+  authorizedApplications: 12,
 };
 
 function renderDashboardPage() {
   render(
     <PageHeaderProvider>
       <DashboardPage />
-    </PageHeaderProvider>
+    </PageHeaderProvider>,
   );
 }
 
@@ -109,9 +118,11 @@ describe("DashboardPage", () => {
     renderDashboardPage();
 
     expect(screen.getByText("Loading overview...")).toBeInTheDocument();
-    expect(await screen.findByText("Logs accepted/min")).toBeInTheDocument();
+    expect(await screen.findByText("Dashboard")).toBeInTheDocument();
+    expect(screen.getByText("Operations overview")).toBeInTheDocument();
+    expect(screen.getByText("Logs/min")).toBeInTheDocument();
     expect(screen.getAllByText("Error rate")).not.toHaveLength(0);
-    expect(screen.getByText("Critical alerts")).toBeInTheDocument();
+    expect(screen.getByText("Open critical")).toBeInTheDocument();
     expect(screen.getByText("Active applications")).toBeInTheDocument();
     expect(screen.getByText("Processing lag")).toBeInTheDocument();
     expect(screen.getByText("Ingestion API")).toBeInTheDocument();
@@ -120,14 +131,13 @@ describe("DashboardPage", () => {
     expect(screen.getByText("ClickHouse")).toBeInTheDocument();
     expect(screen.getByText("WebSocket")).toBeInTheDocument();
     expect(screen.getByText("Alerting / Telegram")).toBeInTheDocument();
-    expect(
-      screen.getByLabelText("Log volume by level")
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Log volume by level")).toBeInTheDocument();
     expect(screen.getAllByText("checkout-api")).not.toHaveLength(0);
     expect(
-      screen.getByText("Payment gateway timeout crossed alert threshold.")
+      screen.getByText("Payment gateway timeout crossed alert threshold."),
     ).toBeInTheDocument();
-    expect(screen.getByText("500 logs / 2 seconds")).toBeInTheDocument();
+    expect(screen.getByText("Alert delivery")).toBeInTheDocument();
+    expect(screen.getByText("Dedup suppressed")).toBeInTheDocument();
   });
 
   it("renders retryable error state when the adapter fails", async () => {
@@ -136,8 +146,8 @@ describe("DashboardPage", () => {
 
     expect(
       await screen.findByText(
-        "Unable to load the overview snapshot right now. Please try again."
-      )
+        "Unable to load the overview snapshot right now. Please try again.",
+      ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
@@ -146,30 +156,34 @@ describe("DashboardPage", () => {
     vi.mocked(getOverviewSnapshot).mockResolvedValueOnce({
       ...baseSnapshot,
       noisyApplications: [],
-      criticalAlerts: []
+      criticalAlerts: [],
     });
 
     renderDashboardPage();
 
-    expect(await screen.findByText("Logs accepted/min")).toBeInTheDocument();
-    expect(screen.getByText("Pipeline flow")).toBeInTheDocument();
-    expect(screen.getByText("No noisy applications in the current window.")).toBeInTheDocument();
-    expect(screen.getByText("No critical alerts in the current window.")).toBeInTheDocument();
+    expect(await screen.findByText("Logs/min")).toBeInTheDocument();
+    expect(screen.getByText("Pipeline health")).toBeInTheDocument();
+    expect(
+      screen.getByText("No noisy applications in the current window."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("No critical alerts in the current window."),
+    ).toBeInTheDocument();
   });
 
   it("renders the no-authorized-applications state", async () => {
     vi.mocked(getOverviewSnapshot).mockResolvedValueOnce({
       ...baseSnapshot,
       authorizedApplications: 0,
-      noisyApplications: []
+      noisyApplications: [],
     });
 
     renderDashboardPage();
 
     expect(
       await screen.findByText(
-        "No authorized applications are available for this account yet."
-      )
+        "No authorized applications are available for this account yet.",
+      ),
     ).toBeInTheDocument();
   });
 
@@ -185,9 +199,21 @@ describe("DashboardPage", () => {
     const user = userEvent.setup();
     renderDashboardPage();
 
-    await screen.findByText("Logs accepted/min");
+    await screen.findByText("Logs/min");
     await user.click(screen.getByRole("button", { name: "Refresh" }));
 
     await waitFor(() => expect(getOverviewSnapshot).toHaveBeenCalledTimes(2));
+  });
+
+  it("reloads chart data for the selected time window", async () => {
+    const user = userEvent.setup();
+    renderDashboardPage();
+
+    await screen.findByText("Logs/min");
+    await user.click(screen.getByRole("button", { name: "1h" }));
+
+    await waitFor(() =>
+      expect(getOverviewSnapshot).toHaveBeenLastCalledWith("1h"),
+    );
   });
 });

@@ -78,12 +78,9 @@ export function Component() {
     <div className="space-y-5">
       <PageHeader title="Retention Policy" />
 
-      <div>
-        <h1 className="text-2xl font-semibold text-text">Retention Policy</h1>
-        <p className="mt-1 text-sm text-muted">
-          Manage automated log aging, compression, and archival schedules.
-        </p>
-      </div>
+      <p className="text-sm text-muted">
+        Manage automated log aging, compression, and archival schedules.
+      </p>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-3">

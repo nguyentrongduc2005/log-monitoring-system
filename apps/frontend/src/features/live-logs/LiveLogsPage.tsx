@@ -208,16 +208,16 @@ export function Component() {
       />
 
       {loading ? (
-        <section className="rounded-2xl border border-border bg-surface p-5 text-sm text-muted">
+        <section className="rounded-lg border border-border bg-surface p-5 text-sm text-muted">
           Loading live logs...
         </section>
       ) : null}
 
       {error ? (
-        <section className="rounded-2xl border border-border bg-surface p-5">
+        <section className="rounded-lg border border-border bg-surface p-5">
           <p className="text-sm text-error">{error}</p>
           <button
-            className="mt-4 inline-flex min-h-10 items-center justify-center rounded-xl bg-primary px-4 text-sm font-medium text-black transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+            className="mt-4 inline-flex min-h-10 items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
             onClick={() => void loadSnapshot()}
             type="button"
           >
@@ -227,7 +227,7 @@ export function Component() {
       ) : null}
 
       {!loading && !error && snapshot.applications.length === 0 ? (
-        <section className="rounded-2xl border border-border bg-surface p-5 text-sm text-muted">
+        <section className="rounded-lg border border-border bg-surface p-5 text-sm text-muted">
           No authorized applications are available for live monitoring yet.
         </section>
       ) : null}
@@ -242,12 +242,12 @@ export function Component() {
           />
 
           {hasActiveFilters && visibleEntries.length === 0 ? (
-            <section className="rounded-2xl border border-border bg-surface p-5">
+            <section className="rounded-lg border border-border bg-surface p-5">
               <p className="text-sm text-muted">
                 No logs match the current filters.
               </p>
               <button
-                className="mt-4 inline-flex min-h-10 items-center justify-center rounded-xl border border-border bg-surface-raised px-4 text-sm font-medium text-text transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+                className="mt-4 inline-flex min-h-10 items-center justify-center rounded-lg border border-border bg-surface-raised px-4 text-sm font-medium text-text transition hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
                 onClick={resetFilters}
                 type="button"
               >

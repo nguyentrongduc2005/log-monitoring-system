@@ -2,24 +2,26 @@ import type { NoisyApplication } from "@/features/dashboard/overview-types";
 
 export default function NoisyApplicationsTable({
   applications,
-  authorizedApplications
+  authorizedApplications,
 }: {
   applications: NoisyApplication[];
   authorizedApplications: number;
 }) {
   return (
-    <section className="rounded-2xl border border-border bg-surface p-5">
+    <section className="rounded-lg border border-border bg-surface p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-text">Noisy applications</h2>
+          <h2 className="text-lg font-semibold text-text">
+            Noisy applications
+          </h2>
           <p className="mt-1 text-sm text-muted">
-            Fast read on which services are generating the heaviest error load.
+            Services with the heaviest error load in the selected window.
           </p>
         </div>
       </div>
 
       {applications.length === 0 && authorizedApplications > 0 ? (
-        <p className="mt-5 rounded-xl border border-border bg-surface-raised p-4 text-sm text-muted">
+        <p className="mt-5 rounded-lg border border-border bg-surface-raised p-4 text-sm text-muted">
           No noisy applications in the current window.
         </p>
       ) : (
@@ -38,12 +40,23 @@ export default function NoisyApplicationsTable({
             </thead>
             <tbody>
               {applications.map((application) => (
-                <tr className="border-t border-border" key={application.id}>
-                  <td className="py-3 font-medium text-text">{application.name}</td>
+                <tr
+                  className="border-t border-border hover:bg-surface-raised/60"
+                  key={application.id}
+                >
+                  <td className="py-3 font-medium text-text">
+                    {application.name}
+                  </td>
                   <td className="py-3 text-muted">{application.environment}</td>
-                  <td className="py-3 text-text">{application.totalLogs}</td>
-                  <td className="py-3 text-warning">{application.errorCount}</td>
-                  <td className="py-3 text-error">{application.criticalCount}</td>
+                  <td className="py-3 text-text">
+                    {application.totalLogs.toLocaleString()}
+                  </td>
+                  <td className="py-3 text-warning">
+                    {application.errorCount.toLocaleString()}
+                  </td>
+                  <td className="py-3 text-error">
+                    {application.criticalCount.toLocaleString()}
+                  </td>
                   <td className="py-3 text-text">{application.errorRate}</td>
                   <td className="py-3 text-muted">{application.lastSeen}</td>
                 </tr>

@@ -1,19 +1,19 @@
 package com.vdt.log_monitoring.modules.realtime.api.events;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
 public record AlertNotificationMessage(
 	UUID alertId,
 	UUID ruleId,
+	String ruleName,
 	UUID applicationId,
 	String applicationName,
 	String applicationDisplayName,
 	String severity,
-	String message,
-	String fingerprint,
-	Instant logTimestamp,
+	List<com.vdt.log_monitoring.api.alerting.dto.AlertLogSampleDto> logSamples,
 	Instant triggeredAt
 ) {
 
@@ -23,9 +23,6 @@ public record AlertNotificationMessage(
 		Objects.requireNonNull(applicationId, "applicationId must not be null");
 		Objects.requireNonNull(applicationName, "applicationName must not be null");
 		Objects.requireNonNull(severity, "severity must not be null");
-		Objects.requireNonNull(message, "message must not be null");
-		Objects.requireNonNull(fingerprint, "fingerprint must not be null");
-		Objects.requireNonNull(logTimestamp, "logTimestamp must not be null");
 		Objects.requireNonNull(triggeredAt, "triggeredAt must not be null");
 
 		if (applicationName.isBlank()) {
@@ -34,10 +31,6 @@ public record AlertNotificationMessage(
 
 		if (severity.isBlank()) {
 			throw new IllegalArgumentException("severity must not be blank");
-		}
-
-		if (message.isBlank()) {
-			throw new IllegalArgumentException("message must not be blank");
 		}
 	}
 

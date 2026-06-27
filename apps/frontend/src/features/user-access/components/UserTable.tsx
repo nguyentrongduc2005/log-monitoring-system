@@ -44,7 +44,7 @@ export default function UserTable({
   onManageAccess
 }: UserTableProps) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-border bg-surface">
+    <section className="overflow-hidden rounded-lg border border-border bg-surface">
       <div className="shell-scrollbar overflow-x-auto">
         <table className="w-full min-w-[760px] text-left text-sm">
           <thead className="border-b border-border bg-surface-raised/60 text-xs uppercase tracking-wide text-muted">

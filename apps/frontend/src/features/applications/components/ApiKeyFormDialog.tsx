@@ -33,7 +33,7 @@ export default function ApiKeyFormDialog({
       footer={
         <>
           <button
-            className="min-h-11 rounded-xl border border-border px-5 text-sm font-medium text-text transition hover:bg-surface-raised"
+            className="min-h-11 rounded-lg border border-border px-5 text-sm font-medium text-text transition hover:bg-surface-raised"
             disabled={saving}
             onClick={onClose}
             type="button"
@@ -41,7 +41,7 @@ export default function ApiKeyFormDialog({
             Cancel
           </button>
           <button
-            className="min-h-11 rounded-xl bg-primary px-5 text-sm font-semibold text-black transition hover:bg-primary-hover disabled:opacity-50"
+            className="min-h-11 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:opacity-50"
             disabled={saving || !name.trim()}
             form="api-key-form"
             type="submit"
@@ -59,7 +59,7 @@ export default function ApiKeyFormDialog({
           <span className="text-sm font-medium text-text">Key name</span>
           <input
             autoFocus
-            className="mt-2 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="mt-2 w-full rounded-lg border border-border bg-background px-4 py-3 text-sm text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             onChange={event => setName(event.target.value)}
             placeholder="Production ingest key"
             required
@@ -69,7 +69,7 @@ export default function ApiKeyFormDialog({
         <label className="block">
           <span className="text-sm font-medium text-text">Expires at</span>
           <input
-            className="mt-2 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="mt-2 w-full rounded-lg border border-border bg-background px-4 py-3 text-sm text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             onChange={event => setExpiresAt(event.target.value)}
             type="datetime-local"
             value={expiresAt}

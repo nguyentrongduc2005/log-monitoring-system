@@ -31,22 +31,28 @@ export default function Sidebar({
 
   return (
     <aside
-      className="flex h-full w-full flex-col border-r border-border bg-sidebar text-text"
+      className="flex h-full w-full flex-col border-r border-[#23252a] bg-[#0f1011] text-[#f7f8f8]"
       id={id}
     >
-      <div className="flex h-16 shrink-0 items-center gap-3 border-b border-border px-4">
-        <img
-          alt=""
-          className="h-8 w-8 shrink-0 object-contain"
-          src="/logpulse-logo.png"
-        />
-        <span className="min-w-0 flex-1 truncate text-base font-semibold tracking-tight">
-          LogPulse
-        </span>
+      <div className="flex h-14 shrink-0 items-center gap-3 border-b border-[#23252a] px-3">
+        <div
+          aria-hidden="true"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/10 font-mono text-sm font-semibold text-primary-hover"
+        >
+          &gt;_
+        </div>
+        <div className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold tracking-[-0.1px]">
+            LogPulse
+          </span>
+          <span className="block truncate text-[11px] text-[#62666d]">
+            AI log monitoring
+          </span>
+        </div>
         {showCloseButton ? (
           <button
             aria-label="Close navigation"
-            className="rounded-md p-2 text-muted hover:bg-surface-raised hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+            className="rounded-md border border-transparent p-2 text-[#8a8f98] hover:border-[#34343a] hover:bg-[#18191a] hover:text-[#f7f8f8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5e6ad2]/70"
             onClick={onRequestClose}
             type="button"
           >
@@ -56,7 +62,7 @@ export default function Sidebar({
       </div>
       <nav
         aria-label="Primary navigation"
-        className="shell-scrollbar flex-1 space-y-5 overflow-y-auto px-2 py-4"
+        className="shell-scrollbar flex-1 space-y-5 overflow-y-auto px-2.5 py-3"
       >
         {groups.map((group) => (
           <SidebarSection

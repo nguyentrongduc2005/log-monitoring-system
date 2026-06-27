@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -30,6 +31,7 @@ class TelegramNotifierTest {
 			"Critical payment errors",
 			null,
 			AlertSeverity.ERROR,
+			AlertSeverity.CRITICAL,
 			"payment <failed>",
 			3,
 			60,
@@ -41,17 +43,16 @@ class TelegramNotifierTest {
 		AlertEntity alert = AlertEntity.create(
 			rule.id(),
 			applicationId,
-			UUID.randomUUID(),
-			UUID.randomUUID(),
 			"payment-service",
 			"Payment & Billing",
+			rule.name(),
 			AlertSeverity.CRITICAL,
-			"Payment <failed> because amount > balance & gateway timed out",
-			"0123456789abcdef",
+			List.of(new com.vdt.log_monitoring.modules.alerting.internal.alert.AlertLogSample("ERROR", "Payment <failed> because amount > balance & gateway timed out")),
+			occurredAt.minusSeconds(30),
+			occurredAt.minusSeconds(30),
 			occurredAt,
 			Set.of(target),
-			3,
-			occurredAt.minusSeconds(30));
+			10);
 		TelegramNotifier notifier = new TelegramNotifier(
 			RestClient.builder(),
 			mock(ChatRoomRepository.class),
@@ -61,14 +62,15 @@ class TelegramNotifierTest {
 		String message = notifier.formatMessage(alert, rule);
 
 		assertThat(message)
-			.contains("🔥 <b>CRITICAL ALERT</b>")
-			.contains("<b>Application:</b> Payment &amp; Billing")
-			.contains("<b>Rule:</b> Critical payment errors")
-			.contains("<b>Threshold:</b> 3 events / 60s")
-			.contains("<b>Occurrences:</b> 3")
-			.contains("<b>First seen:</b> 2026-06-22 14:29:30 UTC")
-			.contains("<b>Last seen:</b> 2026-06-22 14:30:00 UTC")
-			.contains("<pre>Payment &lt;failed&gt; because amount &gt; balance &amp; gateway timed out</pre>")
+			.contains("🔥 <b>CRITICAL ALERT: Critical payment errors</b>")
+			.contains("🎯 <b>App:</b> Payment &amp; Billing (<code>payment-service</code>)")
+			.contains("📊 <b>Count:</b> 10 times")
+			.contains("⏱️ <b>Threshold:</b> 3 events / 60s")
+			.contains("🔍 <b>Match:</b> Severity ≥ ERROR")
+			.contains("🕒 <b>First:</b> 2026-06-22 14:29:30 UTC")
+			.contains("🕒 <b>Last:</b> 2026-06-22 14:30:00 UTC")
+			.contains("📝 <b>Log Samples (Top 1):</b>")
+			.contains("<pre>[ERROR] Payment &lt;failed&gt; because amount &gt; balance &amp; gateway timed out</pre>")
 			.doesNotContain("Payment <failed>");
 	}
 }

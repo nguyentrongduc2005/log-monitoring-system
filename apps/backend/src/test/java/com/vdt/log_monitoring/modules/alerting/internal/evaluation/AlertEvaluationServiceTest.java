@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -36,9 +37,10 @@ class AlertEvaluationServiceTest {
 	private final AlertThresholdCache thresholdCache = mock();
 	private final AlertService alertService = mock();
 	private final NotificationDispatcher dispatcher = mock();
+	private final AlertLogEvidenceReader logEvidenceReader = mock();
 	private final AlertEvaluationLifecycle lifecycle = mock();
 	private final AlertEvaluationService service = new AlertEvaluationService(
-		ruleService, ruleMatcher, thresholdCache, alertService, dispatcher, lifecycle);
+		ruleService, ruleMatcher, thresholdCache, alertService, logEvidenceReader, dispatcher, lifecycle);
 
 	@BeforeEach
 	void runAfterCommitCallbacksImmediately() {
@@ -55,10 +57,10 @@ class AlertEvaluationServiceTest {
 		AlertEntity alert = mock();
 		when(ruleService.findActiveRules(candidate.applicationId())).thenReturn(List.of(rule));
 		when(ruleMatcher.matches(rule, AlertSeverity.ERROR, candidate.message())).thenReturn(true);
-		when(thresholdCache.evaluate(rule, candidate.eventId(), candidate.fingerprint(), candidate.logTimestamp()))
+		when(thresholdCache.evaluate(rule, candidate.applicationId(), candidate.eventId(), candidate.logTimestamp()))
 			.thenReturn(new ThresholdDecision(
 				DecisionType.TRIGGERED, 3, Instant.parse("2026-06-18T03:59:00Z")));
-		when(alertService.trigger(any(), any(), any(), any(Long.class), any()))
+		when(alertService.trigger(any(), any(), any(Long.class), any(), any()))
 			.thenReturn(alert);
 
 		assertThat(service.evaluate(candidate)).containsExactly(alert);
@@ -72,36 +74,36 @@ class AlertEvaluationServiceTest {
 		AlertEvaluationCandidate candidate = candidate();
 		when(ruleService.findActiveRules(candidate.applicationId())).thenReturn(List.of(rule));
 		when(ruleMatcher.matches(rule, AlertSeverity.ERROR, candidate.message())).thenReturn(true);
-		when(thresholdCache.evaluate(rule, candidate.eventId(), candidate.fingerprint(), candidate.logTimestamp()))
+		when(thresholdCache.evaluate(rule, candidate.applicationId(), candidate.eventId(), candidate.logTimestamp()))
 			.thenReturn(new ThresholdDecision(
 				DecisionType.BELOW_THRESHOLD, 2, Instant.parse("2026-06-18T03:59:00Z")));
 
 		assertThat(service.evaluate(candidate)).isEmpty();
 
-		verify(alertService, never()).trigger(any(), any(), any(), any(Long.class), any());
+		verify(alertService, never()).trigger(any(), any(), any(Long.class), any(), any());
 		verify(dispatcher, never()).dispatch(any(), any());
 	}
 
 	@Test
-	void cooldownOnlyRecordsOccurrence() {
+	void cooldownDoesNotInteractWithDbDirectly() {
 		AlertRuleDefinition rule = rule();
 		AlertEvaluationCandidate candidate = candidate();
 		when(ruleService.findActiveRules(candidate.applicationId())).thenReturn(List.of(rule));
 		when(ruleMatcher.matches(rule, AlertSeverity.ERROR, candidate.message())).thenReturn(true);
-		when(thresholdCache.evaluate(rule, candidate.eventId(), candidate.fingerprint(), candidate.logTimestamp()))
+		when(thresholdCache.evaluate(rule, candidate.applicationId(), candidate.eventId(), candidate.logTimestamp()))
 			.thenReturn(new ThresholdDecision(
 				DecisionType.COOLDOWN, 4, Instant.parse("2026-06-18T03:59:00Z")));
 
 		assertThat(service.evaluate(candidate)).isEmpty();
 
-		verify(alertService).recordOccurrence(rule.id(), candidate.fingerprint(), candidate.logTimestamp());
+		verify(alertService, never()).recordOccurrenceOrTrigger(any(), any(), any(Long.class), any(), any());
 		verify(dispatcher, never()).dispatch(any(), any());
 	}
 
 	private AlertRuleDefinition rule() {
 		return AlertRuleDefinition.from(AlertRuleEntity.create(
 			UUID.fromString("00000000-0000-0000-0000-000000000101"),
-			"Payment failures", null, AlertSeverity.ERROR, "payment", 3, 60, 120,
+			"Payment failures", null, AlertSeverity.ERROR, AlertSeverity.CRITICAL, "payment", 3, 60, 120,
 			AlertRuleEntity.channelOnlyTargets(Set.of(AlertChannel.WEBSOCKET)),
 			UUID.fromString("00000000-0000-0000-0000-000000000102")));
 	}

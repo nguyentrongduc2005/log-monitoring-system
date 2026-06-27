@@ -47,9 +47,9 @@ function AppLayoutContent() {
   }
 
   return (
-    <div className="h-svh overflow-hidden bg-background text-text">
+    <div className="h-svh overflow-hidden bg-[#010102] text-text">
       {isDesktop && desktopSidebarOpen ? (
-        <div className="fixed inset-y-0 left-0 z-40 w-60">
+        <div className="fixed inset-y-0 left-0 z-40 w-64">
           <Sidebar badgeCounts={{ alerts: openCount }} id="application-sidebar" role={session.user.role} />
         </div>
       ) : null}
@@ -70,7 +70,7 @@ function AppLayoutContent() {
 
       <div
         className={`flex h-full min-w-0 flex-col transition-[padding-left] duration-200 ${
-          isDesktop && desktopSidebarOpen ? "md:pl-60" : ""
+          isDesktop && desktopSidebarOpen ? "md:pl-64" : ""
         }`}
         data-testid="app-content-column"
       >
@@ -81,8 +81,10 @@ function AppLayoutContent() {
           toggleRef={toggleRef}
           user={session.user}
         />
-        <main className="shell-scrollbar min-w-0 flex-1 overflow-y-auto bg-background p-3 sm:p-4 lg:p-6">
-          <Outlet />
+        <main className="shell-scrollbar min-w-0 flex-1 overflow-y-auto bg-[#010102]">
+          <div className="mx-auto w-full max-w-[1600px] p-3 sm:p-4 lg:p-4">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

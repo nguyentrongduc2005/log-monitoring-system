@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatNavigationBadge,
   getNavigationGroups,
-  navigationGroups
+  navigationGroups,
 } from "@/shared/layouts/navigation";
 import type { NavigationItem } from "@/shared/layouts/navigation";
 
@@ -12,20 +12,18 @@ describe("navigation", () => {
       "Monitoring",
       "Analytics",
       "Resources",
-      "Administration"
+      "Administration",
     ]);
   });
 
   it("hides administration from an engineer or unknown role", () => {
-    expect(getNavigationGroups("ENGINEER").map((group) => group.label)).toEqual([
-      "Monitoring",
-      "Analytics",
-      "Resources"
-    ]);
+    expect(getNavigationGroups("ENGINEER").map((group) => group.label)).toEqual(
+      ["Monitoring", "Analytics", "Resources"],
+    );
     expect(
       getNavigationGroups(undefined).some(
-        (group) => group.label === "Administration"
-      )
+        (group) => group.label === "Administration",
+      ),
     ).toBe(false);
   });
 
@@ -38,12 +36,15 @@ describe("navigation", () => {
     expect(implemented).toEqual([
       ["Overview", "/"],
       ["Live Logs", "/logs"],
+      ["Log Search", "/logs/search"],
       ["Alerts", "/alerts"],
+      ["Incidents", "/incidents"],
+      ["Application Health", "/analytics/application-health"],
       ["Applications", "/admin/applications"],
       ["Users & Access", "/admin/users"],
       ["Alert Rules", "/admin/alert-rules"],
       ["Notification Channels", "/admin/notification-channels"],
-      ["Retention Policies", "/admin/retention"]
+      ["Retention Policies", "/admin/retention"],
     ]);
   });
 
@@ -52,7 +53,7 @@ describe("navigation", () => {
     [0, null],
     [1, "1"],
     [99, "99"],
-    [100, "99+"]
+    [100, "99+"],
   ])("formats badge count %s as %s", (count, expected) => {
     expect(formatNavigationBadge(count)).toBe(expected);
   });

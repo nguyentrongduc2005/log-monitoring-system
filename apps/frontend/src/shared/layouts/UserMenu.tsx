@@ -95,25 +95,25 @@ export default function UserMenu({
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Open account menu"
-        className="flex min-h-10 items-center gap-2 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 sm:px-2"
+        className="flex min-h-9 items-center gap-2 rounded-md border border-transparent px-1.5 py-1 text-left transition-colors hover:border-[#34343a] hover:bg-[#18191a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5e6ad2]/70 sm:px-2"
         onClick={() => setOpen((value) => !value)}
         ref={triggerRef}
         type="button"
       >
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[#5e6ad2]/25 bg-[#5e6ad2]/10 text-xs font-semibold text-[#828fff]">
           {getInitials(identity)}
         </span>
         <span className="hidden min-w-0 max-w-40 sm:block">
           <span
-            className="block truncate text-sm font-medium text-text"
+            className="block truncate text-sm font-medium text-[#f7f8f8]"
             title={identity}
           >
             {identity}
           </span>
-          <span className="block text-[11px] text-muted">{roleLabel}</span>
+          <span className="block text-[11px] text-[#8a8f98]">{roleLabel}</span>
         </span>
         <AppIcon
-          className="hidden shrink-0 text-muted sm:block"
+          className="hidden shrink-0 text-[#8a8f98] sm:block"
           name="chevron-down"
           size={16}
         />
@@ -121,28 +121,28 @@ export default function UserMenu({
 
       {open ? (
         <div
-          className="absolute right-0 top-[calc(100%+8px)] z-50 w-60 rounded-md border border-border bg-surface p-1 shadow-2xl"
+          className="absolute right-0 top-[calc(100%+8px)] z-50 w-60 rounded-md border border-[#34343a] bg-[#141516] p-1 shadow-[0_18px_60px_rgba(0,0,0,0.45)]"
           id={menuId}
           role="menu"
         >
-          <div className="border-b border-border px-3 py-2 sm:hidden">
-            <p className="truncate text-sm font-medium text-text" title={identity}>
+          <div className="border-b border-[#23252a] px-3 py-2 sm:hidden">
+            <p className="truncate text-sm font-medium text-[#f7f8f8]" title={identity}>
               {identity}
             </p>
-            <p className="text-xs text-muted">{roleLabel}</p>
+            <p className="text-xs text-[#8a8f98]">{roleLabel}</p>
           </div>
           <Link
             to="/profile"
-            className="flex min-h-10 w-full items-center gap-2 rounded px-3 py-2 text-sm text-muted hover:bg-surface-raised hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+            className="flex min-h-9 w-full items-center gap-2 rounded px-3 py-2 text-sm text-[#8a8f98] hover:bg-[#18191a] hover:text-[#f7f8f8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5e6ad2]/70"
             onClick={() => setOpen(false)}
             role="menuitem"
           >
             <AppIcon name="user" size={18} />
             Profile
           </Link>
-          <div className="my-1 h-px bg-border" role="separator" />
+          <div className="my-1 h-px bg-[#23252a]" role="separator" />
           <button
-            className="flex min-h-10 w-full items-center gap-2 rounded px-3 py-2 text-sm text-muted hover:bg-surface-raised hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+            className="flex min-h-9 w-full items-center gap-2 rounded px-3 py-2 text-sm text-[#8a8f98] hover:bg-[#18191a] hover:text-[#f7f8f8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5e6ad2]/70"
             onClick={handleLogout}
             role="menuitem"
             type="button"

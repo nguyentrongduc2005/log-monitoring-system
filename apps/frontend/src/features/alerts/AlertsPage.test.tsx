@@ -1,21 +1,29 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import { PageHeaderProvider } from "@/shared/layouts/page-header-context";
 import { AlertCenterContext, type AlertCenterValue } from "./alert-center-context";
 import { Component as AlertsPage } from "./AlertsPage";
 import type { Alert } from "./alerts-types";
 
+const mocks = vi.hoisted(() => ({
+  startIncidentFromAlert: vi.fn()
+}));
+
+vi.mock("@/features/incidents/incident-api", () => ({
+  startIncidentFromAlert: (alertId: string) => mocks.startIncidentFromAlert(alertId)
+}));
+
 const alert: Alert = {
   id: "alert-1",
-  ruleId: "rule-1",
+  ruleId: "11111111-1111-1111-1111-111111111111",
+  ruleName: "Payment gateway failures",
   applicationId: "app-1",
   applicationName: "payment-service",
   applicationDisplayName: "Payment Service",
   severity: "ERROR",
-  message: "Payment gateway timed out",
-  fingerprint: "payment-timeout-fingerprint",
-  logTimestamp: "2026-06-22T14:00:00Z",
+  logSamples: [{ level: "ERROR", message: "Payment gateway timed out" }],
   triggeredAt: "2026-06-22T14:00:01Z",
   status: "OPEN"
 };
@@ -27,16 +35,21 @@ function renderPage(overrides: Partial<AlertCenterValue> = {}) {
     refresh: vi.fn(), acknowledge: vi.fn().mockResolvedValue(undefined), resolve: vi.fn().mockResolvedValue(undefined),
     ...overrides
   };
-  render(<AlertCenterContext.Provider value={value}><PageHeaderProvider><AlertsPage /></PageHeaderProvider></AlertCenterContext.Provider>);
+  render(<MemoryRouter><AlertCenterContext.Provider value={value}><PageHeaderProvider><AlertsPage /></PageHeaderProvider></AlertCenterContext.Provider></MemoryRouter>);
   return value;
 }
 
 describe("AlertsPage", () => {
+  beforeEach(() => {
+    mocks.startIncidentFromAlert.mockReset();
+  });
+
   it("shows authorized application alerts and acknowledges an open alert", async () => {
     const user = userEvent.setup();
     const center = renderPage();
-    expect(screen.getByText("Payment gateway timed out")).toBeInTheDocument();
-    expect(screen.getAllByText("Payment Service")).toHaveLength(2);
+    mocks.startIncidentFromAlert.mockResolvedValue({ id: "incident-1" });
+    expect(screen.getByText("Payment gateway failures")).toBeInTheDocument();
+    expect(screen.getByText("Payment Service")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Acknowledge" }));
     await waitFor(() => expect(center.acknowledge).toHaveBeenCalledWith("alert-1"));
   });
@@ -44,7 +57,27 @@ describe("AlertsPage", () => {
   it("filters alerts by status", async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.selectOptions(screen.getByLabelText("Filter alert status"), "RESOLVED");
+    await user.click(screen.getByLabelText("Filter alert status"));
+    await user.click(screen.getByRole("option", { name: "Resolved" }));
     expect(screen.getByText("No alerts match the current filters.")).toBeInTheDocument();
+  });
+
+  it("starts an incident from an alert", async () => {
+    const user = userEvent.setup();
+    mocks.startIncidentFromAlert.mockResolvedValue({ id: "incident-1" });
+    renderPage();
+    await user.click(screen.getByRole("button", { name: "Start Incident" }));
+    await waitFor(() => expect(mocks.startIncidentFromAlert).toHaveBeenCalledWith("alert-1"));
+  });
+
+  it("expands alert details inline without exposing rule UUIDs", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole("button", { name: /Payment gateway failures/i }));
+    expect(screen.getByText("Alert details")).toBeInTheDocument();
+    expect(screen.getByText("Log Samples")).toBeInTheDocument();
+    expect(screen.queryByText("11111111-1111-1111-1111-111111111111")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Payment gateway failures/i }));
+    expect(screen.queryByText("Alert details")).not.toBeInTheDocument();
   });
 });

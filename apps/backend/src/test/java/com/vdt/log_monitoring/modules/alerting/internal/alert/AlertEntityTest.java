@@ -21,27 +21,27 @@ class AlertEntityTest {
 		AlertEntity alert = AlertEntity.create(
 			UUID.fromString("00000000-0000-0000-0000-000000000001"),
 			UUID.fromString("00000000-0000-0000-0000-000000000002"),
-			UUID.fromString("00000000-0000-0000-0000-000000000003"),
-			UUID.fromString("00000000-0000-0000-0000-000000000004"),
 			" checkout-api ",
 			" Checkout API ",
+			"Payment failures",
 			AlertSeverity.CRITICAL,
-			" Payment failure spike ",
-			" checkout-payment-failure ",
+			java.util.List.of(new AlertLogSample("ERROR", "Payment failure spike")),
+			logTimestamp,
+			logTimestamp,
 			logTimestamp,
 			Set.of(
 				AlertDeliveryTarget.channelOnly(AlertChannel.TELEGRAM),
 				AlertDeliveryTarget.channelOnly(AlertChannel.WEBSOCKET)
-			)
+			),
+			1
 		);
 
 		assertThat(alert.getId()).isNotNull();
 		assertThat(alert.getApplicationName()).isEqualTo("checkout-api");
 		assertThat(alert.getApplicationDisplayName()).isEqualTo("Checkout API");
+		assertThat(alert.getRuleName()).isEqualTo("Payment failures");
 		assertThat(alert.getSeverity()).isEqualTo(AlertSeverity.CRITICAL);
-		assertThat(alert.getMessage()).isEqualTo("Payment failure spike");
-		assertThat(alert.getFingerprint()).isEqualTo("checkout-payment-failure");
-		assertThat(alert.getLogTimestamp()).isEqualTo(logTimestamp);
+		assertThat(alert.getLogSamples()).containsExactly(new AlertLogSample("ERROR", "Payment failure spike"));
 		assertThat(alert.getTriggeredAt()).isNotNull();
 		assertThat(alert.getOccurrenceCount()).isEqualTo(1);
 		assertThat(alert.getFirstSeenAt()).isEqualTo(logTimestamp);
@@ -55,18 +55,18 @@ class AlertEntityTest {
 
 	@Test
 	void acknowledgeAndResolveAlert() {
+		Instant ts = Instant.parse("2026-06-18T03:00:00Z");
 		AlertEntity alert = AlertEntity.create(
 			UUID.fromString("00000000-0000-0000-0000-000000000001"),
 			UUID.fromString("00000000-0000-0000-0000-000000000002"),
-			UUID.fromString("00000000-0000-0000-0000-000000000003"),
-			UUID.fromString("00000000-0000-0000-0000-000000000004"),
 			"checkout-api",
 			null,
+			"Payment failures",
 			AlertSeverity.ERROR,
-			"Failure",
-			"failure",
-			Instant.parse("2026-06-18T03:00:00Z"),
-			Set.of(AlertDeliveryTarget.channelOnly(AlertChannel.WEBSOCKET))
+			java.util.List.of(new AlertLogSample("ERROR", "Failure")),
+			ts, ts, ts,
+			Set.of(AlertDeliveryTarget.channelOnly(AlertChannel.WEBSOCKET)),
+			1
 		);
 		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000005");
 
@@ -84,9 +84,11 @@ class AlertEntityTest {
 	void retriggerReopensAcknowledgedOccurrenceAndIncrementsCount() {
 		Instant firstSeenAt = Instant.parse("2026-06-18T03:00:00Z");
 		AlertEntity alert = AlertEntity.create(
-			UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-			"checkout-api", null, AlertSeverity.ERROR, "Failure", "failure",
-			firstSeenAt, Set.of(AlertDeliveryTarget.channelOnly(AlertChannel.WEBSOCKET)));
+			UUID.randomUUID(), UUID.randomUUID(),
+			"checkout-api", null, "Payment failures", AlertSeverity.ERROR,
+			java.util.List.of(new AlertLogSample("ERROR", "Failure")),
+			firstSeenAt, firstSeenAt, firstSeenAt,
+			Set.of(AlertDeliveryTarget.channelOnly(AlertChannel.WEBSOCKET)), 1);
 		alert.acknowledge(UUID.randomUUID());
 		Instant nextOccurrence = Instant.parse("2026-06-18T03:01:00Z");
 

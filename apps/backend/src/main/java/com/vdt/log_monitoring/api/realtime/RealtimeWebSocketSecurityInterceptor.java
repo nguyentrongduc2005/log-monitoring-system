@@ -35,8 +35,7 @@ import com.vdt.log_monitoring.shared.security.JwtTokenProvider;
 public class RealtimeWebSocketSecurityInterceptor implements ChannelInterceptor {
 
 	private static final Pattern APPLICATION_DESTINATION = Pattern.compile(
-		"^/topic/applications/([0-9a-fA-F-]{36})/(?:logs|alerts)$"
-	);
+			"^/topic/applications/([0-9a-fA-F-]{36})/(?:logs|alerts)$");
 
 	private final JwtTokenProvider jwtTokenProvider;
 	private final ApplicationAccessFacade applicationAccessFacade;
@@ -44,11 +43,10 @@ public class RealtimeWebSocketSecurityInterceptor implements ChannelInterceptor 
 	private final String accessTokenBlacklistPrefix;
 
 	public RealtimeWebSocketSecurityInterceptor(
-		JwtTokenProvider jwtTokenProvider,
-		ApplicationAccessFacade applicationAccessFacade,
-		ObjectProvider<StringRedisTemplate> redisTemplateProvider,
-		@Value("${app.security.jwt.access-token.blacklist-prefix}") String accessTokenBlacklistPrefix
-	) {
+			JwtTokenProvider jwtTokenProvider,
+			ApplicationAccessFacade applicationAccessFacade,
+			ObjectProvider<StringRedisTemplate> redisTemplateProvider,
+			@Value("${app.security.jwt.access-token.blacklist-prefix}") String accessTokenBlacklistPrefix) {
 		this.jwtTokenProvider = jwtTokenProvider;
 		this.applicationAccessFacade = applicationAccessFacade;
 		this.redisTemplate = redisTemplateProvider.getIfAvailable();
@@ -87,17 +85,15 @@ public class RealtimeWebSocketSecurityInterceptor implements ChannelInterceptor 
 			}
 
 			AuthenticatedUserPrincipal principal = new AuthenticatedUserPrincipal(
-				UUID.fromString(jwtTokenProvider.getUserIdFromToken(token)),
-				jwtTokenProvider.getEmailFromToken(token),
-				jwtTokenProvider.getRoleFromToken(token),
-				jwtTokenProvider.getDisplayNameFromToken(token)
-			);
+					UUID.fromString(jwtTokenProvider.getUserIdFromToken(token)),
+					jwtTokenProvider.getEmailFromToken(token),
+					jwtTokenProvider.getRoleFromToken(token),
+					jwtTokenProvider.getDisplayNameFromToken(token));
 
 			UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-				principal,
-				null,
-				List.of(new SimpleGrantedAuthority("ROLE_" + principal.role()))
-			);
+					principal,
+					null,
+					List.of(new SimpleGrantedAuthority("ROLE_" + principal.role())));
 			accessor.setUser(authentication);
 		} catch (IllegalArgumentException | JwtException ex) {
 			throw new BadCredentialsException("Invalid WebSocket access token", ex);
@@ -124,7 +120,7 @@ public class RealtimeWebSocketSecurityInterceptor implements ChannelInterceptor 
 
 	private AuthenticatedUserPrincipal currentPrincipal(StompHeaderAccessor accessor) {
 		if (accessor.getUser() instanceof UsernamePasswordAuthenticationToken authentication
-			&& authentication.getPrincipal() instanceof AuthenticatedUserPrincipal principal) {
+				&& authentication.getPrincipal() instanceof AuthenticatedUserPrincipal principal) {
 			return principal;
 		}
 		throw new AccessDeniedException("WebSocket subscription requires authentication");

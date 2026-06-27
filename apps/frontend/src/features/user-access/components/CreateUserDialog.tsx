@@ -15,7 +15,7 @@ type CreateUserDialogProps = {
 };
 
 const inputClasses =
-  "mt-2 w-full rounded-xl border border-border bg-background px-3.5 py-3 text-sm text-text outline-none transition placeholder:text-muted/70 hover:border-muted/60 focus:border-primary focus:ring-2 focus:ring-primary/20";
+  "mt-2 w-full rounded-lg border border-border bg-background px-3.5 py-3 text-sm text-text outline-none transition placeholder:text-muted/70 hover:border-muted/60 focus:border-primary focus:ring-2 focus:ring-primary/20";
 
 export default function CreateUserDialog({
   onClose,
@@ -65,7 +65,7 @@ export default function CreateUserDialog({
       footer={
         <>
           <button
-            className="min-h-11 rounded-xl border border-border px-5 text-sm font-medium text-text transition hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 disabled:opacity-50"
+            className="min-h-11 rounded-lg border border-border px-5 text-sm font-medium text-text transition hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 disabled:opacity-50"
             disabled={submitting}
             onClick={onClose}
             type="button"
@@ -73,7 +73,7 @@ export default function CreateUserDialog({
             Cancel
           </button>
           <button
-            className="min-h-11 rounded-xl bg-primary px-5 text-sm font-semibold text-black transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 disabled:cursor-not-allowed disabled:opacity-60"
+            className="min-h-11 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={submitting}
             form="create-user-form"
             type="submit"
@@ -147,7 +147,7 @@ export default function CreateUserDialog({
             <div className="mt-2 grid gap-3 sm:grid-cols-2">
               {(["ENGINEER", "ADMIN"] as const).map(option => (
                 <label
-                  className={`cursor-pointer rounded-xl border p-4 transition ${
+                  className={`cursor-pointer rounded-lg border p-4 transition ${
                     role === option
                       ? "border-primary bg-primary/10 ring-1 ring-primary/30"
                       : "border-border bg-background hover:border-muted/70"
@@ -176,7 +176,7 @@ export default function CreateUserDialog({
         </section>
 
         {error ? (
-          <p className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
+          <p className="rounded-lg border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
             {error}
           </p>
         ) : null}

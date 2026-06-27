@@ -196,7 +196,9 @@ export function Component() {
             />
           </div>
 
-          <ProfileAccessSummary profile={profile} />
+          <div className="xl:sticky xl:top-6 xl:self-start">
+            <ProfileAccessSummary profile={profile} />
+          </div>
         </div>
       ) : null}
     </div>

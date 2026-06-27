@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
+import { Button } from "@/shared/components/ui";
 import { getApplications } from "@/features/applications/application-api";
 import type { Application } from "@/features/applications/application-types";
 import ConfirmDialog from "@/features/user-access/components/ConfirmDialog";
@@ -28,6 +29,7 @@ function emptyDraft(applicationId = ""): AlertRuleDraft {
     name: "",
     description: "",
     minSeverity: "ERROR",
+    severity: "CRITICAL",
     keywordPattern: "",
     thresholdCount: 1,
     thresholdWindowSeconds: 60,
@@ -49,6 +51,7 @@ export function Component() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [builderOpen, setBuilderOpen] = useState(false);
 
   async function loadData() {
     setLoading(true);
@@ -100,6 +103,7 @@ export function Component() {
   function resetForm() {
     setDraft(emptyDraft(applications[0]?.id || ""));
     setEditingRule(null);
+    setBuilderOpen(false);
   }
 
   function editRule(rule: AlertRule) {
@@ -109,6 +113,7 @@ export function Component() {
       name: rule.name,
       description: rule.description || "",
       minSeverity: rule.minSeverity,
+      severity: rule.severity,
       keywordPattern: rule.keywordPattern || "",
       thresholdCount: rule.thresholdCount,
       thresholdWindowSeconds: rule.thresholdWindowSeconds,
@@ -118,6 +123,7 @@ export function Component() {
         target.channel === "TELEGRAM" && target.chatRoomId ? [target.chatRoomId] : []
       )
     });
+    setBuilderOpen(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -176,25 +182,37 @@ export function Component() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Alert Rules" />
-      <div>
-        <h1 className="text-2xl font-semibold text-text">Alert Rules</h1>
-        <p className="mt-1 text-sm text-muted">
-          Define log thresholds and notification destinations for each application.
-        </p>
-      </div>
+      <PageHeader
+        actions={
+          <div className="flex gap-2">
+            <Button onClick={() => void loadData()} variant="outline">
+              Refresh
+            </Button>
+            <Button onClick={() => setBuilderOpen(!builderOpen)}>
+              {builderOpen ? "Hide Rule Builder" : "New Alert Rule"}
+            </Button>
+          </div>
+        }
+        title="Alert Rules"
+      />
+      <p className="text-sm text-muted">
+        Define log thresholds and notification destinations for each application.
+      </p>
 
       <AlertRuleSummary rules={rules} />
-      <AlertRuleBuilder
-        applications={applications}
-        chatRooms={selectableRooms}
-        draft={draft}
-        editingRule={editingRule}
-        onDraftChange={setDraft}
-        onReset={resetForm}
-        onSubmit={event => void submitRule(event)}
-        saving={saving}
-      />
+      
+      {builderOpen ? (
+        <AlertRuleBuilder
+          applications={applications}
+          chatRooms={selectableRooms}
+          draft={draft}
+          editingRule={editingRule}
+          onDraftChange={setDraft}
+          onReset={resetForm}
+          onSubmit={event => void submitRule(event)}
+          saving={saving}
+        />
+      ) : null}
       <AlertRuleInventory
         applicationNames={applicationNames}
         chatRooms={chatRooms}

@@ -43,7 +43,7 @@ class AlertRuleServiceTest {
 			.thenAnswer(invocation -> invocation.getArgument(0));
 
 		AlertRuleEntity rule = service.createRule(
-			applicationId, "Payment failures", null, "ERROR", "payment",
+			applicationId, "Payment failures", null, "ERROR", "CRITICAL", "payment",
 			1, 60, 60, List.of("WEBSOCKET"),
 			List.of(
 				new AlertDeliveryTargetCommand("TELEGRAM", firstChatRoomId),

@@ -64,8 +64,8 @@ export function PageHeader({
   return (
     <>
       {!hasTargets ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-4">
-          <span className="block truncate text-lg font-semibold text-text" title={title}>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface p-4">
+          <span className="block truncate text-base font-semibold tracking-[-0.1px] text-text" title={title}>
             {title}
           </span>
           {actions ? (

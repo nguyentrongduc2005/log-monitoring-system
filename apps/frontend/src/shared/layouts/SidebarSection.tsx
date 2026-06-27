@@ -18,12 +18,12 @@ export default function SidebarSection({
   return (
     <section aria-labelledby={`sidebar-${group.label.toLowerCase()}`}>
       <h2
-        className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted/70"
+        className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#62666d]"
         id={`sidebar-${group.label.toLowerCase()}`}
       >
         {group.label}
       </h2>
-      <div className="space-y-0.5">
+      <div className="space-y-1">
         {group.items.map((item) => (
           <SidebarItem
             badgeCount={badgeCounts?.[item.id]}

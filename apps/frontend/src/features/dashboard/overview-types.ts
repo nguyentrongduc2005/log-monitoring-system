@@ -1,5 +1,7 @@
 export type LogLevel = "INFO" | "WARN" | "ERROR" | "CRITICAL";
 
+export type DashboardWindow = "15m" | "1h" | "6h" | "24h";
+
 export type PipelineState =
   | "healthy"
   | "degraded"
@@ -12,6 +14,7 @@ export type OverviewMetric = {
   label: string;
   value: string;
   trend?: string;
+  helper?: string;
   tone: "neutral" | "success" | "warning" | "error";
 };
 
@@ -45,29 +48,35 @@ export type CriticalAlertSummary = {
   id: string;
   severity: "ERROR" | "CRITICAL";
   application: string;
-  fingerprint: string;
-  message: string;
+  logSamples?: { level: string; message: string }[];
   occurrences: number;
   lastSeen: string;
   deliveryState: string;
 };
 
-export type DemoReadiness = {
-  accepted: number;
-  rejected: number;
-  duration: string;
-  p95AckLatency: string;
-  streamStatus: string;
-  buffered: number;
-  dropped: number;
+export type NotificationSummary = {
+  sent: number;
+  failed: number;
+  dedupSuppressed: number;
+  deliveryRate: string;
+  lastFailure: string;
+};
+
+export type LogLevelDistribution = {
+  level: LogLevel;
+  count: number;
+  percentage: number;
 };
 
 export type OverviewSnapshot = {
+  window: string;
+  generatedAt: string;
   metrics: OverviewMetric[];
   pipeline: PipelineStep[];
   volume: LogVolumePoint[];
+  levelDistribution: LogLevelDistribution[];
   noisyApplications: NoisyApplication[];
   criticalAlerts: CriticalAlertSummary[];
-  demoReadiness: DemoReadiness;
+  notificationSummary: NotificationSummary;
   authorizedApplications: number;
 };
