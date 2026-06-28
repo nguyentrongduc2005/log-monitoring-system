@@ -12,6 +12,12 @@ public interface IncidentFacade {
 
 	IncidentDto findIncidentById(UUID incidentId);
 
+	void generateAnomalyReport(UUID alertId, String evidencePayload);
+
+	List<IncidentAnomalyReportDto> findAnomalyReports(List<UUID> visibleApplicationIds);
+
+	IncidentAnomalyReportDto findAnomalyReportById(UUID id);
+
 	List<IncidentSummaryDto> findIncidents(List<UUID> visibleApplicationIds, String status, String severity);
 
 	record StartFromAlertCommand(
@@ -23,6 +29,15 @@ public interface IncidentFacade {
 		List<com.vdt.log_monitoring.api.alerting.dto.AlertLogSampleDto> logSamples,
 		Instant triggeredAt,
 		UUID requestedBy
+	) {}
+
+	record IncidentAnomalyReportDto(
+		UUID id,
+		UUID alertId,
+		String status,
+		String evidencePayload,
+		Instant createdAt,
+		Instant updatedAt
 	) {}
 
 	record IncidentSummaryDto(
@@ -64,7 +79,7 @@ public interface IncidentFacade {
 		Instant windowEnd,
 		Instant lastEvidenceCollectedAt,
 		List<ApplicationImpactDto> applications,
-		List<ErrorLogDto> errorLogs,
+		List<EvidenceDto> evidence,
 		List<TimelineEventDto> timeline,
 		UUID createdBy,
 		UUID resolvedBy,
@@ -79,16 +94,17 @@ public interface IncidentFacade {
 		Instant createdAt
 	) {}
 
-	record ErrorLogDto(
-		UUID eventId,
+	record EvidenceDto(
+		UUID id,
+		String type,
+		String sourceId,
 		UUID applicationId,
-		String applicationName,
-		String applicationDisplayName,
-		String level,
-		String message,
 		String fingerprint,
-		String traceId,
-		Instant logTimestamp
+		String severity,
+		String summary,
+		String sampleMessage,
+		String metadataJson,
+		Instant occurredAt
 	) {}
 
 	record TimelineEventDto(

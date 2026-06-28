@@ -95,12 +95,15 @@ public class GeminiIncidentAnalysisClient implements AiIncidentAnalysisClient {
 		return """
 			You are an incident investigation assistant for a log monitoring system.
 			Analyze only the provided evidence. Do not invent services, deployments, metrics, or facts.
-			Use the evidence kind in metadataJson when present:
+			Use the evidence kind in metadataJson when present to understand the context:
 			- TRIGGER_ALERT is the user-selected alert that started the incident.
+			- ANOMALY_EVIDENCE is the raw AI anomaly detection signal (if this is an anomaly incident). Focus on explaining what this anomaly means and suggest further investigation steps.
 			- TRIGGER_FINGERPRINT summarizes the trigger fingerprint in the incident window.
-			- TOP_ERROR_FINGERPRINT shows other high-volume error fingerprints in the same window.
-			- RELATED_ALERT shows other alert signals in the same window.
+			- TOP_ERROR_FINGERPRINT shows other high-volume error fingerprints grouped by log signatures. Use these to find the broader root cause.
 			- TRACE_CONTEXT shows events in the same trace and may be absent.
+			
+			If ANOMALY_EVIDENCE is present, provide a quick investigation suggestion based on the anomaly signals.
+			If TOP_ERROR_FINGERPRINT is present, synthesize the log groups to determine the root cause of the incident.
 			Prefer timeline reasoning from firstSeenAt/lastSeenAt/occurredAt over raw count alone.
 			Return strict JSON with these fields:
 			{
@@ -147,7 +150,6 @@ public class GeminiIncidentAnalysisClient implements AiIncidentAnalysisClient {
 				"sourceId", safe(item.sourceId()),
 				"applicationId", String.valueOf(item.applicationId()),
 				"fingerprint", safe(item.fingerprint()),
-				"traceId", safe(item.traceId()),
 				"severity", safe(item.severity()),
 				"summary", truncate(safe(item.summary()), MAX_MESSAGE_LENGTH),
 				"sampleMessage", truncate(sanitize(safe(item.sampleMessage())), MAX_MESSAGE_LENGTH),

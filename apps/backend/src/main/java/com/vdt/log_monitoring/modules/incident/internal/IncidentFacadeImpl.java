@@ -10,8 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.vdt.log_monitoring.modules.alerting.api.AlertingFacade;
 import com.vdt.log_monitoring.modules.incident.api.IncidentFacade;
-import com.vdt.log_monitoring.modules.incident.internal.evidence.ProcessedLogEvidenceReader;
-import com.vdt.log_monitoring.modules.incident.internal.evidence.ProcessedLogEvidenceReader.ErrorLogSample;
+import com.vdt.log_monitoring.modules.incident.internal.incident.IncidentAnomalyReportEntity;
 import com.vdt.log_monitoring.modules.incident.internal.incident.IncidentAiAnalysisEntity;
 import com.vdt.log_monitoring.modules.incident.internal.incident.IncidentAlertEntity;
 import com.vdt.log_monitoring.modules.incident.internal.incident.IncidentApplicationEntity;
@@ -28,7 +27,6 @@ public class IncidentFacadeImpl implements IncidentFacade {
 
 	private final IncidentService incidentService;
 	private final AlertingFacade alertingFacade;
-	private final ProcessedLogEvidenceReader processedLogEvidenceReader;
 	private final ObjectMapper objectMapper;
 
 	@Override
@@ -43,6 +41,35 @@ public class IncidentFacadeImpl implements IncidentFacade {
 		return mapIncident(incidentService.resolveIncident(incidentId, resolvedBy));
 	}
 
+	@Override
+	@Transactional
+	public void generateAnomalyReport(UUID alertId, String evidencePayload) {
+		incidentService.generateAnomalyReport(alertId, evidencePayload);
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public List<IncidentAnomalyReportDto> findAnomalyReports(List<UUID> visibleApplicationIds) {
+		return incidentService.listAnomalyReports(visibleApplicationIds).stream()
+			.map(this::mapAnomalyReport)
+			.toList();
+	}
+
+	@Override
+	@Transactional(readOnly = true)
+	public IncidentAnomalyReportDto findAnomalyReportById(UUID id) {
+		return mapAnomalyReport(incidentService.getAnomalyReportById(id));
+	}
+
+	private IncidentAnomalyReportDto mapAnomalyReport(IncidentAnomalyReportEntity report) {
+		return new IncidentAnomalyReportDto(
+			report.getId(),
+			report.getAlertId(),
+			report.getStatus(),
+			report.getEvidencePayload(),
+			report.getCreatedAt().toInstant(),
+			report.getUpdatedAt().toInstant());
+	}
 	@Override
 	@Transactional(readOnly = true)
 	public IncidentDto findIncidentById(UUID incidentId) {
@@ -100,7 +127,7 @@ public class IncidentFacadeImpl implements IncidentFacade {
 			incident.getWindowEnd(),
 			incident.getLastEvidenceCollectedAt(),
 			mapApplications(incident),
-			mapErrorLogs(incident),
+			mapEvidence(incident),
 			mapTimeline(incident),
 			incident.getCreatedBy(),
 			incident.getResolvedBy(),
@@ -123,27 +150,24 @@ public class IncidentFacadeImpl implements IncidentFacade {
 			application.getCreatedAt());
 	}
 
-	private List<ErrorLogDto> mapErrorLogs(IncidentEntity incident) {
-		return processedLogEvidenceReader.findIncidentErrorLogs(
-				incident.applicationIds(),
-				incident.getWindowStart(),
-				incident.getWindowEnd())
-			.stream()
-			.map(this::mapErrorLog)
+	private List<EvidenceDto> mapEvidence(IncidentEntity incident) {
+		return incident.getEvidence().stream()
+			.map(this::mapEvidence)
 			.toList();
 	}
 
-	private ErrorLogDto mapErrorLog(ErrorLogSample log) {
-		return new ErrorLogDto(
-			log.eventId(),
-			log.applicationId(),
-			log.applicationName(),
-			log.applicationDisplayName(),
-			log.level(),
-			log.message(),
-			log.fingerprint(),
-			log.traceId(),
-			log.logTimestamp());
+	private EvidenceDto mapEvidence(com.vdt.log_monitoring.modules.incident.internal.incident.IncidentEvidenceEntity evidence) {
+		return new EvidenceDto(
+			evidence.getId(),
+			evidence.getType().name(),
+			evidence.getSourceId(),
+			evidence.getApplicationId(),
+			evidence.getFingerprint(),
+			evidence.getSeverity(),
+			evidence.getSummary(),
+			evidence.getSampleMessage(),
+			evidence.getMetadataJson(),
+			evidence.getOccurredAt());
 	}
 
 	private List<TimelineEventDto> mapTimeline(IncidentEntity incident) {

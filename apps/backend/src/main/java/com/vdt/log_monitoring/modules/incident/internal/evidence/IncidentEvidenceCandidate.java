@@ -10,7 +10,6 @@ public record IncidentEvidenceCandidate(
 	String sourceId,
 	UUID applicationId,
 	String fingerprint,
-	String traceId,
 	String severity,
 	String summary,
 	String sampleMessage,

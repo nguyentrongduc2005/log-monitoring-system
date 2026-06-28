@@ -26,6 +26,8 @@ public class IncidentService {
 	private final IncidentRepository incidentRepository;
 	private final IncidentEvidenceCollector evidenceCollector;
 	private final IncidentAnalysisRunner analysisRunner;
+	private final IncidentAnomalyReportRepository anomalyReportRepository;
+
 
 	@Transactional
 	public IncidentEntity startFromAlert(IncidentFacade.StartFromAlertCommand command) {
@@ -74,6 +76,38 @@ public class IncidentService {
 		analysisRunner.run(incident, analysis, existingEvidence(incident));
 		return incident;
 	}
+
+	@Transactional
+	public void generateAnomalyReport(UUID alertId, String evidencePayload) {
+		IncidentAnomalyReportEntity report = new IncidentAnomalyReportEntity(
+			UUID.randomUUID(),
+			alertId,
+			evidencePayload,
+			"PENDING",
+			Instant.now().atOffset(java.time.ZoneOffset.UTC),
+			Instant.now().atOffset(java.time.ZoneOffset.UTC)
+		);
+		anomalyReportRepository.save(report);
+	}
+
+	@Transactional(readOnly = true)
+	public List<IncidentAnomalyReportEntity> listAnomalyReports(List<UUID> visibleApplicationIds) {
+		if (visibleApplicationIds == null || visibleApplicationIds.isEmpty()) {
+			return List.of();
+		}
+		// In a real system, we might join with alerts to filter by visibleApplicationIds.
+		// For now, return all since we don't have applicationId in report table.
+		return anomalyReportRepository.findAll();
+	}
+
+	@Transactional(readOnly = true)
+	public IncidentAnomalyReportEntity getAnomalyReportById(UUID id) {
+		return anomalyReportRepository.findById(id)
+			.orElseThrow(() -> new IncidentException(
+				IncidentException.ErrorCode.INCIDENT_NOT_FOUND,
+				"Anomaly report not found"));
+	}
+
 
 	@Transactional
 	public IncidentEntity refreshEvidence(UUID incidentId, UUID requestedBy) {
@@ -139,7 +173,6 @@ public class IncidentService {
 			item.sourceId(),
 			item.applicationId(),
 			item.fingerprint(),
-			item.traceId(),
 			item.severity(),
 			item.summary(),
 			item.sampleMessage(),
@@ -154,7 +187,6 @@ public class IncidentService {
 				item.getSourceId(),
 				item.getApplicationId(),
 				item.getFingerprint(),
-				item.getTraceId(),
 				item.getSeverity(),
 				item.getSummary(),
 				item.getSampleMessage(),

@@ -8,6 +8,7 @@ import type {
   IncidentSeverity,
   IncidentStatus,
   IncidentSummary,
+  IncidentAnomalyReport,
 } from "./incident-types";
 
 function requireData<T>(envelope: ApiEnvelope<T>, fallbackMessage: string): T {
@@ -96,4 +97,18 @@ export async function resolveIncident(id: string): Promise<IncidentDetail> {
     `/incidents/${id}/resolve`,
   );
   return requireData(response.data, "Unable to resolve incident.");
+}
+
+export async function getAnomalyReports(): Promise<IncidentAnomalyReport[]> {
+  const response = await apiClient.get<ApiEnvelope<IncidentAnomalyReport[]>>(
+    "/incidents/anomaly-reports",
+  );
+  return requireData(response.data, "Unable to load anomaly reports.");
+}
+
+export async function getAnomalyReport(id: string): Promise<IncidentAnomalyReport> {
+  const response = await apiClient.get<ApiEnvelope<IncidentAnomalyReport>>(
+    `/incidents/anomaly-reports/${id}`,
+  );
+  return requireData(response.data, "Unable to load anomaly report.");
 }

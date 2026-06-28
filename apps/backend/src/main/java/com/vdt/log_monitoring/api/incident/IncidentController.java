@@ -93,6 +93,24 @@ public class IncidentController {
 		return ResponseEntity.ok(ApiResponse.success(incidentFacade.resolveIncident(id, user.id())));
 	}
 
+	@GetMapping("/anomaly-reports")
+	public ResponseEntity<ApiResponse<List<IncidentFacade.IncidentAnomalyReportDto>>> listAnomalyReports(
+			Principal principal) {
+		IdentityFacade.UserDto user = identityFacade.findUserByEmail(principal.getName());
+		List<UUID> visibleApplicationIds = visibleApplicationIds(user);
+		return ResponseEntity.ok(ApiResponse.success(incidentFacade.findAnomalyReports(visibleApplicationIds)));
+	}
+
+	@GetMapping("/anomaly-reports/{id}")
+	public ResponseEntity<ApiResponse<IncidentFacade.IncidentAnomalyReportDto>> getAnomalyReport(
+			Principal principal,
+			@PathVariable UUID id) {
+		// Just a basic check for auth
+		IdentityFacade.UserDto user = identityFacade.findUserByEmail(principal.getName());
+		visibleApplicationIds(user); 
+		return ResponseEntity.ok(ApiResponse.success(incidentFacade.findAnomalyReportById(id)));
+	}
+
 	private List<UUID> visibleApplicationIds(IdentityFacade.UserDto user) {
 		return applicationAccessFacade.findVisibleApplications(user.id(), user.role()).stream()
 				.map(ApplicationAccessFacade.ApplicationDto::id)

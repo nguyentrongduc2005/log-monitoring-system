@@ -36,6 +36,9 @@ class IncidentServiceTest {
 	@Mock
 	private IncidentAnalysisRunner analysisRunner;
 
+	@Mock
+	private IncidentAnomalyReportRepository anomalyReportRepository;
+
 	@Test
 	void startFromAlertCreatesNewIncident() {
 		when(incidentRepository.findOpenByAlertId(ALERT_2_ID)).thenReturn(List.of());
@@ -49,8 +52,9 @@ class IncidentServiceTest {
 			org.mockito.ArgumentMatchers.any(Instant.class)))
 			.thenReturn(List.of());
 
-		IncidentService service = new IncidentService(incidentRepository, evidenceCollector, analysisRunner);
+		IncidentService service = new IncidentService(incidentRepository, evidenceCollector, analysisRunner, anomalyReportRepository);
 		IncidentEntity result = service.startFromAlert(command(ALERT_2_ID));
+
 
 		assertThat(result).isNotNull();
 		assertThat(result.applicationIds()).containsExactly(APP_ID);

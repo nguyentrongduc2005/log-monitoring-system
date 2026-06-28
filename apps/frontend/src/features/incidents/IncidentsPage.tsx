@@ -34,7 +34,7 @@ import {
 import type {
   IncidentApplication,
   IncidentDetail,
-  IncidentErrorLog,
+  IncidentEvidence,
   IncidentSeverity,
   IncidentStatus,
   IncidentSummary,
@@ -413,9 +413,9 @@ function IncidentDetailPanel({
           </div>
           <div className="hidden h-3 w-px bg-border sm:block" />
           <div className="flex items-center gap-1.5">
-            <span className="text-muted">Error Logs:</span>
-            <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", incident.errorLogs.length > 0 ? "bg-error/15 text-error" : "bg-muted/15 text-muted")}>
-              {incident.errorLogs.length}
+            <span className="text-muted">Evidence:</span>
+            <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", incident.evidence.length > 0 ? "bg-error/15 text-error" : "bg-muted/15 text-muted")}>
+              {incident.evidence.length}
             </span>
           </div>
           <div className="hidden h-3 w-px bg-border sm:block" />
@@ -430,7 +430,7 @@ function IncidentDetailPanel({
 
       <div className="space-y-5 p-5">
         <OverviewSection incident={incident} />
-        <ErrorLogs logs={incident.errorLogs} />
+        <EvidenceList evidence={incident.evidence} />
         <Timeline events={incident.timeline} />
       </div>
     </div>
@@ -469,33 +469,41 @@ function OverviewSection({ incident }: { incident: IncidentDetail }) {
   );
 }
 
-function ErrorLogs({ logs }: { logs: IncidentErrorLog[] }) {
+function EvidenceList({ evidence }: { evidence: IncidentEvidence[] }) {
   return (
     <Card>
-      <SmallSectionHeader title="Error logs" meta={`${logs.length} shown, latest first`} />
+      <SmallSectionHeader title="Supporting Evidence" meta={`${evidence.length} items`} />
       <div className="divide-y divide-border">
-        {logs.map((log) => <ErrorLogRow item={log} key={log.eventId} />)}
-        {logs.length === 0 ? <p className="p-4 text-sm text-muted">No error logs found in this incident window.</p> : null}
+        {evidence.map((item) => <EvidenceRow item={item} key={item.id} />)}
+        {evidence.length === 0 ? <p className="p-4 text-sm text-muted">No evidence collected for this incident.</p> : null}
       </div>
     </Card>
   );
 }
 
-function ErrorLogRow({ item }: { item: IncidentErrorLog }) {
+function EvidenceRow({ item }: { item: IncidentEvidence }) {
   return (
     <article className="grid gap-3 p-4 transition hover:bg-surface-raised/45 lg:grid-cols-[9rem_minmax(0,1fr)_12rem] lg:items-start">
       <div className="flex flex-wrap gap-2 lg:block lg:space-y-2">
-        <StatusPill tone={logLevelTone(item.level)}>{item.level}</StatusPill>
-        <p className="text-xs text-muted">{item.applicationDisplayName || item.applicationName}</p>
+        <StatusPill tone={item.severity === "ERROR" || item.severity === "CRITICAL" ? "error" : "muted"}>
+          {item.type}
+        </StatusPill>
+        <p className="text-xs text-muted font-medium">{item.severity || "UNKNOWN"}</p>
       </div>
       <div className="min-w-0">
-        <p className="break-words font-mono text-sm text-text">{item.message}</p>
-        <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted">
-
-          {item.traceId ? <code>trace:{item.traceId}</code> : null}
+        <p className="break-words font-semibold text-sm text-text">{item.summary}</p>
+        <div className="mt-2 text-xs text-muted bg-surface/50 p-2 rounded border border-border/50">
+          <p className="font-mono whitespace-pre-wrap">{item.sampleMessage}</p>
         </div>
+        {item.fingerprint ? (
+          <div className="mt-2 flex items-center gap-2 text-xs text-muted">
+            <span className="font-mono bg-background px-1.5 py-0.5 rounded border border-border">
+              fingerprint: {item.fingerprint}
+            </span>
+          </div>
+        ) : null}
       </div>
-      <p className="text-xs text-muted lg:text-right">{formatShortDate(item.logTimestamp)}</p>
+      <p className="text-xs text-muted lg:text-right">{formatShortDate(item.occurredAt)}</p>
     </article>
   );
 }
@@ -561,10 +569,6 @@ function statusTone(value: IncidentStatus): "error" | "warning" | "success" {
 
 function statusLabel(value: IncidentStatus) {
   return value === "INVESTIGATING" ? "Investigating" : value === "MITIGATED" ? "Mitigated" : "Resolved";
-}
-
-function logLevelTone(value: string): "muted" | "warning" | "error" {
-  return value === "CRITICAL" || value === "ERROR" ? "error" : value === "WARN" ? "warning" : "muted";
 }
 
 

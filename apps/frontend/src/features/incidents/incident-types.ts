@@ -39,16 +39,17 @@ export type IncidentApplicationImpact = {
   createdAt: string;
 };
 
-export type IncidentErrorLog = {
-  eventId: string;
-  applicationId?: string | null;
-  applicationName?: string | null;
-  applicationDisplayName?: string | null;
-  level: string;
-  message: string;
-
-  traceId?: string | null;
-  logTimestamp: string;
+export type IncidentEvidence = {
+  id: string;
+  type: string;
+  sourceId?: string | null;
+  applicationId: string;
+  fingerprint?: string | null;
+  severity?: string | null;
+  summary: string;
+  sampleMessage?: string | null;
+  metadataJson?: string | null;
+  occurredAt: string;
 };
 
 export type IncidentTimelineEvent = {
@@ -64,6 +65,15 @@ export type IncidentDetail = Omit<IncidentSummary, "applicationIds"> & {
   possibleCause?: string | null;
   recommendedActions: string[];
   applications: IncidentApplicationImpact[];
-  errorLogs: IncidentErrorLog[];
+  evidence: IncidentEvidence[];
   timeline: IncidentTimelineEvent[];
+};
+
+export type IncidentAnomalyReport = {
+  id: string;
+  alertId: string;
+  status: string;
+  evidencePayload: string;
+  createdAt: string;
+  updatedAt: string;
 };

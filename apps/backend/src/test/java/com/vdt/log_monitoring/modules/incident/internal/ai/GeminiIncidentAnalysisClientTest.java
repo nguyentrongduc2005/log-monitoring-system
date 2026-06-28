@@ -128,7 +128,6 @@ class GeminiIncidentAnalysisClientTest {
 				"log-1",
 				APP_ID,
 				"checkout-timeout",
-				"trace-1",
 				"ERROR",
 				"Payment write failed",
 				"ERROR database password=secret token=abc connection timeout",

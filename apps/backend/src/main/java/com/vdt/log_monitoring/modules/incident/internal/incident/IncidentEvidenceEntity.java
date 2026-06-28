@@ -45,8 +45,7 @@ public class IncidentEvidenceEntity {
 	@Column(length = 128)
 	private String fingerprint;
 
-	@Column(name = "trace_id", length = 128)
-	private String traceId;
+
 
 	@Column(length = 32)
 	private String severity;
@@ -77,7 +76,6 @@ public class IncidentEvidenceEntity {
 		String sourceId,
 		UUID applicationId,
 		String fingerprint,
-		String traceId,
 		String severity,
 		String summary,
 		String sampleMessage,
@@ -91,7 +89,6 @@ public class IncidentEvidenceEntity {
 			trimOptional(sourceId),
 			applicationId,
 			trimOptional(fingerprint),
-			trimOptional(traceId),
 			trimOptional(severity),
 			requireText(summary, "summary"),
 			trimOptional(sampleMessage),

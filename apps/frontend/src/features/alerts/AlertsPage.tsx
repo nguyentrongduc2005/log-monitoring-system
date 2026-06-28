@@ -26,12 +26,17 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow
+  TableRow,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
 } from "@/shared/components/ui";
 import { PageHeader } from "@/shared/layouts/page-header-context";
 import { cn } from "@/shared/lib/utils";
 import { useAlertCenter } from "./alert-center-context";
 import type { Alert, AlertConnectionState, AlertSeverity, AlertStatus } from "./alerts-types";
+import { AnomalyReportsTab } from "./AnomalyReportsTab";
 
 export function Component() {
   const center = useAlertCenter();
@@ -106,135 +111,150 @@ export function Component() {
           }
         />
 
-        <div className="grid gap-3 border-b border-border p-4 md:grid-cols-4">
-          <MetricTile label="Open" tone={summary.open > 0 ? "error" : "muted"} value={summary.open} />
-          <MetricTile label="Critical active" tone={summary.critical > 0 ? "error" : "muted"} value={summary.critical} />
-          <MetricTile label="Acknowledged" tone="warning" value={summary.acknowledged} />
-          <MetricTile label="Applications" tone="primary" value={summary.applications} />
-        </div>
+        <Tabs defaultValue="alerts">
+          <div className="px-4 pt-4 border-b border-border">
+            <TabsList variant="line">
+              <TabsTrigger value="alerts">Realtime Alerts</TabsTrigger>
+              <TabsTrigger value="anomaly">Anomaly Reports</TabsTrigger>
+            </TabsList>
+          </div>
 
-        <FilterBar className="md:grid-cols-[minmax(10rem,1fr)_11rem_11rem_minmax(14rem,1.4fr)]">
-          <LabeledSelect
-            label="Filter application"
-            onValueChange={setApplicationId}
-            placeholder="All applications"
-            value={applicationId}
-          >
-            <SelectItem value="ALL">All applications</SelectItem>
-            {center.applications.map(app => <SelectItem key={app.id} value={app.id}>{app.name}</SelectItem>)}
-          </LabeledSelect>
-          <LabeledSelect
-            label="Filter alert status"
-            onValueChange={(value) => setStatus(value as "ALL" | AlertStatus)}
-            placeholder="Status"
-            value={status}
-          >
-            <SelectItem value="OPEN">Open</SelectItem>
-            <SelectItem value="ACKNOWLEDGED">Acknowledged</SelectItem>
-            <SelectItem value="RESOLVED">Resolved</SelectItem>
-            <SelectItem value="ALL">All statuses</SelectItem>
-          </LabeledSelect>
-          <LabeledSelect
-            label="Filter alert severity"
-            onValueChange={(value) => setSeverity(value as "ALL" | AlertSeverity)}
-            placeholder="Severity"
-            value={severity}
-          >
-            <SelectItem value="ALL">All severities</SelectItem>
-            <SelectItem value="INFO">Info</SelectItem>
-            <SelectItem value="WARN">Warn</SelectItem>
-            <SelectItem value="ERROR">Error</SelectItem>
-            <SelectItem value="CRITICAL">Critical</SelectItem>
-          </LabeledSelect>
-          <Input
-            aria-label="Search alerts"
-            onChange={event => setSearch(event.target.value)}
-            placeholder="Search logs, application..."
-            value={search}
-          />
-        </FilterBar>
+          <TabsContent value="alerts" className="m-0 border-none outline-none">
+            <div className="grid gap-3 border-b border-border p-4 md:grid-cols-4">
+              <MetricTile label="Open" tone={summary.open > 0 ? "error" : "muted"} value={summary.open} />
+              <MetricTile label="Critical active" tone={summary.critical > 0 ? "error" : "muted"} value={summary.critical} />
+              <MetricTile label="Acknowledged" tone="warning" value={summary.acknowledged} />
+              <MetricTile label="Applications" tone="primary" value={summary.applications} />
+            </div>
 
-        {center.loading ? <LoadingRows /> : null}
-        {center.error ? <ErrorState message={center.error} title="Unable to load alerts" /> : null}
-        {incidentError ? <ErrorState message={incidentError} title="Incident creation failed" /> : null}
-
-        {!center.loading ? (
-          <CardContent className="overflow-x-auto p-0">
-            <Table className="min-w-[58rem]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-36">Severity</TableHead>
-                  <TableHead>Signal</TableHead>
-                  <TableHead className="w-40">Status</TableHead>
-                  <TableHead className="w-32">Age</TableHead>
-                  <TableHead className="w-64 text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map(alert => {
-                  const isSelected = selected?.id === alert.id;
-                  return (
-                    <Fragment key={alert.id}>
-                      <TableRow className={isSelected ? "bg-primary/10" : undefined}>
-                        <TableCell>
-                          <StatusPill tone={severityTone(alert.severity)}>{alert.severity}</StatusPill>
-                          <p className="mt-2 truncate text-xs text-muted">{alert.applicationDisplayName || alert.applicationName || "Unknown application"}</p>
-                        </TableCell>
-                        <TableCell>
-                          <button
-                            aria-current={isSelected ? "true" : undefined}
-                            aria-expanded={isSelected}
-                            className={cn(
-                              "min-w-0 rounded-md px-2 py-1.5 text-left transition hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70",
-                              isSelected ? "bg-primary/10 ring-1 ring-primary/30" : ""
-                            )}
-                            onClick={() => setSelected(isSelected ? null : alert)}
-                            type="button"
-                          >
-                            <p className="truncate text-sm font-medium text-text">{alert.ruleName || alert.logSamples?.[0]?.message || "No alert message provided"}</p>
-                            <p className="mt-1 truncate font-mono text-xs text-muted">{formatDate(alert.triggeredAt)}</p>
-                          </button>
-                        </TableCell>
-                        <TableCell><StatusPill tone={statusTone(alert.status)}>{alert.status}</StatusPill></TableCell>
-                        <TableCell className="text-muted">{formatRelativeTime(alert.triggeredAt)}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap justify-end gap-2">
-                            <Button disabled={startingIncidentId === alert.id} onClick={() => void startIncident(alert)} size="xs">
-                              {startingIncidentId === alert.id ? "Starting..." : "Start Incident"}
-                            </Button>
-                            {alert.status === "OPEN" ? (
-                              <Button disabled={center.saving} onClick={() => void center.acknowledge(alert.id)} size="xs" variant="outline">
-                                Acknowledge
-                              </Button>
-                            ) : null}
-                            {alert.status !== "RESOLVED" ? (
-                              <Button disabled={center.saving} onClick={() => void center.resolve(alert.id)} size="xs" variant="secondary">
-                                Resolve
-                              </Button>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                      {isSelected ? (
-                        <TableRow>
-                          <TableCell colSpan={5}>
-                            <AlertDetails alert={alert} />
-                          </TableCell>
-                        </TableRow>
-                      ) : null}
-                    </Fragment>
-                  );
-                })}
-              </TableBody>
-            </Table>
-            {filtered.length === 0 ? (
-              <EmptyState
-                description={center.alerts.length > 0 ? "Adjust status, severity, application, or search terms." : "New alert signals will appear here as they arrive."}
-                title={center.alerts.length > 0 ? "No alerts match the current filters." : "No alerts have been received yet."}
+            <FilterBar className="md:grid-cols-[minmax(10rem,1fr)_11rem_11rem_minmax(14rem,1.4fr)]">
+              <LabeledSelect
+                label="Filter application"
+                onValueChange={setApplicationId}
+                placeholder="All applications"
+                value={applicationId}
+              >
+                <SelectItem value="ALL">All applications</SelectItem>
+                {center.applications.map(app => <SelectItem key={app.id} value={app.id}>{app.name}</SelectItem>)}
+              </LabeledSelect>
+              <LabeledSelect
+                label="Filter alert status"
+                onValueChange={(value) => setStatus(value as "ALL" | AlertStatus)}
+                placeholder="Status"
+                value={status}
+              >
+                <SelectItem value="OPEN">Open</SelectItem>
+                <SelectItem value="ACKNOWLEDGED">Acknowledged</SelectItem>
+                <SelectItem value="RESOLVED">Resolved</SelectItem>
+                <SelectItem value="ALL">All statuses</SelectItem>
+              </LabeledSelect>
+              <LabeledSelect
+                label="Filter alert severity"
+                onValueChange={(value) => setSeverity(value as "ALL" | AlertSeverity)}
+                placeholder="Severity"
+                value={severity}
+              >
+                <SelectItem value="ALL">All severities</SelectItem>
+                <SelectItem value="INFO">Info</SelectItem>
+                <SelectItem value="WARN">Warn</SelectItem>
+                <SelectItem value="ERROR">Error</SelectItem>
+                <SelectItem value="CRITICAL">Critical</SelectItem>
+              </LabeledSelect>
+              <Input
+                aria-label="Search alerts"
+                onChange={event => setSearch(event.target.value)}
+                placeholder="Search logs, application..."
+                value={search}
               />
+            </FilterBar>
+
+            {center.loading ? <LoadingRows /> : null}
+            {center.error ? <ErrorState message={center.error} title="Unable to load alerts" /> : null}
+            {incidentError ? <ErrorState message={incidentError} title="Incident creation failed" /> : null}
+
+            {!center.loading ? (
+              <CardContent className="overflow-x-auto p-0">
+                <Table className="min-w-[58rem]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-36">Severity</TableHead>
+                      <TableHead>Signal</TableHead>
+                      <TableHead className="w-40">Status</TableHead>
+                      <TableHead className="w-32">Age</TableHead>
+                      <TableHead className="w-64 text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filtered.map(alert => {
+                      const isSelected = selected?.id === alert.id;
+                      return (
+                        <Fragment key={alert.id}>
+                          <TableRow className={isSelected ? "bg-primary/10" : undefined}>
+                            <TableCell>
+                              <StatusPill tone={severityTone(alert.severity)}>{alert.severity}</StatusPill>
+                              <p className="mt-2 truncate text-xs text-muted">{alert.applicationDisplayName || alert.applicationName || "Unknown application"}</p>
+                            </TableCell>
+                            <TableCell>
+                              <button
+                                aria-current={isSelected ? "true" : undefined}
+                                aria-expanded={isSelected}
+                                className={cn(
+                                  "min-w-0 rounded-md px-2 py-1.5 text-left transition hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70",
+                                  isSelected ? "bg-primary/10 ring-1 ring-primary/30" : ""
+                                )}
+                                onClick={() => setSelected(isSelected ? null : alert)}
+                                type="button"
+                              >
+                                <p className="truncate text-sm font-medium text-text">{alert.ruleName || alert.logSamples?.[0]?.message || "No alert message provided"}</p>
+                                <p className="mt-1 truncate font-mono text-xs text-muted">{formatDate(alert.triggeredAt)}</p>
+                              </button>
+                            </TableCell>
+                            <TableCell><StatusPill tone={statusTone(alert.status)}>{alert.status}</StatusPill></TableCell>
+                            <TableCell className="text-muted">{formatRelativeTime(alert.triggeredAt)}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap justify-end gap-2">
+                                <Button disabled={startingIncidentId === alert.id} onClick={() => void startIncident(alert)} size="xs">
+                                  {startingIncidentId === alert.id ? "Starting..." : "Start Incident"}
+                                </Button>
+                                {alert.status === "OPEN" ? (
+                                  <Button disabled={center.saving} onClick={() => void center.acknowledge(alert.id)} size="xs" variant="outline">
+                                    Acknowledge
+                                  </Button>
+                                ) : null}
+                                {alert.status !== "RESOLVED" ? (
+                                  <Button disabled={center.saving} onClick={() => void center.resolve(alert.id)} size="xs" variant="secondary">
+                                    Resolve
+                                  </Button>
+                                ) : null}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          {isSelected ? (
+                            <TableRow>
+                              <TableCell colSpan={5}>
+                                <AlertDetails alert={alert} />
+                              </TableCell>
+                            </TableRow>
+                          ) : null}
+                        </Fragment>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                {filtered.length === 0 ? (
+                  <EmptyState
+                    description={center.alerts.length > 0 ? "Adjust status, severity, application, or search terms." : "New alert signals will appear here as they arrive."}
+                    title={center.alerts.length > 0 ? "No alerts match the current filters." : "No alerts have been received yet."}
+                  />
+                ) : null}
+              </CardContent>
             ) : null}
-          </CardContent>
-        ) : null}
+          </TabsContent>
+
+          <TabsContent value="anomaly" className="m-0 border-none outline-none">
+            <AnomalyReportsTab />
+          </TabsContent>
+        </Tabs>
       </PageSection>
     </PageShell>
   );

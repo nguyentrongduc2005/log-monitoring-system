@@ -76,7 +76,7 @@ class IncidentControllerTest {
 			.andExpect(jsonPath("$.data.shortSummary").value("Payment checkout is failing."))
 			.andExpect(jsonPath("$.data.impact").value("Checkout requests are affected."))
 			.andExpect(jsonPath("$.data.recommendedActions[0]").value("Check payment provider health."))
-			.andExpect(jsonPath("$.data.errorLogs[0].fingerprint").value("checkout-payment"));
+			.andExpect(jsonPath("$.data.evidence[0].fingerprint").value("checkout-payment"));
 
 		ArgumentCaptor<IncidentFacade.StartFromAlertCommand> captor =
 			ArgumentCaptor.forClass(IncidentFacade.StartFromAlertCommand.class);
@@ -200,15 +200,16 @@ class IncidentControllerTest {
 			WINDOW_END,
 			WINDOW_END,
 			List.of(new IncidentFacade.ApplicationImpactDto(APP_ID, "PRIMARY", NOW)),
-			List.of(new IncidentFacade.ErrorLogDto(
+			List.of(new IncidentFacade.EvidenceDto(
 				UUID.randomUUID(),
+				"LOG",
+				"source-1",
 				APP_ID,
-				"checkout-api",
-				"Checkout API",
+				"checkout-payment",
 				"ERROR",
 				"raw checkout error",
-				"checkout-payment",
-				"trace-1",
+				"sample",
+				"{}",
 				WINDOW_END)),
 			List.of(),
 			USER_ID,

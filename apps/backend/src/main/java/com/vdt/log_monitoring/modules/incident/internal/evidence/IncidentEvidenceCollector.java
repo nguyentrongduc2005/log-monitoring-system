@@ -11,7 +11,8 @@ import org.springframework.stereotype.Service;
 import com.vdt.log_monitoring.modules.alerting.api.AlertingFacade;
 import com.vdt.log_monitoring.modules.incident.internal.incident.EvidenceType;
 import com.vdt.log_monitoring.modules.incident.internal.evidence.ProcessedLogEvidenceReader.FingerprintSummary;
-import com.vdt.log_monitoring.modules.incident.internal.evidence.ProcessedLogEvidenceReader.TraceContext;
+import com.vdt.log_monitoring.modules.incident.internal.incident.IncidentAnomalyReportRepository;
+import com.vdt.log_monitoring.modules.incident.internal.incident.IncidentAnomalyReportEntity;
 
 @Service
 @RequiredArgsConstructor
@@ -19,6 +20,7 @@ public class IncidentEvidenceCollector {
 
 	private final AlertingFacade alertingFacade;
 	private final ProcessedLogEvidenceReader processedLogEvidenceReader;
+	private final IncidentAnomalyReportRepository anomalyReportRepository;
 
 	public List<IncidentEvidenceCandidate> collect(
 		List<UUID> applicationIds,
@@ -28,7 +30,14 @@ public class IncidentEvidenceCollector {
 	) {
 		List<IncidentEvidenceCandidate> evidence = new ArrayList<>();
 		evidence.addAll(collectAlertEvidence(applicationIds, alertIds, windowStart, windowEnd));
-		evidence.addAll(processedLogEvidenceReader.findErrorSamples(applicationIds, windowStart, windowEnd));
+		
+		for (UUID appId : applicationIds) {
+			evidence.addAll(processedLogEvidenceReader.findTopErrorFingerprints(appId, windowStart, windowEnd)
+				.stream()
+				.map(summary -> fromTopFingerprint(appId, summary))
+				.toList());
+		}
+		
 		return evidence;
 	}
 
@@ -42,14 +51,27 @@ public class IncidentEvidenceCollector {
 		List<IncidentEvidenceCandidate> evidence = new ArrayList<>();
 		AlertingFacade.AlertDto triggerAlert = alertingFacade.findAlertById(triggerAlertId);
 		evidence.add(fromAlert(triggerAlert, "TRIGGER_ALERT"));
+		
+		// Check for Anomaly Report
+		anomalyReportRepository.findByAlertId(triggerAlertId)
+			.ifPresent(report -> {
+				evidence.add(new IncidentEvidenceCandidate(
+					EvidenceType.LOG, 
+					"ANOMALY:" + report.getId(), 
+					applicationId, 
+					null, 
+					"CRITICAL", 
+					"Anomaly detected: AI report requested", 
+					report.getEvidencePayload(), 
+					windowStart, 
+					"{\"kind\":\"ANOMALY_EVIDENCE\"}"
+				));
+			});
+
 		// fingerprint and eventId are no longer available in AlertDto since it supports global counting
 		evidence.addAll(processedLogEvidenceReader.findTopErrorFingerprints(applicationId, windowStart, windowEnd)
 			.stream()
 			.map(summary -> fromTopFingerprint(applicationId, summary))
-			.toList());
-		evidence.addAll(alertingFacade.findAlertsInWindow(applicationId, windowStart, windowEnd).stream()
-			.filter(alert -> !alert.id().equals(triggerAlertId))
-			.map(alert -> fromAlert(alert, "RELATED_ALERT"))
 			.toList());
 		return evidence;
 	}
@@ -99,7 +121,6 @@ public class IncidentEvidenceCollector {
 			alert.id().toString(),
 			alert.applicationId(),
 			null, // fingerprint
-			null, // traceId
 			alert.severity(),
 			summary,
 			sample,
@@ -142,7 +163,6 @@ public class IncidentEvidenceCollector {
 			sourceId(kind, summary.fingerprint() + ":" + summary.lastSeenAt().toEpochMilli()),
 			applicationId,
 			summary.fingerprint(),
-			null,
 			summary.severity(),
 			text,
 			summary.sampleMessage(),
@@ -150,27 +170,7 @@ public class IncidentEvidenceCollector {
 			metadata);
 	}
 
-	private IncidentEvidenceCandidate fromTraceContext(UUID applicationId, TraceContext context) {
-		String sample = context.events().stream()
-			.map(event -> event.occurredAt() + " " + event.level() + " " + event.message())
-			.toList()
-			.toString();
-		String metadata = "{"
-			+ "\"kind\":\"TRACE_CONTEXT\","
-			+ "\"eventCount\":" + context.events().size()
-			+ "}";
-		return new IncidentEvidenceCandidate(
-			EvidenceType.TRACE,
-			sourceId("TRACE", context.traceId()),
-			applicationId,
-			null,
-			context.traceId(),
-			null,
-			"Trace " + context.traceId() + " contains " + context.events().size() + " events",
-			sample,
-			context.events().getFirst().occurredAt(),
-			metadata);
-	}
+
 
 	private String displayName(String displayName, String fallback) {
 		return displayName == null || displayName.isBlank() ? fallback : displayName;
