@@ -26,8 +26,6 @@ public class IncidentService {
 	private final IncidentRepository incidentRepository;
 	private final IncidentEvidenceCollector evidenceCollector;
 	private final IncidentAnalysisRunner analysisRunner;
-	private final IncidentAnomalyReportRepository anomalyReportRepository;
-
 
 	@Transactional
 	public IncidentEntity startFromAlert(IncidentFacade.StartFromAlertCommand command) {
@@ -51,93 +49,13 @@ public class IncidentService {
 		List<IncidentEvidenceCandidate> evidence = evidenceCollector.collectFromTriggerAlert(
 			command.alertId(),
 			command.applicationId(),
-			null, // fingerprint is removed from alert
 			windowStart,
 			windowEnd);
-		evidence.forEach(item -> {
-			incident.addEvidence(toEntity(incident, item));
-			if (item.type() == EvidenceType.ALERT && item.sourceId() != null && !item.sourceId().isBlank()) {
-				UUID alertId = UUID.fromString(item.sourceId());
-				if (!alertId.equals(command.alertId())) {
-					incident.addAlert(alertId, AlertRelationType.RELATED);
-				}
-			}
-		});
+		evidence.forEach(item -> incident.addEvidence(toEntity(incident, item)));
 		incident.markEvidenceCollected(windowEnd, command.requestedBy());
 		IncidentAiAnalysisEntity analysis = incident.startAnalysis(command.requestedBy());
 		analysisRunner.run(incident, analysis, evidence);
 		return incidentRepository.save(incident);
-	}
-
-	@Transactional
-	public IncidentEntity rerunAnalysis(UUID incidentId, UUID requestedBy) {
-		IncidentEntity incident = getIncidentById(incidentId);
-		IncidentAiAnalysisEntity analysis = incident.startAnalysis(requestedBy);
-		analysisRunner.run(incident, analysis, existingEvidence(incident));
-		return incident;
-	}
-
-	@Transactional
-	public void generateAnomalyReport(UUID alertId, String evidencePayload) {
-		IncidentAnomalyReportEntity report = new IncidentAnomalyReportEntity(
-			UUID.randomUUID(),
-			alertId,
-			evidencePayload,
-			"PENDING",
-			Instant.now().atOffset(java.time.ZoneOffset.UTC),
-			Instant.now().atOffset(java.time.ZoneOffset.UTC)
-		);
-		anomalyReportRepository.save(report);
-	}
-
-	@Transactional(readOnly = true)
-	public List<IncidentAnomalyReportEntity> listAnomalyReports(List<UUID> visibleApplicationIds) {
-		if (visibleApplicationIds == null || visibleApplicationIds.isEmpty()) {
-			return List.of();
-		}
-		// In a real system, we might join with alerts to filter by visibleApplicationIds.
-		// For now, return all since we don't have applicationId in report table.
-		return anomalyReportRepository.findAll();
-	}
-
-	@Transactional(readOnly = true)
-	public IncidentAnomalyReportEntity getAnomalyReportById(UUID id) {
-		return anomalyReportRepository.findById(id)
-			.orElseThrow(() -> new IncidentException(
-				IncidentException.ErrorCode.INCIDENT_NOT_FOUND,
-				"Anomaly report not found"));
-	}
-
-
-	@Transactional
-	public IncidentEntity refreshEvidence(UUID incidentId, UUID requestedBy) {
-		IncidentEntity incident = getIncidentById(incidentId);
-		Instant from = incident.getLastEvidenceCollectedAt() == null
-			? incident.getWindowEnd()
-			: incident.getLastEvidenceCollectedAt();
-		Instant to = Instant.now();
-		if (from.isAfter(to)) {
-			throw invalid("Incident evidence refresh window is invalid");
-		}
-		List<IncidentEvidenceCandidate> newEvidence = triggerAlert(incident)
-			.map(trigger -> evidenceCollector.collectFromTriggerAlert(
-				trigger.getAlertId(),
-				primaryApplicationId(incident),
-				triggerFingerprint(incident, trigger.getAlertId()),
-				from,
-				to))
-			.orElseGet(() -> evidenceCollector.collect(
-				incident.applicationIds(),
-				incident.getAlerts().stream().map(IncidentAlertEntity::getAlertId).toList(),
-				from,
-				to));
-		newEvidence.stream()
-			.filter(item -> !alreadyHasEvidence(incident, item))
-			.forEach(item -> incident.addEvidence(toEntity(incident, item)));
-		incident.markEvidenceCollected(to, requestedBy);
-		IncidentAiAnalysisEntity analysis = incident.startAnalysis(requestedBy);
-		analysisRunner.run(incident, analysis, existingEvidence(incident));
-		return incident;
 	}
 
 	@Transactional
@@ -180,54 +98,6 @@ public class IncidentService {
 			item.metadataJson());
 	}
 
-	private List<IncidentEvidenceCandidate> existingEvidence(IncidentEntity incident) {
-		return incident.getEvidence().stream()
-			.map(item -> new IncidentEvidenceCandidate(
-				item.getType(),
-				item.getSourceId(),
-				item.getApplicationId(),
-				item.getFingerprint(),
-				item.getSeverity(),
-				item.getSummary(),
-				item.getSampleMessage(),
-				item.getOccurredAt(),
-				item.getMetadataJson()))
-			.toList();
-	}
-
-	private boolean alreadyHasEvidence(IncidentEntity incident, IncidentEvidenceCandidate candidate) {
-		if (candidate.sourceId() == null || candidate.sourceId().isBlank()) {
-			return false;
-		}
-		return incident.getEvidence().stream()
-			.anyMatch(existing -> existing.getType() == candidate.type()
-				&& candidate.sourceId().equals(existing.getSourceId()));
-	}
-
-	private java.util.Optional<IncidentAlertEntity> triggerAlert(IncidentEntity incident) {
-		return incident.getAlerts().stream()
-			.filter(alert -> alert.getRelationType() == AlertRelationType.TRIGGER)
-			.findFirst();
-	}
-
-	private UUID primaryApplicationId(IncidentEntity incident) {
-		return incident.getApplications().stream()
-			.filter(application -> application.getImpactRole() == ImpactRole.PRIMARY)
-			.map(IncidentApplicationEntity::getApplicationId)
-			.findFirst()
-			.orElseGet(() -> incident.applicationIds().getFirst());
-	}
-
-	private String triggerFingerprint(IncidentEntity incident, UUID triggerAlertId) {
-		return incident.getEvidence().stream()
-			.filter(evidence -> evidence.getType() == EvidenceType.ALERT)
-			.filter(evidence -> triggerAlertId.toString().equals(evidence.getSourceId()))
-			.map(IncidentEvidenceEntity::getFingerprint)
-			.filter(fingerprint -> fingerprint != null && !fingerprint.isBlank())
-			.findFirst()
-			.orElse(null);
-	}
-
 	private void validateAlertInvestigationRequest(IncidentFacade.StartFromAlertCommand command) {
 		if (command == null) {
 			throw invalid("Alert investigation command is required");
@@ -248,8 +118,8 @@ public class IncidentService {
 
 	private String titleFromAlert(IncidentFacade.StartFromAlertCommand command) {
 		String appName = displayName(command.applicationDisplayName(), command.applicationName());
-		String sample = command.logSamples() != null && !command.logSamples().isEmpty() 
-			? command.logSamples().getFirst().message() 
+		String sample = command.logSamples() != null && !command.logSamples().isEmpty()
+			? command.logSamples().getFirst().message()
 			: null;
 		String message = sample == null || sample.isBlank()
 			? "Alert investigation"

@@ -22,11 +22,17 @@ public class AnomalySignalPublisher extends AbstractKafkaProcessingEventPublishe
     public void publish(ProcessedLog log, String matchedRule) {
         AnomalySignalEvent event = AnomalySignalEvent.builder()
             .applicationId(log.applicationId())
+            .applicationName(log.applicationName())
+            .applicationDisplayName(log.applicationDisplayName())
             .timestamp(log.logTimestamp())
             .logId(log.eventId())
             .level(log.level().name())
             .matchedRule(matchedRule)
             .serviceName(log.applicationName())
+            .message(log.message())
+            .fingerprint(log.fingerprint() == null ? null : log.fingerprint().value())
+            .traceId(log.traceId())
+            .attributes(log.metadata().attributes())
             .build();
 
         publish(log.applicationId().toString(), event);

@@ -19,7 +19,6 @@ public record AlertNotificationMessage(
 
 	public AlertNotificationMessage {
 		Objects.requireNonNull(alertId, "alertId must not be null");
-		Objects.requireNonNull(ruleId, "ruleId must not be null");
 		Objects.requireNonNull(applicationId, "applicationId must not be null");
 		Objects.requireNonNull(applicationName, "applicationName must not be null");
 		Objects.requireNonNull(severity, "severity must not be null");

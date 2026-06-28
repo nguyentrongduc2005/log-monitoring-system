@@ -1,10 +1,13 @@
 package com.vdt.log_monitoring.modules.identity.api;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface MetricSourceFacade {
+
+	List<MetricSourceDto> findAll();
 
 	Optional<MetricSourceDto> findByApplicationId(UUID applicationId);
 

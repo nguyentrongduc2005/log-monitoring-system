@@ -9,8 +9,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.vdt.log_monitoring.modules.alerting.api.AlertingFacade;
+import com.vdt.log_monitoring.modules.anomaly.api.AnomalyFacade;
 import com.vdt.log_monitoring.modules.incident.api.IncidentFacade;
-import com.vdt.log_monitoring.modules.incident.internal.incident.IncidentAnomalyReportEntity;
+import com.vdt.log_monitoring.modules.incident.internal.ai.IncidentAnomalyReportAiService;
 import com.vdt.log_monitoring.modules.incident.internal.incident.IncidentAiAnalysisEntity;
 import com.vdt.log_monitoring.modules.incident.internal.incident.IncidentAlertEntity;
 import com.vdt.log_monitoring.modules.incident.internal.incident.IncidentApplicationEntity;
@@ -27,6 +28,8 @@ public class IncidentFacadeImpl implements IncidentFacade {
 
 	private final IncidentService incidentService;
 	private final AlertingFacade alertingFacade;
+	private final AnomalyFacade anomalyFacade;
+	private final IncidentAnomalyReportAiService anomalyReportAiService;
 	private final ObjectMapper objectMapper;
 
 	@Override
@@ -42,15 +45,9 @@ public class IncidentFacadeImpl implements IncidentFacade {
 	}
 
 	@Override
-	@Transactional
-	public void generateAnomalyReport(UUID alertId, String evidencePayload) {
-		incidentService.generateAnomalyReport(alertId, evidencePayload);
-	}
-
-	@Override
 	@Transactional(readOnly = true)
 	public List<IncidentAnomalyReportDto> findAnomalyReports(List<UUID> visibleApplicationIds) {
-		return incidentService.listAnomalyReports(visibleApplicationIds).stream()
+		return anomalyFacade.findReports(visibleApplicationIds).stream()
 			.map(this::mapAnomalyReport)
 			.toList();
 	}
@@ -58,17 +55,22 @@ public class IncidentFacadeImpl implements IncidentFacade {
 	@Override
 	@Transactional(readOnly = true)
 	public IncidentAnomalyReportDto findAnomalyReportById(UUID id) {
-		return mapAnomalyReport(incidentService.getAnomalyReportById(id));
+		return mapAnomalyReport(anomalyFacade.findReportById(id));
 	}
 
-	private IncidentAnomalyReportDto mapAnomalyReport(IncidentAnomalyReportEntity report) {
+	@Override
+	public void requestAnomalyReportAi(UUID reportId, UUID alertId, String triggerReason) {
+		anomalyReportAiService.requestAnalysis(reportId, alertId, triggerReason);
+	}
+
+	private IncidentAnomalyReportDto mapAnomalyReport(AnomalyFacade.AnomalyReportDto report) {
 		return new IncidentAnomalyReportDto(
-			report.getId(),
-			report.getAlertId(),
-			report.getStatus(),
-			report.getEvidencePayload(),
-			report.getCreatedAt().toInstant(),
-			report.getUpdatedAt().toInstant());
+			report.id(),
+			report.alertId(),
+			report.status(),
+			report.evidencePayloadJson(),
+			report.createdAt(),
+			report.updatedAt());
 	}
 	@Override
 	@Transactional(readOnly = true)

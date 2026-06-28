@@ -86,6 +86,8 @@ app:
       realtime: ${KAFKA_CONSUMER_GROUP_REALTIME:realtime-live-log-group}
       alerts-critical: ${KAFKA_CONSUMER_GROUP_ALERTS_CRITICAL:alerts-critical-group}
       anomaly-signals: ${KAFKA_CONSUMER_GROUP_ANOMALY_SIGNALS:anomaly-signals-group}
+      anomaly-detected-alerting: ${KAFKA_CONSUMER_GROUP_ANOMALY_DETECTED_ALERTING:alerting-anomaly-detected-group}
+      anomaly-ai-incident: ${KAFKA_CONSUMER_GROUP_ANOMALY_AI_INCIDENT:incident-anomaly-ai-group}
     retry:
       auto-create-topics: ${KAFKA_RETRY_AUTO_CREATE_TOPICS:false}
       dlt-topic-suffix: ${KAFKA_RETRY_DLT_TOPIC_SUFFIX:.DLT}
@@ -105,10 +107,45 @@ app:
       processing-errors: ${KAFKA_TOPIC_PROCESSING_ERRORS:processing.errors}
       anomaly-signals: ${KAFKA_TOPIC_ANOMALY_SIGNALS:logs.anomaly.signals}
       anomaly-signals-dlt: ${KAFKA_TOPIC_ANOMALY_SIGNALS_DLT:logs.anomaly.signals.DLT}
+      anomaly-detected: ${KAFKA_TOPIC_ANOMALY_DETECTED:anomaly.detected}
+      anomaly-detected-dlt: ${KAFKA_TOPIC_ANOMALY_DETECTED_DLT:anomaly.detected.DLT}
+      anomaly-ai-requested: ${KAFKA_TOPIC_ANOMALY_AI_REQUESTED:anomaly.ai.requested}
+      anomaly-report-updated: ${KAFKA_TOPIC_ANOMALY_REPORT_UPDATED:anomaly.report.updated}
   logs:
     idempotency:
       key-prefix: ${LOG_INGESTION_IDEMPOTENCY_KEY_PREFIX:logs:ingestion:idempotency}
       ttl: ${LOG_INGESTION_IDEMPOTENCY_TTL:24h}
+  anomaly:
+    index-ttl: ${ANOMALY_INDEX_TTL:15m}
+    metric:
+      scrape-interval: ${ANOMALY_METRIC_SCRAPE_INTERVAL:10s}
+      freshness-ttl: ${ANOMALY_METRIC_FRESHNESS_TTL:60s}
+      default-application-id: ${ANOMALY_METRIC_DEFAULT_APPLICATION_ID:}
+    collector:
+      enabled: ${ANOMALY_COLLECTOR_ENABLED:true}
+      interval: ${ANOMALY_COLLECTOR_INTERVAL:30s}
+    scoring:
+      metric-confidence-samples: ${ANOMALY_SCORING_METRIC_CONFIDENCE_SAMPLES:3}
+      top-evidence-limit: ${ANOMALY_SCORING_TOP_EVIDENCE_LIMIT:5}
+      thresholds:
+        warning: ${ANOMALY_SCORING_WARNING_THRESHOLD:40}
+        anomaly: ${ANOMALY_SCORING_ANOMALY_THRESHOLD:70}
+        critical: ${ANOMALY_SCORING_CRITICAL_THRESHOLD:85}
+      weights:
+        "log.RESOURCE_EXHAUSTED": ${ANOMALY_WEIGHT_LOG_RESOURCE_EXHAUSTED:0.12}
+        "log.SECURITY_AUTH_FAILURE": ${ANOMALY_WEIGHT_LOG_SECURITY_AUTH_FAILURE:0.18}
+        "log.ACCESS_DENIED": ${ANOMALY_WEIGHT_LOG_ACCESS_DENIED:0.10}
+        "log.TIMEOUT": ${ANOMALY_WEIGHT_LOG_TIMEOUT:0.10}
+        "log.EXCEPTION": ${ANOMALY_WEIGHT_LOG_EXCEPTION:0.10}
+        "log.CRITICAL_LEVEL": ${ANOMALY_WEIGHT_LOG_CRITICAL_LEVEL:0.12}
+        "log.ERROR_LEVEL": ${ANOMALY_WEIGHT_LOG_ERROR_LEVEL:0.10}
+        "log.SUSPICIOUS_KEYWORD": ${ANOMALY_WEIGHT_LOG_SUSPICIOUS_KEYWORD:0.08}
+        "metric.CPU_USAGE": ${ANOMALY_WEIGHT_METRIC_CPU_USAGE:0.08}
+        "metric.MEMORY_USAGE": ${ANOMALY_WEIGHT_METRIC_MEMORY_USAGE:0.07}
+        "metric.DISK_USAGE": ${ANOMALY_WEIGHT_METRIC_DISK_USAGE:0.04}
+        "metric.DISK_WRITE_RATE": ${ANOMALY_WEIGHT_METRIC_DISK_WRITE_RATE:0.00}
+        "metric.NETWORK_RX_RATE": ${ANOMALY_WEIGHT_METRIC_NETWORK_RX_RATE:0.00}
+        "metric.NETWORK_TX_RATE": ${ANOMALY_WEIGHT_METRIC_NETWORK_TX_RATE:0.00}
   alerting:
     rule-cache:
       key-prefix: ${ALERT_RULE_CACHE_KEY_PREFIX:alerting:rules:active:}

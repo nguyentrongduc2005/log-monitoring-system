@@ -12,7 +12,7 @@ public interface IncidentFacade {
 
 	IncidentDto findIncidentById(UUID incidentId);
 
-	void generateAnomalyReport(UUID alertId, String evidencePayload);
+	void requestAnomalyReportAi(UUID reportId, UUID alertId, String triggerReason);
 
 	List<IncidentAnomalyReportDto> findAnomalyReports(List<UUID> visibleApplicationIds);
 

@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import lombok.RequiredArgsConstructor;
@@ -11,13 +12,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.vdt.log_monitoring.modules.alerting.api.AlertingException;
+import com.vdt.log_monitoring.modules.anomaly.api.events.AnomalyDetectedEvent;
+import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertDeliveryTarget;
 import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertRuleDefinition;
 import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertSeverity;
 
 @Service
 @RequiredArgsConstructor
 public class AlertService {
-
 	private final AlertRepository alertRepository;
 
 	@Transactional
@@ -33,19 +35,45 @@ public class AlertService {
 				alert.retrigger(occurrence.logTimestamp());
 				return alert;
 			})
-			.orElseGet(() -> alertRepository.save(AlertEntity.create(
-				rule.id(),
-				occurrence.applicationId(),
-				occurrence.applicationName(),
-				occurrence.applicationDisplayName(),
-				rule.name(),
-				rule.severity(),
-				logSamples,
-				firstSeenAt,
-				firstSeenAt,
-				occurrence.logTimestamp(),
-				rule.toDeliveryTargets(),
-				initialCount)));
+			.orElseGet(() -> {
+				AlertEntity newAlert = alertRepository.save(AlertEntity.create(
+					rule.id(),
+					occurrence.applicationId(),
+					occurrence.applicationName(),
+					occurrence.applicationDisplayName(),
+					rule.name(),
+					rule.severity(),
+					logSamples,
+					firstSeenAt,
+					firstSeenAt,
+					occurrence.logTimestamp(),
+					rule.toDeliveryTargets(),
+					initialCount));
+				return newAlert;
+			});
+	}
+
+	@Transactional
+	public AlertEntity createFromAnomaly(AnomalyDetectedEvent event, Set<AlertDeliveryTarget> deliveryTargets) {
+		return findActiveAnomalyOccurrence(event.sourceType(), event.anomalyReportId())
+			.map(alert -> {
+				alert.retrigger(event.detectedAt() == null ? Instant.now() : event.detectedAt());
+				return alert;
+			})
+			.orElseGet(() -> alertRepository.save(AlertEntity.createFromAnomaly(
+				event.applicationId(),
+				event.applicationName(),
+				event.applicationDisplayName(),
+				event.sourceType(),
+				event.anomalyReportId(),
+				event.ruleName(),
+				AlertSeverity.from(event.severity()),
+				summary(event),
+				metadata(event),
+				event.detectedAt() == null ? Instant.now() : event.detectedAt(),
+				event.windowStart(),
+				event.windowEnd(),
+				deliveryTargets)));
 	}
 
 	@Transactional
@@ -64,21 +92,24 @@ public class AlertService {
 	) {
 		Optional<AlertEntity> activeAlert = findActiveOccurrence(rule.id(), occurrence.applicationId());
 		activeAlert.ifPresent(alert -> alert.recordOccurrence(occurrence.logTimestamp()));
-		return activeAlert.isPresent()
-			? Optional.empty()
-			: Optional.of(alertRepository.save(AlertEntity.create(
-				rule.id(),
-				occurrence.applicationId(),
-				occurrence.applicationName(),
-				occurrence.applicationDisplayName(),
-				rule.name(),
-				rule.severity(),
-				logSamples,
-				firstSeenAt,
-				firstSeenAt,
-				occurrence.logTimestamp(),
-				rule.toDeliveryTargets(),
-				initialCount)));
+		if (activeAlert.isPresent()) {
+			return Optional.empty();
+		}
+		
+		AlertEntity newAlert = alertRepository.save(AlertEntity.create(
+			rule.id(),
+			occurrence.applicationId(),
+			occurrence.applicationName(),
+			occurrence.applicationDisplayName(),
+			rule.name(),
+			rule.severity(),
+			logSamples,
+			firstSeenAt,
+			firstSeenAt,
+			occurrence.logTimestamp(),
+			rule.toDeliveryTargets(),
+			initialCount));
+		return Optional.of(newAlert);
 	}
 
 	@Transactional
@@ -134,6 +165,40 @@ public class AlertService {
 	private Optional<AlertEntity> findActiveOccurrence(UUID ruleId, UUID applicationId) {
 		return alertRepository.findFirstByRuleIdAndApplicationIdAndStatusNotOrderByTriggeredAtDesc(
 			ruleId, applicationId, AlertStatus.RESOLVED);
+	}
+
+	private Optional<AlertEntity> findActiveAnomalyOccurrence(String triggerType, UUID sourceId) {
+		return alertRepository.findFirstByTriggerTypeAndSourceIdAndStatusNotOrderByTriggeredAtDesc(
+			triggerType,
+			sourceId,
+			AlertStatus.RESOLVED);
+	}
+
+	private String summary(AnomalyDetectedEvent event) {
+		if (event.summary() == null || event.summary().isBlank()) {
+			return event.title();
+		}
+		if (event.title() == null || event.title().isBlank()) {
+			return event.summary();
+		}
+		return event.title().trim() + ": " + event.summary().trim();
+	}
+
+	private String metadata(AnomalyDetectedEvent event) {
+		return "{"
+			+ "\"kind\":\"ANOMALY_REPORT\","
+			+ "\"anomalyReportId\":\"" + event.anomalyReportId() + "\","
+			+ "\"sourceType\":\"" + escape(event.sourceType()) + "\","
+			+ "\"ruleName\":\"" + escape(event.ruleName()) + "\","
+			+ "\"windowStart\":\"" + event.windowStart() + "\","
+			+ "\"windowEnd\":\"" + event.windowEnd() + "\","
+			+ "\"aiTriggerRequested\":" + event.aiTriggerRequested() + ","
+			+ "\"aiTriggerReason\":\"" + escape(event.aiTriggerReason()) + "\""
+			+ "}";
+	}
+
+	private String escape(String value) {
+		return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
 	}
 
 	private AlertStatus parseOptionalStatus(String status) {

@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.kafka.core.KafkaTemplate;
 
+import com.vdt.log_monitoring.modules.processing.api.events.AnomalySignalEvent;
 import com.vdt.log_monitoring.modules.processing.api.events.CriticalLogDetectedEvent;
 import com.vdt.log_monitoring.modules.processing.api.events.LogProcessingFailedEvent;
 import com.vdt.log_monitoring.modules.processing.api.events.RealtimeLogEvent;
@@ -90,6 +91,29 @@ class ProcessingEventPublisherTest {
         publisher.publish(event);
 
         verify(kafkaTemplate).send("processing.errors", APPLICATION_ID.toString(), event);
+    }
+
+    @Test
+    void anomalyPublisherSendsSignalEventWithClassificationInputs() {
+        KafkaTemplate<String, AnomalySignalEvent> kafkaTemplate = mock();
+        when(kafkaTemplate.send(eq("logs.anomaly.signals"), eq(APPLICATION_ID.toString()), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        AnomalySignalPublisher publisher = new AnomalySignalPublisher(
+                kafkaTemplate,
+                "logs.anomaly.signals",
+                Duration.ofSeconds(1));
+
+        publisher.publish(processedLog(LogLevel.ERROR), "KEYWORD_MATCH_FAILED");
+
+        ArgumentCaptor<AnomalySignalEvent> eventCaptor = ArgumentCaptor.forClass(AnomalySignalEvent.class);
+        verify(kafkaTemplate).send(eq("logs.anomaly.signals"), eq(APPLICATION_ID.toString()), eventCaptor.capture());
+        assertThat(eventCaptor.getValue().applicationId()).isEqualTo(APPLICATION_ID);
+        assertThat(eventCaptor.getValue().logId()).isEqualTo(EVENT_ID);
+        assertThat(eventCaptor.getValue().level()).isEqualTo("ERROR");
+        assertThat(eventCaptor.getValue().message()).isEqualTo("payment failed");
+        assertThat(eventCaptor.getValue().traceId()).isEqualTo("trace-1");
+        assertThat(eventCaptor.getValue().matchedRule()).isEqualTo("KEYWORD_MATCH_FAILED");
+        assertThat(eventCaptor.getValue().serviceName()).isEqualTo("payments");
     }
 
     private ProcessedLog processedLog(LogLevel level) {

@@ -32,6 +32,11 @@ public interface AlertRepository extends JpaRepository<AlertEntity, UUID> {
 			UUID applicationId,
 			AlertStatus excludedStatus);
 
+	Optional<AlertEntity> findFirstByTriggerTypeAndSourceIdAndStatusNotOrderByTriggeredAtDesc(
+			String triggerType,
+			UUID sourceId,
+			AlertStatus excludedStatus);
+
 	@Modifying
 	@Query("UPDATE AlertEntity a SET a.occurrenceCount = :occurrenceCount, a.lastSeenAt = :lastSeenAt, a.updatedAt = :updatedAt " +
 			"WHERE a.ruleId = :ruleId AND a.applicationId = :applicationId AND a.status <> com.vdt.log_monitoring.modules.alerting.internal.alert.AlertStatus.RESOLVED")

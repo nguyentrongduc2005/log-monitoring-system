@@ -49,7 +49,7 @@ public class AlertEntity {
 	@Id
 	private UUID id;
 
-	@Column(name = "rule_id", nullable = false)
+	@Column(name = "rule_id")
 	private UUID ruleId;
 
 	@Column(name = "application_id", nullable = false)
@@ -60,6 +60,22 @@ public class AlertEntity {
 
 	@Column(name = "rule_name", nullable = false, length = 255)
 	private String ruleName;
+
+	@Column(name = "trigger_type", nullable = false, length = 32)
+	private String triggerType;
+
+	@Column(name = "source_type", length = 32)
+	private String sourceType;
+
+	@Column(name = "source_id")
+	private UUID sourceId;
+
+	@Column(columnDefinition = "TEXT")
+	private String summary;
+
+	@JdbcTypeCode(SqlTypes.JSON)
+	@Column(name = "metadata_json", columnDefinition = "jsonb")
+	private String metadataJson;
 
 	@Column(name = "application_display_name", length = 150)
 	private String applicationDisplayName;
@@ -145,11 +161,59 @@ public class AlertEntity {
 				Objects.requireNonNull(applicationId, "applicationId must not be null"),
 				requireText(applicationName, "applicationName"),
 				requireText(ruleName, "ruleName"),
+				"LOG_RULE",
+				null,
+				null,
+				null,
+				null,
 				trimOptional(applicationDisplayName),
 				Objects.requireNonNull(severity, "severity must not be null"),
 				logSamples == null ? new ArrayList<>() : new ArrayList<>(logSamples),
 				now,
 				occurrenceCount,
+				Objects.requireNonNull(firstSeenAt, "firstSeenAt must not be null"),
+				Objects.requireNonNull(lastSeenAt, "lastSeenAt must not be null"),
+				AlertStatus.OPEN,
+				copyDeliveryTargets(deliveryTargets),
+				null,
+				null,
+				null,
+				null,
+				now,
+				now);
+	}
+
+	public static AlertEntity createFromAnomaly(
+			UUID applicationId,
+			String applicationName,
+			String applicationDisplayName,
+			String triggerType,
+			UUID sourceId,
+			String ruleName,
+			AlertSeverity severity,
+			String summary,
+			String metadataJson,
+			Instant triggeredAt,
+			Instant firstSeenAt,
+			Instant lastSeenAt,
+			Set<AlertDeliveryTarget> deliveryTargets) {
+		Instant now = Instant.now();
+		return new AlertEntity(
+				UUID.randomUUID(),
+				null,
+				Objects.requireNonNull(applicationId, "applicationId must not be null"),
+				requireText(applicationName, "applicationName"),
+				requireText(ruleName, "ruleName"),
+				requireText(triggerType, "triggerType"),
+				"ANOMALY_REPORT",
+				Objects.requireNonNull(sourceId, "sourceId must not be null"),
+				trimOptional(summary),
+				trimOptional(metadataJson),
+				trimOptional(applicationDisplayName),
+				Objects.requireNonNull(severity, "severity must not be null"),
+				new ArrayList<>(),
+				now,
+				1,
 				Objects.requireNonNull(firstSeenAt, "firstSeenAt must not be null"),
 				Objects.requireNonNull(lastSeenAt, "lastSeenAt must not be null"),
 				AlertStatus.OPEN,

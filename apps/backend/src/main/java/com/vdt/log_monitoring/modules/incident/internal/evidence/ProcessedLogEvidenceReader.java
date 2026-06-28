@@ -12,65 +12,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Repository;
 
-import com.vdt.log_monitoring.modules.incident.internal.incident.EvidenceType;
-
 @Repository
 @Slf4j
 public class ProcessedLogEvidenceReader {
 
-	private static final int LIMIT = 20;
-	private static final int INCIDENT_ERROR_LOG_LIMIT = 100;
 	private static final int TOP_FINGERPRINT_LIMIT = 5;
 
 	private final DataSource clickHouseDataSource;
 
 	public ProcessedLogEvidenceReader(@Qualifier("clickHouseDataSource") DataSource clickHouseDataSource) {
 		this.clickHouseDataSource = clickHouseDataSource;
-	}
-
-
-	public FingerprintSummary findFingerprintSummary(
-		UUID applicationId,
-		String fingerprint,
-		Instant windowStart,
-		Instant windowEnd
-	) {
-		if (applicationId == null || fingerprint == null || fingerprint.isBlank()) {
-			return null;
-		}
-		String sql = """
-			SELECT fingerprint,
-			       count() AS occurrence_count,
-			       min(log_timestamp) AS first_seen_at,
-			       max(log_timestamp) AS last_seen_at,
-			       any(level) AS severity,
-			       any(message) AS sample_message
-			FROM processed_logs
-			WHERE application_id = ?
-			  AND log_timestamp >= ?
-			  AND log_timestamp <= ?
-			  AND fingerprint = ?
-			GROUP BY fingerprint
-			LIMIT 1
-			""";
-		try (
-			var connection = clickHouseDataSource.getConnection();
-			var statement = connection.prepareStatement(sql)
-		) {
-			statement.setObject(1, applicationId);
-			statement.setTimestamp(2, Timestamp.from(windowStart));
-			statement.setTimestamp(3, Timestamp.from(windowEnd));
-			statement.setString(4, fingerprint);
-			try (var resultSet = statement.executeQuery()) {
-				if (!resultSet.next()) {
-					return null;
-				}
-				return summaryFrom(resultSet);
-			}
-		} catch (Exception exception) {
-			log.warn("Failed to collect trigger fingerprint summary for incident investigation", exception);
-			return null;
-		}
 	}
 
 	public List<FingerprintSummary> findTopErrorFingerprints(
@@ -119,7 +70,6 @@ public class ProcessedLogEvidenceReader {
 		}
 	}
 
-
 	private FingerprintSummary summaryFrom(java.sql.ResultSet resultSet) throws java.sql.SQLException {
 		return new FingerprintSummary(
 			resultSet.getString("fingerprint"),
@@ -130,7 +80,6 @@ public class ProcessedLogEvidenceReader {
 			resultSet.getString("sample_message"));
 	}
 
-
 	public record FingerprintSummary(
 		String fingerprint,
 		long occurrenceCount,
@@ -139,6 +88,4 @@ public class ProcessedLogEvidenceReader {
 		String severity,
 		String sampleMessage
 	) {}
-
-
 }

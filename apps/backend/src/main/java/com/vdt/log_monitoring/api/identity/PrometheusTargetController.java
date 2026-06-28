@@ -8,10 +8,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.vdt.log_monitoring.modules.identity.internal.application.ApplicationEntity;
-import com.vdt.log_monitoring.modules.identity.internal.application.ApplicationService;
-import com.vdt.log_monitoring.modules.identity.internal.metricsource.MetricSourceEntity;
-import com.vdt.log_monitoring.modules.identity.internal.metricsource.MetricSourceService;
+import com.vdt.log_monitoring.modules.identity.api.ApplicationAccessFacade;
+import com.vdt.log_monitoring.modules.identity.api.MetricSourceFacade;
 
 import lombok.Builder;
 import lombok.RequiredArgsConstructor;
@@ -21,8 +19,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PrometheusTargetController {
 
-	private final MetricSourceService metricSourceService;
-	private final ApplicationService applicationService;
+	private final MetricSourceFacade metricSourceFacade;
+	private final ApplicationAccessFacade applicationAccessFacade;
 
 	@Builder
 	public record PrometheusTargetDto(
@@ -32,19 +30,20 @@ public class PrometheusTargetController {
 
 	@GetMapping("/targets")
 	public ResponseEntity<List<PrometheusTargetDto>> getTargets() {
-		List<MetricSourceEntity> sources = metricSourceService.findAll().stream()
-			.filter(MetricSourceEntity::isEnabled)
+		List<MetricSourceFacade.MetricSourceDto> sources = metricSourceFacade.findAll().stream()
+			.filter(MetricSourceFacade.MetricSourceDto::enabled)
 			.toList();
 
 		List<PrometheusTargetDto> targets = sources.stream().map(source -> {
-			ApplicationEntity app = applicationService.getApplicationById(source.getApplicationId());
+			ApplicationAccessFacade.ApplicationDto app =
+				applicationAccessFacade.findApplicationById(source.applicationId());
 			
 			return PrometheusTargetDto.builder()
-				.targets(List.of(source.getTargetHost() + ":" + source.getTargetPort()))
+				.targets(List.of(source.targetHost() + ":" + source.targetPort()))
 				.labels(Map.of(
-					"__metrics_path__", source.getMetricsPath(),
-					"application_id", app.getId().toString(),
-					"application_name", app.getName()
+					"__metrics_path__", source.metricsPath(),
+					"application_id", app.id().toString(),
+					"application_name", app.name()
 				))
 				.build();
 		}).toList();

@@ -1,7 +1,6 @@
 package com.vdt.log_monitoring.modules.incident.internal.incident;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -23,7 +22,6 @@ class IncidentServiceTest {
 
 	private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
 	private static final UUID APP_ID = UUID.fromString("00000000-0000-0000-0000-000000000101");
-	private static final UUID ALERT_1_ID = UUID.fromString("00000000-0000-0000-0000-000000000301");
 	private static final UUID ALERT_2_ID = UUID.fromString("00000000-0000-0000-0000-000000000302");
 	private static final Instant NOW = Instant.parse("2026-06-24T08:00:00Z");
 
@@ -36,8 +34,7 @@ class IncidentServiceTest {
 	@Mock
 	private IncidentAnalysisRunner analysisRunner;
 
-	@Mock
-	private IncidentAnomalyReportRepository anomalyReportRepository;
+
 
 	@Test
 	void startFromAlertCreatesNewIncident() {
@@ -47,14 +44,12 @@ class IncidentServiceTest {
 		when(evidenceCollector.collectFromTriggerAlert(
 			org.mockito.ArgumentMatchers.eq(ALERT_2_ID),
 			org.mockito.ArgumentMatchers.eq(APP_ID),
-			org.mockito.ArgumentMatchers.isNull(),
 			org.mockito.ArgumentMatchers.any(Instant.class),
 			org.mockito.ArgumentMatchers.any(Instant.class)))
 			.thenReturn(List.of());
 
-		IncidentService service = new IncidentService(incidentRepository, evidenceCollector, analysisRunner, anomalyReportRepository);
+		IncidentService service = new IncidentService(incidentRepository, evidenceCollector, analysisRunner);
 		IncidentEntity result = service.startFromAlert(command(ALERT_2_ID));
-
 
 		assertThat(result).isNotNull();
 		assertThat(result.applicationIds()).containsExactly(APP_ID);

@@ -34,18 +34,4 @@ public interface IncidentRepository extends JpaRepository<IncidentEntity, UUID> 
 		order by incident.startedAt desc
 		""")
 	List<IncidentEntity> findOpenByAlertId(@Param("alertId") UUID alertId);
-
-	@Query("""
-		select distinct incident
-		from IncidentEntity incident
-		join incident.applications application
-		join incident.evidence evidence
-		where application.id.applicationId = :applicationId
-		and evidence.fingerprint = :fingerprint
-		and incident.status <> com.vdt.log_monitoring.modules.incident.internal.incident.IncidentStatus.RESOLVED
-		order by incident.startedAt desc
-		""")
-	List<IncidentEntity> findOpenByApplicationIdAndFingerprint(
-		@Param("applicationId") UUID applicationId,
-		@Param("fingerprint") String fingerprint);
 }

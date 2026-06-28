@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 
 import com.vdt.log_monitoring.modules.realtime.api.RealtimeFacade;
 import com.vdt.log_monitoring.modules.realtime.api.events.AlertNotificationMessage;
+import com.vdt.log_monitoring.modules.realtime.api.events.AnomalyReportNotificationMessage;
 import com.vdt.log_monitoring.modules.realtime.api.events.IncidentNotificationMessage;
 import com.vdt.log_monitoring.modules.realtime.api.events.LiveLogMessage;
 import com.vdt.log_monitoring.modules.realtime.internal.routing.RealtimeDestinationResolver;
@@ -31,6 +32,11 @@ public class WebSocketRealtimePublisher implements RealtimeFacade {
     @Override
     public void publishAlertNotification(AlertNotificationMessage message) {
         messagingTemplate.convertAndSend(destinationResolver.alertNotificationsDestination(message), message);
+    }
+
+    @Override
+    public void publishAnomalyReportNotification(AnomalyReportNotificationMessage message) {
+        messagingTemplate.convertAndSend(destinationResolver.anomalyReportNotificationsDestination(message), message);
     }
 
 }

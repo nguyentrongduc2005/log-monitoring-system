@@ -2,6 +2,7 @@ package com.vdt.log_monitoring.modules.identity.internal;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.List;
 
 import org.springframework.stereotype.Component;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,13 @@ import com.vdt.log_monitoring.modules.identity.internal.metricsource.MetricSourc
 public class MetricSourceFacadeImpl implements MetricSourceFacade {
 
 	private final MetricSourceService service;
+
+	@Override
+	public List<MetricSourceDto> findAll() {
+		return service.findAll().stream()
+			.map(this::mapToDto)
+			.toList();
+	}
 
 	@Override
 	public Optional<MetricSourceDto> findByApplicationId(UUID applicationId) {
