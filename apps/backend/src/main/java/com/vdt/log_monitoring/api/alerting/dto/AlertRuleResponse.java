@@ -17,6 +17,8 @@ public record AlertRuleResponse(
 	int thresholdCount,
 	int thresholdWindowSeconds,
 	int cooldownSeconds,
+	String activeStartTime,
+	String activeEndTime,
 	String status,
 	List<String> channels,
 	List<AlertDeliveryTargetResponse> deliveryTargets,
@@ -37,6 +39,8 @@ public record AlertRuleResponse(
 			rule.thresholdCount(),
 			rule.thresholdWindowSeconds(),
 			rule.cooldownSeconds(),
+			rule.activeStartTime(),
+			rule.activeEndTime(),
 			rule.status(),
 			rule.channels(),
 			rule.deliveryTargets().stream()

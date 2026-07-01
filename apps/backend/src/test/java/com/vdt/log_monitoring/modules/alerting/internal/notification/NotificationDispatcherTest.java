@@ -39,6 +39,7 @@ class NotificationDispatcherTest {
 		AlertRuleEntity ruleEntity = AlertRuleEntity.create(
 			UUID.fromString("00000000-0000-0000-0000-000000000001"),
 			"Payment failures", null, AlertSeverity.ERROR, AlertSeverity.CRITICAL, "payment", 1, 60, 60,
+			null, null,
 			Set.of(firstTelegram, secondTelegram, websocket),
 			UUID.fromString("00000000-0000-0000-0000-000000000002"));
 		AlertRuleDefinition rule = AlertRuleDefinition.from(ruleEntity);

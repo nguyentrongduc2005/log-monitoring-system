@@ -34,6 +34,9 @@ function emptyDraft(applicationId = ""): AlertRuleDraft {
     thresholdCount: 1,
     thresholdWindowSeconds: 60,
     cooldownSeconds: 300,
+    activeAllDay: true,
+    activeStartTime: "",
+    activeEndTime: "",
     websocketEnabled: true,
     telegramChatRoomIds: []
   };
@@ -118,6 +121,9 @@ export function Component() {
       thresholdCount: rule.thresholdCount,
       thresholdWindowSeconds: rule.thresholdWindowSeconds,
       cooldownSeconds: rule.cooldownSeconds,
+      activeAllDay: !(rule.activeStartTime && rule.activeEndTime),
+      activeStartTime: rule.activeStartTime || "",
+      activeEndTime: rule.activeEndTime || "",
       websocketEnabled: rule.deliveryTargets.some(target => target.channel === "WEBSOCKET"),
       telegramChatRoomIds: rule.deliveryTargets.flatMap(target =>
         target.channel === "TELEGRAM" && target.chatRoomId ? [target.chatRoomId] : []

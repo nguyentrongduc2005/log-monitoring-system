@@ -54,6 +54,8 @@ public class AlertRuleController {
 				request.getThresholdCount(),
 				request.getThresholdWindowSeconds(),
 				request.getCooldownSeconds(),
+				request.getActiveStartTime(),
+				request.getActiveEndTime(),
 				request.getChannels(),
 				mapDeliveryTargets(request.getDeliveryTargets()),
 				user.id()
@@ -93,6 +95,8 @@ public class AlertRuleController {
 				request.getThresholdCount(),
 				request.getThresholdWindowSeconds(),
 				request.getCooldownSeconds(),
+				request.getActiveStartTime(),
+				request.getActiveEndTime(),
 				request.getChannels(),
 				mapDeliveryTargets(request.getDeliveryTargets())
 			)

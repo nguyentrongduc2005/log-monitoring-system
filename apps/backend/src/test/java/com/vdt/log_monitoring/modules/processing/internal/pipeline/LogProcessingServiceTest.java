@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -12,6 +13,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 import com.vdt.log_monitoring.modules.processing.internal.model.RawLogEnvelope;
+import com.vdt.log_monitoring.modules.processing.internal.alert.AlertCandidateRuleFilter;
 import com.vdt.log_monitoring.modules.processing.internal.publisher.AnomalySignalPublisher;
 import com.vdt.log_monitoring.modules.processing.internal.publisher.CriticalLogDetectedPublisher;
 import com.vdt.log_monitoring.modules.processing.internal.publisher.RealtimeLogPublisher;
@@ -28,6 +30,7 @@ class LogProcessingServiceTest {
 	private final RealtimeLogPublisher realtimeLogPublisher = mock();
 	private final CriticalLogDetectedPublisher criticalLogDetectedPublisher = mock();
 	private final AnomalySignalPublisher anomalySignalPublisher = mock();
+	private final AlertCandidateRuleFilter alertCandidateRuleFilter = mock();
 
 	private final LogProcessingService service = new LogProcessingService(
 		new LogParser(),
@@ -37,7 +40,8 @@ class LogProcessingServiceTest {
 		logWriter,
 		realtimeLogPublisher,
 		criticalLogDetectedPublisher,
-		anomalySignalPublisher);
+		anomalySignalPublisher,
+		alertCandidateRuleFilter);
 
 	@Test
 	void publishesAnomalySignalForWarnSuspiciousKeyword() {
@@ -48,6 +52,17 @@ class LogProcessingServiceTest {
 
 		verify(anomalySignalPublisher).publish(any(), eq("KEYWORD_MATCH_DEGRADED"));
 		verify(criticalLogDetectedPublisher, never()).publish(any());
+	}
+
+	@Test
+	void publishesAlertCandidateWhenRuleFilterMatches() {
+		when(alertCandidateRuleFilter.matches(any())).thenReturn(true);
+		RawLogEnvelope envelope = envelope(
+			"2026-06-30T00:00:00.000Z WARN payment failed for checkout traceId=demo-rule-001");
+
+		service.process(envelope);
+
+		verify(criticalLogDetectedPublisher).publish(any());
 	}
 
 	private RawLogEnvelope envelope(String rawLog) {

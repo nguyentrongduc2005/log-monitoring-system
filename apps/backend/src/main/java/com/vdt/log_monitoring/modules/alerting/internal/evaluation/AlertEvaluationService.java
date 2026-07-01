@@ -37,7 +37,7 @@ public class AlertEvaluationService {
 	public List<AlertEntity> evaluate(AlertEvaluationCandidate candidate) {
 		AlertSeverity severity = parseSeverity(candidate.severity());
 		return ruleService.findActiveRules(candidate.applicationId()).stream()
-			.filter(rule -> ruleMatcher.matches(rule, severity, candidate.message()))
+			.filter(rule -> ruleMatcher.matches(rule, severity, candidate.message(), candidate.logTimestamp()))
 			.map(rule -> evaluate(rule, candidate, severity))
 			.flatMap(List::stream)
 			.toList();

@@ -123,6 +123,9 @@ export default function AlertRuleInventory({
                     {rule.thresholdCount} events / {rule.thresholdWindowSeconds}s
                   </p>
                   <p className="mt-1 text-muted">Cooldown: {rule.cooldownSeconds}s</p>
+                  <p className="mt-1 text-muted">
+                    Active: {formatActiveWindow(rule)}
+                  </p>
                   <p className="mt-2 text-muted">
                     {[
                       ...(websocket ? ["WebSocket"] : []),
@@ -178,4 +181,11 @@ function formatDate(value: string) {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(new Date(value));
+}
+
+function formatActiveWindow(rule: AlertRule) {
+  if (!rule.activeStartTime || !rule.activeEndTime) {
+    return "All day";
+  }
+  return `${rule.activeStartTime}-${rule.activeEndTime}`;
 }

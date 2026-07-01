@@ -37,6 +37,10 @@ public class UpdateAlertRuleRequest {
 	@Min(value = 1, message = "Cooldown must be positive")
 	private int cooldownSeconds;
 
+	private String activeStartTime;
+
+	private String activeEndTime;
+
 	private List<String> channels;
 
 	@Valid

@@ -36,6 +36,8 @@ class TelegramNotifierTest {
 			3,
 			60,
 			300,
+			null,
+			null,
 			Set.of(target),
 			userId);
 		AlertRuleDefinition rule = AlertRuleDefinition.from(ruleEntity);

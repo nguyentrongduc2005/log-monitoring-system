@@ -1,5 +1,6 @@
 package com.vdt.log_monitoring.modules.alerting.internal.rule;
 
+import java.time.LocalTime;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -14,6 +15,8 @@ public record AlertRuleDefinition(
 	int thresholdCount,
 	int thresholdWindowSeconds,
 	int cooldownSeconds,
+	LocalTime activeStartTime,
+	LocalTime activeEndTime,
 	Set<DeliveryTarget> deliveryTargets
 ) {
 
@@ -28,6 +31,8 @@ public record AlertRuleDefinition(
 			rule.getThresholdCount(),
 			rule.getThresholdWindowSeconds(),
 			rule.getCooldownSeconds(),
+			rule.getActiveStartTime(),
+			rule.getActiveEndTime(),
 			rule.getDeliveryTargets().stream()
 				.map(DeliveryTarget::from)
 				.collect(Collectors.toUnmodifiableSet()));

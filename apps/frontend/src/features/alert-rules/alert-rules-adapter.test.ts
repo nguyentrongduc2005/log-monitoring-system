@@ -22,6 +22,9 @@ const draft: AlertRuleDraft = {
   thresholdCount: 5,
   thresholdWindowSeconds: 60,
   cooldownSeconds: 300,
+  activeAllDay: true,
+  activeStartTime: "",
+  activeEndTime: "",
   websocketEnabled: true,
   telegramChatRoomIds: [
     "00000000-0000-0000-0000-000000000201",
@@ -47,6 +50,8 @@ describe("alert rules API adapter", () => {
       thresholdCount: 5,
       thresholdWindowSeconds: 60,
       cooldownSeconds: 300,
+      activeStartTime: null,
+      activeEndTime: null,
       deliveryTargets: [
         { channel: "WEBSOCKET", chatRoomId: null },
         { channel: "TELEGRAM", chatRoomId: draft.telegramChatRoomIds[0] },
@@ -63,6 +68,25 @@ describe("alert rules API adapter", () => {
     expect(apiClient.put).toHaveBeenCalledWith(
       "/alert-rules/rule-id",
       expect.not.objectContaining({ applicationId: expect.anything() })
+    );
+  });
+
+  it("maps a configured active time window", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({ data: { data: { id: "rule-id" } } });
+
+    await saveAlertRule({
+      ...draft,
+      activeAllDay: false,
+      activeStartTime: "00:00",
+      activeEndTime: "06:00"
+    });
+
+    expect(apiClient.post).toHaveBeenCalledWith(
+      "/alert-rules",
+      expect.objectContaining({
+        activeStartTime: "00:00",
+        activeEndTime: "06:00"
+      })
     );
   });
 });

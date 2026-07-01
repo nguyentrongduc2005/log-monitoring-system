@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import com.vdt.log_monitoring.modules.processing.internal.model.LogProcessingStatus;
 import com.vdt.log_monitoring.modules.processing.internal.model.ProcessedLog;
 import com.vdt.log_monitoring.modules.processing.internal.model.RawLogEnvelope;
+import com.vdt.log_monitoring.modules.processing.internal.alert.AlertCandidateRuleFilter;
 import com.vdt.log_monitoring.modules.processing.internal.publisher.CriticalLogDetectedPublisher;
 import com.vdt.log_monitoring.modules.processing.internal.publisher.RealtimeLogPublisher;
 import com.vdt.log_monitoring.modules.processing.internal.publisher.AnomalySignalPublisher;
@@ -24,13 +25,14 @@ public class LogProcessingService {
     private final RealtimeLogPublisher realtimeLogPublisher;
     private final CriticalLogDetectedPublisher criticalLogDetectedPublisher;
     private final AnomalySignalPublisher anomalySignalPublisher;
+    private final AlertCandidateRuleFilter alertCandidateRuleFilter;
 
     public void process(RawLogEnvelope envelope) {
         ProcessedLog normalizedLog = normalize(envelope);
         ProcessedLog storedLog = store(normalizedLog);
         publishRealtimeLog(storedLog);
 
-        if (storedLog.shouldPublishCriticalAlert()) {
+        if (alertCandidateRuleFilter.matches(storedLog)) {
             publishCriticalAlert(storedLog);
         }
         

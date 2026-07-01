@@ -1,6 +1,7 @@
 package com.vdt.log_monitoring.modules.alerting.internal.rule;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -11,6 +12,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import com.vdt.log_monitoring.modules.alerting.api.AlertingException;
 import com.vdt.log_monitoring.modules.alerting.api.AlertingFacade.AlertDeliveryTargetCommand;
 import com.vdt.log_monitoring.modules.alerting.internal.cache.AlertRuleCache;
 import com.vdt.log_monitoring.modules.alerting.internal.notification.ChatRoomEntity;
@@ -44,7 +46,7 @@ class AlertRuleServiceTest {
 
 		AlertRuleEntity rule = service.createRule(
 			applicationId, "Payment failures", null, "ERROR", "CRITICAL", "payment",
-			1, 60, 60, List.of("WEBSOCKET"),
+			1, 60, 60, null, null, List.of("WEBSOCKET"),
 			List.of(
 				new AlertDeliveryTargetCommand("TELEGRAM", firstChatRoomId),
 				new AlertDeliveryTargetCommand("TELEGRAM", secondChatRoomId)),
@@ -56,5 +58,29 @@ class AlertRuleServiceTest {
 			.filteredOn(target -> target.getChannel() == AlertChannel.TELEGRAM)
 			.extracting(AlertDeliveryTarget::getChatRoomId)
 			.containsExactlyInAnyOrder(firstChatRoomId, secondChatRoomId);
+	}
+
+	@Test
+	void createRuleRejectsEqualActiveStartAndEndTime() {
+		AlertRuleService service = new AlertRuleService(
+			mock(), mock(), mock(), mock());
+
+		assertThatThrownBy(() -> service.createRule(
+			UUID.fromString("00000000-0000-0000-0000-000000000001"),
+			"Night warnings",
+			null,
+			"WARN",
+			"ERROR",
+			"payment",
+			1,
+			60,
+			60,
+			"00:00",
+			"00:00",
+			List.of("WEBSOCKET"),
+			List.of(),
+			UUID.fromString("00000000-0000-0000-0000-000000000002")
+		)).isInstanceOf(AlertingException.class)
+			.hasMessageContaining("activeStartTime and activeEndTime must be different");
 	}
 }

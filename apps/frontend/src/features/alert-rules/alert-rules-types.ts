@@ -20,6 +20,8 @@ export type AlertRule = {
   thresholdCount: number;
   thresholdWindowSeconds: number;
   cooldownSeconds: number;
+  activeStartTime?: string | null;
+  activeEndTime?: string | null;
   status: AlertRuleStatus;
   channels: AlertChannel[];
   deliveryTargets: AlertDeliveryTarget[];
@@ -38,6 +40,9 @@ export type AlertRuleDraft = {
   thresholdCount: number;
   thresholdWindowSeconds: number;
   cooldownSeconds: number;
+  activeAllDay: boolean;
+  activeStartTime: string;
+  activeEndTime: string;
   websocketEnabled: boolean;
   telegramChatRoomIds: string[];
 };
@@ -52,6 +57,8 @@ export type AlertRuleRequest = {
   thresholdCount: number;
   thresholdWindowSeconds: number;
   cooldownSeconds: number;
+  activeStartTime?: string | null;
+  activeEndTime?: string | null;
   deliveryTargets: AlertDeliveryTarget[];
 };
 

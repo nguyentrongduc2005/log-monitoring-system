@@ -1,6 +1,7 @@
 package com.vdt.log_monitoring.modules.alerting.internal.rule;
 
 import java.time.Instant;
+import java.time.LocalTime;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
@@ -78,6 +79,12 @@ public class AlertRuleEntity {
 	@Column(name = "cooldown_seconds", nullable = false)
 	private int cooldownSeconds;
 
+	@Column(name = "active_start_time")
+	private LocalTime activeStartTime;
+
+	@Column(name = "active_end_time")
+	private LocalTime activeEndTime;
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 32)
 	private AlertRuleStatus status;
@@ -121,6 +128,8 @@ public class AlertRuleEntity {
 		int thresholdCount,
 		int thresholdWindowSeconds,
 		int cooldownSeconds,
+		LocalTime activeStartTime,
+		LocalTime activeEndTime,
 		Set<AlertDeliveryTarget> deliveryTargets,
 		UUID createdBy
 	) {
@@ -136,6 +145,8 @@ public class AlertRuleEntity {
 			requirePositive(thresholdCount, "thresholdCount"),
 			requirePositive(thresholdWindowSeconds, "thresholdWindowSeconds"),
 			requirePositive(cooldownSeconds, "cooldownSeconds"),
+			activeStartTime,
+			activeEndTime,
 			AlertRuleStatus.ACTIVE,
 			copyDeliveryTargets(deliveryTargets),
 			Objects.requireNonNull(createdBy, "createdBy must not be null"),
@@ -153,6 +164,8 @@ public class AlertRuleEntity {
 		int thresholdCount,
 		int thresholdWindowSeconds,
 		int cooldownSeconds,
+		LocalTime activeStartTime,
+		LocalTime activeEndTime,
 		Set<AlertDeliveryTarget> deliveryTargets
 	) {
 		this.name = requireText(name, "name");
@@ -163,6 +176,8 @@ public class AlertRuleEntity {
 		this.thresholdCount = requirePositive(thresholdCount, "thresholdCount");
 		this.thresholdWindowSeconds = requirePositive(thresholdWindowSeconds, "thresholdWindowSeconds");
 		this.cooldownSeconds = requirePositive(cooldownSeconds, "cooldownSeconds");
+		this.activeStartTime = activeStartTime;
+		this.activeEndTime = activeEndTime;
 		this.deliveryTargets = copyDeliveryTargets(deliveryTargets);
 	}
 

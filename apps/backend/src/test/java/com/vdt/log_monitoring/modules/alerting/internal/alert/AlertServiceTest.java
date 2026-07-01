@@ -166,6 +166,7 @@ class AlertServiceTest {
 		return AlertRuleDefinition.from(AlertRuleEntity.create(
 			UUID.fromString("00000000-0000-0000-0000-000000000101"),
 			"Payment failures", null, AlertSeverity.ERROR, AlertSeverity.CRITICAL, "payment", 3, 60, 120,
+			null, null,
 			AlertRuleEntity.channelOnlyTargets(Set.of(AlertChannel.WEBSOCKET)),
 			UUID.fromString("00000000-0000-0000-0000-000000000102")));
 	}

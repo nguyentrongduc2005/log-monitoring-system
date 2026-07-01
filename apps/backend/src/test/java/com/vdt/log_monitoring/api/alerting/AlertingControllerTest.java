@@ -79,6 +79,8 @@ class AlertingControllerTest {
 						  "thresholdCount": 3,
 						  "thresholdWindowSeconds": 300,
 						  "cooldownSeconds": 120,
+						  "activeStartTime": "00:00",
+						  "activeEndTime": "06:00",
 						  "deliveryTargets": [
 						    {
 						      "channel": "TELEGRAM",
@@ -94,6 +96,8 @@ class AlertingControllerTest {
 				.forClass(AlertingFacade.CreateAlertRuleCommand.class);
 		verify(alertingFacade).createRule(captor.capture());
 		org.assertj.core.api.Assertions.assertThat(captor.getValue().createdBy()).isEqualTo(USER_ID);
+		org.assertj.core.api.Assertions.assertThat(captor.getValue().activeStartTime()).isEqualTo("00:00");
+		org.assertj.core.api.Assertions.assertThat(captor.getValue().activeEndTime()).isEqualTo("06:00");
 		org.assertj.core.api.Assertions.assertThat(captor.getValue().deliveryTargets().getFirst().chatRoomId())
 				.isEqualTo(CHAT_ROOM_ID);
 	}
@@ -203,6 +207,8 @@ class AlertingControllerTest {
 				3,
 				300,
 				120,
+				"00:00",
+				"06:00",
 				"ACTIVE",
 				List.of("TELEGRAM"),
 				List.of(new AlertingFacade.AlertDeliveryTargetDto("TELEGRAM", CHAT_ROOM_ID)),

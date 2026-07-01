@@ -53,6 +53,11 @@ export default function AlertRuleBuilder({
 
   const hasDeliveryTarget =
     draft.websocketEnabled || draft.telegramChatRoomIds.length > 0;
+  const activeWindowInvalid =
+    !draft.activeAllDay &&
+    (!draft.activeStartTime ||
+      !draft.activeEndTime ||
+      draft.activeStartTime === draft.activeEndTime);
 
   return (
     <form className={managementPanelClass} onSubmit={onSubmit}>
@@ -205,6 +210,54 @@ export default function AlertRuleBuilder({
                 />
               </label>
             </div>
+
+            <div className="rounded-md border border-border bg-background px-3 py-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-text">
+                <input
+                  checked={draft.activeAllDay}
+                  className="size-4 rounded accent-primary"
+                  onChange={event =>
+                    updateDraft({
+                      activeAllDay: event.target.checked,
+                      ...(event.target.checked
+                        ? { activeStartTime: "", activeEndTime: "" }
+                        : {})
+                    })
+                  }
+                  type="checkbox"
+                />
+                Active all day
+              </label>
+              {!draft.activeAllDay ? (
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <span className="text-xs font-semibold text-muted">Start time</span>
+                    <input
+                      className={`mt-1.5 ${managementInputClass}`}
+                      onChange={event => updateDraft({ activeStartTime: event.target.value })}
+                      required
+                      type="time"
+                      value={draft.activeStartTime}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-semibold text-muted">End time</span>
+                    <input
+                      className={`mt-1.5 ${managementInputClass}`}
+                      onChange={event => updateDraft({ activeEndTime: event.target.value })}
+                      required
+                      type="time"
+                      value={draft.activeEndTime}
+                    />
+                  </label>
+                  {draft.activeStartTime && draft.activeStartTime === draft.activeEndTime ? (
+                    <p className="text-xs font-medium text-error sm:col-span-2">
+                      Start time and end time must be different.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>
@@ -318,7 +371,8 @@ export default function AlertRuleBuilder({
             saving ||
             !draft.applicationId ||
             !draft.name.trim() ||
-            !hasDeliveryTarget
+            !hasDeliveryTarget ||
+            activeWindowInvalid
           }
           type="submit"
         >

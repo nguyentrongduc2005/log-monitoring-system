@@ -48,6 +48,8 @@ public interface AlertingFacade {
 		int thresholdCount,
 		int thresholdWindowSeconds,
 		int cooldownSeconds,
+		String activeStartTime,
+		String activeEndTime,
 		List<String> channels,
 		List<AlertDeliveryTargetCommand> deliveryTargets,
 		UUID createdBy
@@ -62,6 +64,8 @@ public interface AlertingFacade {
 		int thresholdCount,
 		int thresholdWindowSeconds,
 		int cooldownSeconds,
+		String activeStartTime,
+		String activeEndTime,
 		List<String> channels,
 		List<AlertDeliveryTargetCommand> deliveryTargets
 	) {}
@@ -102,6 +106,8 @@ public interface AlertingFacade {
 		int thresholdCount,
 		int thresholdWindowSeconds,
 		int cooldownSeconds,
+		String activeStartTime,
+		String activeEndTime,
 		String status,
 		List<String> channels,
 		List<AlertDeliveryTargetDto> deliveryTargets,

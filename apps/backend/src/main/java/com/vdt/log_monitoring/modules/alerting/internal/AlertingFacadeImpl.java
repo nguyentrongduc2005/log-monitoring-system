@@ -44,6 +44,8 @@ public class AlertingFacadeImpl implements AlertingFacade {
 				command.thresholdCount(),
 				command.thresholdWindowSeconds(),
 				command.cooldownSeconds(),
+				command.activeStartTime(),
+				command.activeEndTime(),
 				command.channels(),
 				command.deliveryTargets(),
 				command.createdBy()));
@@ -61,6 +63,8 @@ public class AlertingFacadeImpl implements AlertingFacade {
 				command.thresholdCount(),
 				command.thresholdWindowSeconds(),
 				command.cooldownSeconds(),
+				command.activeStartTime(),
+				command.activeEndTime(),
 				command.channels(),
 				command.deliveryTargets()));
 	}
@@ -180,6 +184,8 @@ public class AlertingFacadeImpl implements AlertingFacade {
 				rule.getThresholdCount(),
 				rule.getThresholdWindowSeconds(),
 				rule.getCooldownSeconds(),
+				formatTime(rule.getActiveStartTime()),
+				formatTime(rule.getActiveEndTime()),
 				rule.getStatus().name(),
 				mapChannels(rule),
 				mapDeliveryTargets(rule.getDeliveryTargets()),
@@ -223,6 +229,10 @@ public class AlertingFacadeImpl implements AlertingFacade {
 				.map(AlertChannel::name)
 				.sorted()
 				.toList();
+	}
+
+	private String formatTime(java.time.LocalTime time) {
+		return time == null ? null : time.toString();
 	}
 
 	private List<String> mapDeliveryChannels(AlertEntity alert) {

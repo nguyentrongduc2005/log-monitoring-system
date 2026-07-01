@@ -60,6 +60,8 @@ const criticalRule: AlertRule = {
   thresholdCount: 10,
   thresholdWindowSeconds: 60,
   cooldownSeconds: 300,
+  activeStartTime: null,
+  activeEndTime: null,
   status: "ACTIVE",
   channels: ["WEBSOCKET", "TELEGRAM"],
   deliveryTargets: [
@@ -133,9 +135,38 @@ describe("AlertRulesPage", () => {
           thresholdCount: 1,
           thresholdWindowSeconds: 60,
           cooldownSeconds: 300,
+          activeAllDay: true,
+          activeStartTime: "",
+          activeEndTime: "",
           websocketEnabled: true,
           telegramChatRoomIds: [room.id]
         },
+        undefined
+      )
+    );
+  });
+
+  it("creates a rule with an active time window", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("Auth 401 flood");
+
+    await user.click(screen.getByRole("button", { name: "New Alert Rule" }));
+    const form = screen.getByRole("button", { name: "Create rule" }).closest("form")!;
+    await user.type(within(form).getByLabelText("Rule name"), "Night warnings");
+    await user.click(within(form).getByRole("checkbox", { name: "Active all day" }));
+    await user.type(within(form).getByLabelText("Start time"), "00:00");
+    await user.type(within(form).getByLabelText("End time"), "06:00");
+    await user.click(within(form).getByRole("button", { name: "Create rule" }));
+
+    await waitFor(() =>
+      expect(saveAlertRule).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Night warnings",
+          activeAllDay: false,
+          activeStartTime: "00:00",
+          activeEndTime: "06:00"
+        }),
         undefined
       )
     );

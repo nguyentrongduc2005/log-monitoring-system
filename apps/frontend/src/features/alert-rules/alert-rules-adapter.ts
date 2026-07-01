@@ -39,6 +39,8 @@ export function getAlertingError(
 }
 
 function toRequest(draft: AlertRuleDraft, includeApplication: boolean): AlertRuleRequest {
+  const activeStartTime = draft.activeAllDay ? null : draft.activeStartTime;
+  const activeEndTime = draft.activeAllDay ? null : draft.activeEndTime;
   const deliveryTargets = [
     ...(draft.websocketEnabled
       ? [{ channel: "WEBSOCKET" as const, chatRoomId: null }]
@@ -59,6 +61,8 @@ function toRequest(draft: AlertRuleDraft, includeApplication: boolean): AlertRul
     thresholdCount: draft.thresholdCount,
     thresholdWindowSeconds: draft.thresholdWindowSeconds,
     cooldownSeconds: draft.cooldownSeconds,
+    activeStartTime,
+    activeEndTime,
     deliveryTargets
   };
 }

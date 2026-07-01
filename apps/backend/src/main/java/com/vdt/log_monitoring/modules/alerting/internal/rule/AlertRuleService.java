@@ -1,5 +1,7 @@
 package com.vdt.log_monitoring.modules.alerting.internal.rule;
 
+import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -33,12 +35,15 @@ public class AlertRuleService {
 		int thresholdCount,
 		int thresholdWindowSeconds,
 		int cooldownSeconds,
+		String activeStartTime,
+		String activeEndTime,
 		List<String> channels,
 		List<AlertDeliveryTargetCommand> deliveryTargets,
 		UUID createdBy
 	) {
 		applicationAccessFacade.findApplicationById(applicationId);
 		String normalizedName = requireText(name, "name");
+		ActiveWindow activeWindow = parseActiveWindow(activeStartTime, activeEndTime);
 		if (alertRuleRepository.existsByApplicationIdAndNameIgnoreCase(applicationId, normalizedName)) {
 			throw new AlertingException(
 				AlertingException.ErrorCode.ALERT_RULE_NAME_ALREADY_EXISTS,
@@ -56,6 +61,8 @@ public class AlertRuleService {
 			thresholdCount,
 			thresholdWindowSeconds,
 			cooldownSeconds,
+			activeWindow.startTime(),
+			activeWindow.endTime(),
 			deliveryTargetResolver.resolve(channels, deliveryTargets),
 			createdBy
 		));
@@ -74,11 +81,14 @@ public class AlertRuleService {
 		int thresholdCount,
 		int thresholdWindowSeconds,
 		int cooldownSeconds,
+		String activeStartTime,
+		String activeEndTime,
 		List<String> channels,
 		List<AlertDeliveryTargetCommand> deliveryTargets
 	) {
 		AlertRuleEntity rule = getRuleById(ruleId);
 		String normalizedName = requireText(name, "name");
+		ActiveWindow activeWindow = parseActiveWindow(activeStartTime, activeEndTime);
 		if (!rule.getName().equalsIgnoreCase(normalizedName)
 			&& alertRuleRepository.existsByApplicationIdAndNameIgnoreCase(
 				rule.getApplicationId(),
@@ -99,6 +109,8 @@ public class AlertRuleService {
 			thresholdCount,
 			thresholdWindowSeconds,
 			cooldownSeconds,
+			activeWindow.startTime(),
+			activeWindow.endTime(),
 			deliveryTargetResolver.resolve(channels, deliveryTargets)
 		);
 		alertRuleCache.evictAfterCommit(rule.getApplicationId());
@@ -166,6 +178,44 @@ public class AlertRuleService {
 				"Invalid alert severity"
 			);
 		}
+	}
+
+	private LocalTime parseActiveTime(String value, String fieldName) {
+		if (value == null || value.isBlank()) {
+			return null;
+		}
+		try {
+			return LocalTime.parse(value.trim());
+		} catch (DateTimeParseException exception) {
+			throw new AlertingException(
+				AlertingException.ErrorCode.INVALID_ALERT_RULE,
+				fieldName + " must use HH:mm format"
+			);
+		}
+	}
+
+	private ActiveWindow parseActiveWindow(String activeStartTime, String activeEndTime) {
+		LocalTime startTime = parseActiveTime(activeStartTime, "activeStartTime");
+		LocalTime endTime = parseActiveTime(activeEndTime, "activeEndTime");
+		if (startTime == null && endTime == null) {
+			return new ActiveWindow(null, null);
+		}
+		if (startTime == null || endTime == null) {
+			throw new AlertingException(
+				AlertingException.ErrorCode.INVALID_ALERT_RULE,
+				"Both activeStartTime and activeEndTime are required when configuring an active time window"
+			);
+		}
+		if (startTime.equals(endTime)) {
+			throw new AlertingException(
+				AlertingException.ErrorCode.INVALID_ALERT_RULE,
+				"activeStartTime and activeEndTime must be different"
+			);
+		}
+		return new ActiveWindow(startTime, endTime);
+	}
+
+	private record ActiveWindow(LocalTime startTime, LocalTime endTime) {
 	}
 
 	private static String requireText(String value, String fieldName) {

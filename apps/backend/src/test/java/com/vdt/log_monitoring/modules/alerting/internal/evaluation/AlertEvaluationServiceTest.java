@@ -56,7 +56,7 @@ class AlertEvaluationServiceTest {
 		AlertEvaluationCandidate candidate = candidate();
 		AlertEntity alert = mock();
 		when(ruleService.findActiveRules(candidate.applicationId())).thenReturn(List.of(rule));
-		when(ruleMatcher.matches(rule, AlertSeverity.ERROR, candidate.message())).thenReturn(true);
+		when(ruleMatcher.matches(rule, AlertSeverity.ERROR, candidate.message(), candidate.logTimestamp())).thenReturn(true);
 		when(thresholdCache.evaluate(rule, candidate.applicationId(), candidate.eventId(), candidate.logTimestamp()))
 			.thenReturn(new ThresholdDecision(
 				DecisionType.TRIGGERED, 3, Instant.parse("2026-06-18T03:59:00Z")));
@@ -73,7 +73,7 @@ class AlertEvaluationServiceTest {
 		AlertRuleDefinition rule = rule();
 		AlertEvaluationCandidate candidate = candidate();
 		when(ruleService.findActiveRules(candidate.applicationId())).thenReturn(List.of(rule));
-		when(ruleMatcher.matches(rule, AlertSeverity.ERROR, candidate.message())).thenReturn(true);
+		when(ruleMatcher.matches(rule, AlertSeverity.ERROR, candidate.message(), candidate.logTimestamp())).thenReturn(true);
 		when(thresholdCache.evaluate(rule, candidate.applicationId(), candidate.eventId(), candidate.logTimestamp()))
 			.thenReturn(new ThresholdDecision(
 				DecisionType.BELOW_THRESHOLD, 2, Instant.parse("2026-06-18T03:59:00Z")));
@@ -89,7 +89,7 @@ class AlertEvaluationServiceTest {
 		AlertRuleDefinition rule = rule();
 		AlertEvaluationCandidate candidate = candidate();
 		when(ruleService.findActiveRules(candidate.applicationId())).thenReturn(List.of(rule));
-		when(ruleMatcher.matches(rule, AlertSeverity.ERROR, candidate.message())).thenReturn(true);
+		when(ruleMatcher.matches(rule, AlertSeverity.ERROR, candidate.message(), candidate.logTimestamp())).thenReturn(true);
 		when(thresholdCache.evaluate(rule, candidate.applicationId(), candidate.eventId(), candidate.logTimestamp()))
 			.thenReturn(new ThresholdDecision(
 				DecisionType.COOLDOWN, 4, Instant.parse("2026-06-18T03:59:00Z")));
@@ -104,6 +104,7 @@ class AlertEvaluationServiceTest {
 		return AlertRuleDefinition.from(AlertRuleEntity.create(
 			UUID.fromString("00000000-0000-0000-0000-000000000101"),
 			"Payment failures", null, AlertSeverity.ERROR, AlertSeverity.CRITICAL, "payment", 3, 60, 120,
+			null, null,
 			AlertRuleEntity.channelOnlyTargets(Set.of(AlertChannel.WEBSOCKET)),
 			UUID.fromString("00000000-0000-0000-0000-000000000102")));
 	}

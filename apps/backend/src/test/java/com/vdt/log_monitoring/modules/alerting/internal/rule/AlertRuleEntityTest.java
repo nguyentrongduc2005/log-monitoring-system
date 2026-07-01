@@ -25,6 +25,8 @@ class AlertRuleEntityTest {
 			3,
 			300,
 			120,
+			null,
+			null,
 			AlertRuleEntity.channelOnlyTargets(Set.of(AlertChannel.TELEGRAM, AlertChannel.WEBSOCKET)),
 			createdBy
 		);
@@ -63,6 +65,8 @@ class AlertRuleEntityTest {
 			1,
 			60,
 			60,
+			null,
+			null,
 			AlertRuleEntity.channelOnlyTargets(Set.of(AlertChannel.WEBSOCKET)),
 			UUID.fromString("00000000-0000-0000-0000-000000000002")
 		);
@@ -76,6 +80,8 @@ class AlertRuleEntityTest {
 			2,
 			120,
 			300,
+			null,
+			null,
 			AlertRuleEntity.channelOnlyTargets(Set.of(AlertChannel.TELEGRAM))
 		);
 		rule.changeStatus(AlertRuleStatus.DISABLED);
@@ -104,6 +110,8 @@ class AlertRuleEntityTest {
 			1,
 			60,
 			60,
+			null,
+			null,
 			Set.of(),
 			UUID.fromString("00000000-0000-0000-0000-000000000002")
 		)).isInstanceOf(IllegalArgumentException.class)
@@ -125,6 +133,8 @@ class AlertRuleEntityTest {
 			1,
 			60,
 			60,
+			null,
+			null,
 			Set.of(
 				AlertDeliveryTarget.of(AlertChannel.TELEGRAM, firstChatRoomId),
 				AlertDeliveryTarget.of(AlertChannel.TELEGRAM, secondChatRoomId),
