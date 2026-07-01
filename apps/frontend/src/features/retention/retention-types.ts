@@ -1,8 +1,6 @@
 export type RetentionLogLevel = "INFO" | "WARN" | "ERROR" | "CRITICAL";
 
-export type RetentionAction = "DELETE" | "COMPRESS" | "ARCHIVE";
-
-export type RetentionOperationStatus = "SUCCESS" | "WARNING";
+export type RetentionOperationStatus = "SUCCESS" | "FAILED" | "PENDING";
 
 export type RetentionJob = {
   id: string;
@@ -10,19 +8,17 @@ export type RetentionJob = {
   label: string;
   description: string;
   retentionDays: number;
-  action: RetentionAction;
   minDays: number;
   maxDays: number;
-  storageTb: number;
-  storagePercent: number;
-  projectedDeletionTbPerMonth: number;
-  compressionSavingsGbPerMonth: number;
+  enabled: boolean;
   nextRunAt: string;
-  recentOperation: {
+  recentOperation: null | {
     status: RetentionOperationStatus;
     message: string;
-    occurredAt: string;
+    startedAt: string;
+    finishedAt: string | null;
+    affectedRows: number;
   };
 };
 
-export type RetentionJobDraft = Pick<RetentionJob, "id" | "retentionDays" | "action">;
+export type RetentionJobDraft = Pick<RetentionJob, "id" | "retentionDays" | "enabled">;

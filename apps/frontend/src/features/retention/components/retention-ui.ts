@@ -1,5 +1,4 @@
 import type {
-  RetentionAction,
   RetentionLogLevel,
   RetentionOperationStatus
 } from "../retention-types";
@@ -23,9 +22,7 @@ export function logLevelTone(level: RetentionLogLevel) {
 }
 
 export function operationTone(status: RetentionOperationStatus) {
-  return status === "SUCCESS" ? "success" : "warning";
-}
-
-export function actionLabel(action: RetentionAction) {
-  return action[0] + action.slice(1).toLowerCase();
+  if (status === "SUCCESS") return "success";
+  if (status === "FAILED") return "error";
+  return "warning";
 }

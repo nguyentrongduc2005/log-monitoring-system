@@ -105,6 +105,8 @@ app:
     idempotency:
       key-prefix: ${LOG_INGESTION_IDEMPOTENCY_KEY_PREFIX:logs:ingestion:idempotency}
       ttl: ${LOG_INGESTION_IDEMPOTENCY_TTL:24h}
+  retention:
+    interval-ms: ${RETENTION_INTERVAL_MS:3600000}
   anomaly:
     index-ttl: ${ANOMALY_INDEX_TTL:15m}
     metric:

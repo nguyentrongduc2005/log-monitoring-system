@@ -10,7 +10,7 @@ function toDrafts(jobs: RetentionJob[]): RetentionJobDraft[] {
   return jobs.map(job => ({
     id: job.id,
     retentionDays: job.retentionDays,
-    action: job.action
+    enabled: job.enabled
   }));
 }
 
@@ -79,7 +79,7 @@ export function Component() {
       <PageHeader title="Retention Policy" />
 
       <p className="text-sm text-muted">
-        Manage automated log aging, compression, and archival schedules.
+        Manage fixed log retention policies. Expired logs are deleted from ClickHouse by level.
       </p>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
