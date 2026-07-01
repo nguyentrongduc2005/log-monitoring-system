@@ -72,33 +72,23 @@ public class AnomalyLogRuleHandler {
 			String aiTriggerReason = aiTriggerRequested
 				? aiTriggerReason(severity, observedCount, rule.thresholdCount(), repeatedDedupCount)
 				: null;
-			AnomalyFacade.AnomalyReportDto report = anomalyFacade.createReport(new AnomalyFacade.CreateAnomalyReportCommand(
+			String fingerprint = fingerprint(match);
+			AnomalyFacade.AnomalyReportDto report = anomalyFacade.createOrUpdateReport(new AnomalyFacade.CreateAnomalyReportCommand(
 				event.applicationId(),
 				"ANOMALY_LOG",
 				rule.name(),
+				fingerprint,
 				severity,
 				title(rule, match.dimensionType(), match.dimensionValue()),
-				summary(rule, observedCount, match.dimensionType(), match.dimensionValue()),
-				rule.hypothesis(match.dimensionType(), match.dimensionValue()),
-				rule.confidenceScore(observedCount),
-				rule.likelihoodLabel(observedCount),
-				"Log anomaly may indicate user-impacting degradation or security activity.",
-				toJson(List.of(
-					"Inspect logs with the same fingerprint and trace IDs in the anomaly window.",
-					"Check whether the pattern correlates with deployments, traffic changes, or user actions.")),
-				toJson(rule.recommendedActions()),
-				match.dimensionType(),
-				match.dimensionValue(),
-				null,
-				null,
-				null,
-				observedCount,
-				rule.thresholdCount(),
-				windowStart,
-				windowEnd,
-				evidencePayload(event, rule, match, observedCount, windowStart, windowEnd),
+					summary(rule, observedCount, match.dimensionType(), match.dimensionValue()),
+					rule.hypothesis(match.dimensionType(), match.dimensionValue()),
+					rule.confidenceScore(observedCount),
+					windowStart,
+					windowEnd,
+					evidencePayload(event, rule, match, observedCount, windowStart, windowEnd),
 				aiTriggerRequested,
 				aiTriggerReason));
+			boolean aiTriggerForEvent = shouldTriggerAiForEvent(report);
 
 			anomalyDetectedPublisher.publish(new AnomalyDetectedEvent(
 				report.id(),
@@ -112,8 +102,8 @@ public class AnomalyLogRuleHandler {
 				report.summary(),
 				windowStart,
 				windowEnd,
-				aiTriggerRequested,
-				aiTriggerReason,
+				aiTriggerForEvent,
+				aiTriggerForEvent ? aiTriggerReason : null,
 				Instant.now()));
 			redisTemplate.opsForValue().set(dedupKey, "1", rule.cooldown());
 		});
@@ -139,7 +129,9 @@ public class AnomalyLogRuleHandler {
 		evidence.put("recommendedActions", rule.recommendedActions());
 		evidence.put("windowStart", windowStart.toString());
 		evidence.put("windowEnd", windowEnd.toString());
-		evidence.put("sampleMessages", List.of(event.message()));
+		evidence.put("logSamples", List.of(Map.of(
+			"level", event.level() == null || event.level().isBlank() ? "UNKNOWN" : event.level(),
+			"message", event.message() == null ? "" : event.message())));
 		evidence.put("fingerprints", event.fingerprint() == null || event.fingerprint().isBlank()
 			? List.of()
 			: List.of(event.fingerprint()));
@@ -151,12 +143,16 @@ public class AnomalyLogRuleHandler {
 	}
 
 	private String title(AnomalyLogRule rule, String dimensionType, String dimensionValue) {
-		return "Log anomaly " + rule.name() + " for " + dimensionType + " " + dimensionValue;
+		return "Phát hiện bất thường " + rule.name() + " cho " + dimensionType + " " + dimensionValue;
+	}
+
+	private String fingerprint(AnomalyLogMatch match) {
+		return match.dimensionType() + ":" + match.dimensionValue();
 	}
 
 	private String summary(AnomalyLogRule rule, long observedCount, String dimensionType, String dimensionValue) {
-		return observedCount + " matching log events exceeded threshold " + rule.thresholdCount()
-			+ " for " + dimensionType + " " + dimensionValue + ".";
+		return "Phát hiện " + observedCount + " sự kiện log khớp điều kiện, vượt quá ngưỡng cho phép là " + rule.thresholdCount()
+			+ " đối với " + dimensionType + " " + dimensionValue + ".";
 	}
 
 	private String aiTriggerReason(String severity, long count, long threshold, long repeatedDedupCount) {
@@ -177,6 +173,11 @@ public class AnomalyLogRuleHandler {
 			return event.applicationName();
 		}
 		return event.serviceName() == null || event.serviceName().isBlank() ? "application" : event.serviceName();
+	}
+
+	private boolean shouldTriggerAiForEvent(AnomalyFacade.AnomalyReportDto report) {
+		return report.aiTriggerRequested()
+			&& "NOT_REQUESTED".equals(report.aiStatus());
 	}
 
 	private long parseLong(String value) {

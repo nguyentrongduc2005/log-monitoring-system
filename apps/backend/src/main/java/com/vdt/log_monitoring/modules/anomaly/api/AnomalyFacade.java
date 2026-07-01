@@ -12,6 +12,8 @@ public interface AnomalyFacade {
 
 	AnomalyReportDto createReport(CreateAnomalyReportCommand command);
 
+	AnomalyReportDto createOrUpdateReport(CreateAnomalyReportCommand command);
+
 	void markAlerted(UUID reportId, UUID alertId);
 
 	void markAiPending(UUID reportId, String reason);
@@ -20,26 +22,18 @@ public interface AnomalyFacade {
 
 	void updateAiFailure(UUID reportId, String error);
 
+	AnomalyReportDto resolveReport(UUID reportId, UUID resolvedBy);
+
 	record CreateAnomalyReportCommand(
 		UUID applicationId,
 		String sourceType,
 		String ruleName,
+		String fingerprint,
 		String severity,
 		String title,
 		String summary,
 		String hypothesis,
 		Double confidenceScore,
-		String likelihoodLabel,
-		String impactSummary,
-		String investigationStepsJson,
-		String recommendedActionsJson,
-		String dimensionType,
-		String dimensionValue,
-		String metricGroup,
-		Double observedValue,
-		Double thresholdValue,
-		Long observedCount,
-		Long thresholdCount,
 		Instant windowStart,
 		Instant windowEnd,
 		String evidencePayloadJson,
@@ -53,56 +47,33 @@ public interface AnomalyFacade {
 		UUID alertId,
 		String sourceType,
 		String ruleName,
+		String fingerprint,
 		String severity,
 		String status,
 		String title,
 		String summary,
 		String hypothesis,
 		Double confidenceScore,
-		String likelihoodLabel,
-		String impactSummary,
-		String investigationStepsJson,
-		String recommendedActionsJson,
-		String dimensionType,
-		String dimensionValue,
-		String metricGroup,
-		Double observedValue,
-		Double thresholdValue,
-		Long observedCount,
-		Long thresholdCount,
 		Instant windowStart,
 		Instant windowEnd,
+		long occurrenceCount,
+		Instant firstSeenAt,
+		Instant lastSeenAt,
 		String evidencePayloadJson,
 		boolean aiTriggerRequested,
 		String aiTriggerReason,
 		String aiStatus,
-		String aiModel,
-		String aiPromptVersion,
 		Instant aiStartedAt,
 		Instant aiCompletedAt,
-		String aiSummary,
-		Double aiConfidenceScore,
-		String aiLikelihoodLabel,
-		String aiRootCauseCandidatesJson,
-		String aiRecommendedActionsJson,
-		String aiInvestigationStepsJson,
 		String aiResultJson,
-		String aiRawResponseJson,
 		String aiError,
+		UUID resolvedBy,
+		Instant resolvedAt,
 		Instant createdAt,
 		Instant updatedAt
 	) {}
 
 	record AnomalyAiResult(
-		String model,
-		String promptVersion,
-		String summary,
-		Double confidenceScore,
-		String likelihoodLabel,
-		String rootCauseCandidatesJson,
-		String recommendedActionsJson,
-		String investigationStepsJson,
-		String resultJson,
-		String rawResponseJson
+		String resultJson
 	) {}
 }

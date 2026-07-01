@@ -60,7 +60,14 @@ export default function LogVolumeChart({
     xAxis: {
       type: "category",
       boundaryGap: false,
-      data: points.map((point) => point.time),
+      data: points.map((point) => {
+        try {
+          // Parse ISO string and format as local time (e.g. 15:00)
+          return new Date(point.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        } catch {
+          return point.time;
+        }
+      }),
       axisLine: {
         lineStyle: {
           color: "#23252a",

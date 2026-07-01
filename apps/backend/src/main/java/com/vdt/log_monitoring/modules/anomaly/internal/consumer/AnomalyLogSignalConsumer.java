@@ -1,6 +1,7 @@
 package com.vdt.log_monitoring.modules.anomaly.internal.consumer;
 
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
 import com.vdt.log_monitoring.modules.anomaly.internal.log.AnomalyLogRuleHandler;
@@ -19,9 +20,13 @@ public class AnomalyLogSignalConsumer {
         topics = "${app.kafka.topics.anomaly-signals}", 
         groupId = "${app.kafka.consumer-groups.anomaly-signals}"
     )
-    public void consume(AnomalySignalEvent event) {
+    public void consume(AnomalySignalEvent event, Acknowledgment ack) {
         log.debug("Received Anomaly Signal: logId={}, level={}, matchedRule={}, serviceName={}",
             event.logId(), event.level(), event.matchedRule(), event.serviceName());
-        anomalyLogRuleHandler.handle(event);
+        try {
+            anomalyLogRuleHandler.handle(event);
+        } finally {
+            ack.acknowledge();
+        }
     }
 }

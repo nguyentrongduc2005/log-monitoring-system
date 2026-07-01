@@ -46,7 +46,19 @@ public class LogProcessingService {
 
         // Keyword matching rule
         String messageLower = log.message().toLowerCase();
-        String[] keywords = {"failed", "timeout", "denied", "exception", "unauthorized", "out of memory"};
+        String[] keywords = {
+            "failed",
+            "failure",
+            "timeout",
+            "denied",
+            "exception",
+            "unauthorized",
+            "out of memory",
+            "degraded",
+            "unavailable",
+            "retry exhausted",
+            "circuit breaker open"
+        };
         for (String keyword : keywords) {
             if (messageLower.contains(keyword)) {
                 anomalySignalPublisher.publish(log, "KEYWORD_MATCH_" + keyword.toUpperCase().replace(" ", "_"));

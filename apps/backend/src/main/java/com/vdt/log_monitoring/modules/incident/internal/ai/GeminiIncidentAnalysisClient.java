@@ -105,6 +105,9 @@ public class GeminiIncidentAnalysisClient implements AiIncidentAnalysisClient {
 			If ANOMALY_EVIDENCE is present, provide a quick investigation suggestion based on the anomaly signals.
 			If TOP_ERROR_FINGERPRINT is present, synthesize the log groups to determine the root cause of the incident.
 			Prefer timeline reasoning from firstSeenAt/lastSeenAt/occurredAt over raw count alone.
+			
+			IMPORTANT: All generated text fields (`summary`, `likelyCause`, `severityReason`, and `suggestedActions`) MUST be written in Vietnamese.
+
 			Return strict JSON with these fields:
 			{
 			  "summary": string,

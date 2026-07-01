@@ -9,10 +9,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.vdt.log_monitoring.modules.alerting.api.AlertingException;
+import com.vdt.log_monitoring.modules.alerting.api.AlertingFacade;
 import com.vdt.log_monitoring.modules.anomaly.api.AnomalyFacade;
 import com.vdt.log_monitoring.modules.identity.api.ApplicationAccessFacade;
 import com.vdt.log_monitoring.modules.identity.api.IdentityFacade;
@@ -24,6 +27,7 @@ import com.vdt.log_monitoring.shared.dto.ApiResponse;
 public class AnomalyReportController {
 
 	private final AnomalyFacade anomalyFacade;
+	private final AlertingFacade alertingFacade;
 	private final IdentityFacade identityFacade;
 	private final ApplicationAccessFacade applicationAccessFacade;
 
@@ -51,6 +55,32 @@ public class AnomalyReportController {
 		AnomalyFacade.AnomalyReportDto report = anomalyFacade.findReportById(id);
 		ensureVisible(visibleApplicationIds, report.applicationId());
 		return ResponseEntity.ok(ApiResponse.success(report));
+	}
+
+	@PutMapping("/{id}/resolve")
+	public ResponseEntity<ApiResponse<AnomalyFacade.AnomalyReportDto>> resolveReport(
+		Principal principal,
+		@PathVariable UUID id
+	) {
+		IdentityFacade.UserDto user = identityFacade.findUserByEmail(principal.getName());
+		List<UUID> visibleApplicationIds = visibleApplicationIds(user);
+		AnomalyFacade.AnomalyReportDto report = anomalyFacade.findReportById(id);
+		ensureVisible(visibleApplicationIds, report.applicationId());
+		AnomalyFacade.AnomalyReportDto resolved = anomalyFacade.resolveReport(id, user.id());
+		if (resolved.alertId() != null) {
+			resolveLinkedAlertIfPresent(resolved.alertId(), user.id());
+		}
+		return ResponseEntity.ok(ApiResponse.success(resolved));
+	}
+
+	private void resolveLinkedAlertIfPresent(UUID alertId, UUID userId) {
+		try {
+			alertingFacade.resolveAlert(alertId, userId);
+		} catch (AlertingException exception) {
+			if (exception.getErrorCode() != AlertingException.ErrorCode.ALERT_NOT_FOUND) {
+				throw exception;
+			}
+		}
 	}
 
 	private List<UUID> visibleApplicationIds(IdentityFacade.UserDto user) {

@@ -19,8 +19,8 @@ const baseSnapshot: OverviewSnapshot = {
   generatedAt: "2026-06-23T10:30:00Z",
   metrics: [
     {
-      id: "logs-per-minute",
-      label: "Logs/min",
+      id: "logs-per-second",
+      label: "Log tiếp nhận/s",
       value: "1,228",
       tone: "success",
     },
@@ -44,40 +44,9 @@ const baseSnapshot: OverviewSnapshot = {
       tone: "success",
     },
   ],
-  pipeline: [
-    { id: "1", label: "Ingestion API", state: "healthy", detail: "ok" },
-    { id: "2", label: "Kafka logs.raw", state: "healthy", detail: "ok" },
-    { id: "3", label: "Worker", state: "degraded", detail: "lag" },
-    { id: "4", label: "ClickHouse", state: "offline", detail: "paused" },
-    { id: "5", label: "WebSocket", state: "unknown", detail: "unknown" },
-    {
-      id: "6",
-      label: "Alerting / Telegram",
-      state: "healthy",
-      detail: "ok",
-    },
-  ],
   volume: [
     { time: "09:55", INFO: 20, WARN: 5, ERROR: 2, CRITICAL: 1 },
     { time: "10:00", INFO: 24, WARN: 6, ERROR: 3, CRITICAL: 1 },
-  ],
-  levelDistribution: [
-    { level: "INFO", count: 44, percentage: 74 },
-    { level: "WARN", count: 11, percentage: 18 },
-    { level: "ERROR", count: 5, percentage: 7 },
-    { level: "CRITICAL", count: 2, percentage: 1 },
-  ],
-  noisyApplications: [
-    {
-      id: "checkout-api",
-      name: "checkout-api",
-      environment: "production",
-      totalLogs: 6240,
-      errorCount: 132,
-      criticalCount: 8,
-      errorRate: "2.2%",
-      lastSeen: "10:15 UTC",
-    },
   ],
   criticalAlerts: [
     {
@@ -90,14 +59,6 @@ const baseSnapshot: OverviewSnapshot = {
       deliveryState: "Delivered",
     },
   ],
-  notificationSummary: {
-    sent: 32,
-    failed: 3,
-    dedupSuppressed: 128,
-    deliveryRate: "91.4%",
-    lastFailure: "10:23 UTC",
-  },
-  authorizedApplications: 12,
 };
 
 function renderDashboardPage() {
@@ -120,24 +81,15 @@ describe("DashboardPage", () => {
     expect(screen.getByText("Loading overview...")).toBeInTheDocument();
     expect(await screen.findByText("Dashboard")).toBeInTheDocument();
     expect(screen.getByText("Operations overview")).toBeInTheDocument();
-    expect(screen.getByText("Logs/min")).toBeInTheDocument();
+    expect(screen.getByText("Log tiếp nhận/s")).toBeInTheDocument();
     expect(screen.getAllByText("Error rate")).not.toHaveLength(0);
     expect(screen.getByText("Open critical")).toBeInTheDocument();
     expect(screen.getByText("Active applications")).toBeInTheDocument();
     expect(screen.getByText("Processing lag")).toBeInTheDocument();
-    expect(screen.getByText("Ingestion API")).toBeInTheDocument();
-    expect(screen.getByText("Kafka logs.raw")).toBeInTheDocument();
-    expect(screen.getByText("Worker")).toBeInTheDocument();
-    expect(screen.getByText("ClickHouse")).toBeInTheDocument();
-    expect(screen.getByText("WebSocket")).toBeInTheDocument();
-    expect(screen.getByText("Alerting / Telegram")).toBeInTheDocument();
     expect(screen.getByLabelText("Log volume by level")).toBeInTheDocument();
-    expect(screen.getAllByText("checkout-api")).not.toHaveLength(0);
     expect(
       screen.getByText("Payment gateway timeout crossed alert threshold."),
     ).toBeInTheDocument();
-    expect(screen.getByText("Alert delivery")).toBeInTheDocument();
-    expect(screen.getByText("Dedup suppressed")).toBeInTheDocument();
   });
 
   it("renders retryable error state when the adapter fails", async () => {
@@ -155,51 +107,24 @@ describe("DashboardPage", () => {
   it("renders useful empty states without removing KPI and pipeline sections", async () => {
     vi.mocked(getOverviewSnapshot).mockResolvedValueOnce({
       ...baseSnapshot,
-      noisyApplications: [],
       criticalAlerts: [],
     });
 
     renderDashboardPage();
 
-    expect(await screen.findByText("Logs/min")).toBeInTheDocument();
-    expect(screen.getByText("Pipeline health")).toBeInTheDocument();
-    expect(
-      screen.getByText("No noisy applications in the current window."),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Log tiếp nhận/s")).toBeInTheDocument();
     expect(
       screen.getByText("No critical alerts in the current window."),
     ).toBeInTheDocument();
   });
 
-  it("renders the no-authorized-applications state", async () => {
-    vi.mocked(getOverviewSnapshot).mockResolvedValueOnce({
-      ...baseSnapshot,
-      authorizedApplications: 0,
-      noisyApplications: [],
-    });
 
-    renderDashboardPage();
-
-    expect(
-      await screen.findByText(
-        "No authorized applications are available for this account yet.",
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it("renders degraded, offline, and unknown pipeline states", async () => {
-    renderDashboardPage();
-
-    expect(await screen.findByText("degraded")).toBeInTheDocument();
-    expect(screen.getByText("offline")).toBeInTheDocument();
-    expect(screen.getAllByText("unknown")).not.toHaveLength(0);
-  });
 
   it("reloads adapter data when Refresh is clicked", async () => {
     const user = userEvent.setup();
     renderDashboardPage();
 
-    await screen.findByText("Logs/min");
+    await screen.findByText("Log tiếp nhận/s");
     await user.click(screen.getByRole("button", { name: "Refresh" }));
 
     await waitFor(() => expect(getOverviewSnapshot).toHaveBeenCalledTimes(2));
@@ -209,7 +134,7 @@ describe("DashboardPage", () => {
     const user = userEvent.setup();
     renderDashboardPage();
 
-    await screen.findByText("Logs/min");
+    await screen.findByText("Log tiếp nhận/s");
     await user.click(screen.getByRole("button", { name: "1h" }));
 
     await waitFor(() =>

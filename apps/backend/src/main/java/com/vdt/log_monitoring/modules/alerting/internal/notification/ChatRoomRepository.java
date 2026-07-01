@@ -16,4 +16,6 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoomEntity, UUID> 
 	List<ChatRoomEntity> findByStatus(ChatRoomStatus status);
 
 	boolean existsByChannelAndChatId(AlertChannel channel, String chatId);
+
+	List<ChatRoomEntity> findByNameContainingIgnoreCaseAndStatusAndChannel(String name, ChatRoomStatus status, AlertChannel channel);
 }

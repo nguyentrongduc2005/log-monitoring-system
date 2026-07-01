@@ -18,6 +18,8 @@ import com.vdt.log_monitoring.modules.ingestion.api.LogIngestionFacade.IngestLog
 import com.vdt.log_monitoring.modules.ingestion.api.events.RawLogReceivedEvent;
 import com.vdt.log_monitoring.modules.ingestion.internal.storage.LogIngestionIdempotencyStore;
 
+import com.vdt.log_monitoring.modules.ingestion.internal.storage.IngestionMetricsStore;
+
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -30,6 +32,7 @@ public class LogIngestionService {
         private final RawLogPublisher rawLogPublisher;
         private final LogIngestionIdempotencyStore idempotencyStore;
         private final RawLogSanitizer rawLogSanitizer;
+        private final IngestionMetricsStore metricsStore;
 
         public IngestLogResult ingest(IngestLogCommand command) {
                 validateRawLog(command.rawLog());
@@ -50,6 +53,8 @@ public class LogIngestionService {
                                 ingestionId,
                                 command.rawLog(),
                                 receivedAt);
+
+                metricsStore.increment(application.applicationId(), 1);
 
                 return new IngestLogResult(
                                 eventId,
@@ -78,6 +83,8 @@ public class LogIngestionService {
                                                 index,
                                                 receivedAt))
                                 .toList();
+
+                metricsStore.increment(application.applicationId(), command.rawLogs().length);
 
                 return new BatchIngestLogResult(
                                 ingestionId,

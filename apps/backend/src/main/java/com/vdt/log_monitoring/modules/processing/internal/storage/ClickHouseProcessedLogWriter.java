@@ -45,9 +45,25 @@ public class ClickHouseProcessedLogWriter implements LogWriter {
         this.clickHouseDataSource = clickHouseDataSource;
     }
 
+    private final List<ProcessedLog> buffer = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+
     @Override
     public void write(ProcessedLog log) {
-        writeBatch(List.of(Objects.requireNonNull(log, "log must not be null")));
+        buffer.add(Objects.requireNonNull(log, "log must not be null"));
+        if (buffer.size() >= 100) {
+            flush();
+        }
+    }
+
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 500)
+    public void flush() {
+        List<ProcessedLog> toWrite;
+        synchronized (buffer) {
+            if (buffer.isEmpty()) return;
+            toWrite = new java.util.ArrayList<>(buffer);
+            buffer.clear();
+        }
+        writeBatch(toWrite);
     }
 
     @Override

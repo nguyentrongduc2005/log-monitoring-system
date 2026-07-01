@@ -10,6 +10,8 @@ public interface LogIngestionFacade {
 
         BatchIngestLogResult batchIngest(BatchIngestLogCommand command);
 
+        long getIngestedLogsPerMinute(java.util.List<java.util.UUID> applicationIds);
+
         public record IngestLogCommand(
                         String apiKey,
                         String applicationName,

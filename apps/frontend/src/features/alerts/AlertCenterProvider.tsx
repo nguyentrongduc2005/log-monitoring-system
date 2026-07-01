@@ -44,7 +44,9 @@ export default function AlertCenterProvider({ children }: PropsWithChildren) {
     setError(null);
     try {
       const updated = await action(id);
-      setAlerts(current => current.map(alert => alert.id === updated.id ? updated : alert));
+      setAlerts(current => updated.status === "RESOLVED"
+        ? current.filter(alert => alert.id !== updated.id)
+        : current.map(alert => alert.id === updated.id ? updated : alert));
     } catch {
       setError("Unable to update alert status.");
     } finally {

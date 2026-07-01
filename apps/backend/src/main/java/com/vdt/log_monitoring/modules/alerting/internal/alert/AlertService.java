@@ -17,10 +17,13 @@ import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertDeliveryTarget
 import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertRuleDefinition;
 import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertSeverity;
 
+import com.vdt.log_monitoring.modules.identity.api.ApplicationAccessFacade;
+
 @Service
 @RequiredArgsConstructor
 public class AlertService {
 	private final AlertRepository alertRepository;
+	private final ApplicationAccessFacade applicationAccessFacade;
 
 	@Transactional
 	public AlertEntity trigger(
@@ -54,7 +57,24 @@ public class AlertService {
 	}
 
 	@Transactional
-	public AlertEntity createFromAnomaly(AnomalyDetectedEvent event, Set<AlertDeliveryTarget> deliveryTargets) {
+	public AlertEntity createFromAnomaly(
+		AnomalyDetectedEvent event,
+		Set<AlertDeliveryTarget> deliveryTargets,
+		List<AlertLogSample> logSamples
+	) {
+		String appName = event.applicationName();
+		String appDisplayName = event.applicationDisplayName();
+		try {
+			var app = applicationAccessFacade.findApplicationById(event.applicationId());
+			appName = app.name();
+			appDisplayName = app.displayName();
+		} catch (Exception e) {
+			// fallback to event's data if application is not found
+		}
+
+		String finalAppName = appName;
+		String finalAppDisplayName = appDisplayName;
+
 		return findActiveAnomalyOccurrence(event.sourceType(), event.anomalyReportId())
 			.map(alert -> {
 				alert.retrigger(event.detectedAt() == null ? Instant.now() : event.detectedAt());
@@ -62,14 +82,15 @@ public class AlertService {
 			})
 			.orElseGet(() -> alertRepository.save(AlertEntity.createFromAnomaly(
 				event.applicationId(),
-				event.applicationName(),
-				event.applicationDisplayName(),
+				finalAppName,
+				finalAppDisplayName,
 				event.sourceType(),
 				event.anomalyReportId(),
 				event.ruleName(),
 				AlertSeverity.from(event.severity()),
 				summary(event),
 				metadata(event),
+				logSamples,
 				event.detectedAt() == null ? Instant.now() : event.detectedAt(),
 				event.windowStart(),
 				event.windowEnd(),
@@ -127,7 +148,9 @@ public class AlertService {
 		AlertStatus parsedStatus = parseOptionalStatus(status);
 		AlertSeverity parsedSeverity = parseOptionalSeverity(severity);
 		return alertRepository.findByApplicationIdInOrderByTriggeredAtDesc(applicationIds).stream()
-			.filter(alert -> parsedStatus == null || alert.getStatus() == parsedStatus)
+			.filter(alert -> parsedStatus == null
+				? alert.getStatus() != AlertStatus.RESOLVED
+				: alert.getStatus() == parsedStatus)
 			.filter(alert -> parsedSeverity == null || alert.getSeverity() == parsedSeverity)
 			.toList();
 	}

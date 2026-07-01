@@ -10,10 +10,13 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vdt.log_monitoring.modules.alerting.api.AlertingFacade;
 import com.vdt.log_monitoring.modules.anomaly.api.AnomalyFacade;
 import com.vdt.log_monitoring.modules.incident.internal.incident.EvidenceType;
 import com.vdt.log_monitoring.modules.incident.internal.evidence.ProcessedLogEvidenceReader.FingerprintSummary;
+import com.vdt.log_monitoring.modules.incident.internal.evidence.ProcessedLogEvidenceReader.LogSample;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +25,7 @@ public class IncidentEvidenceCollector {
 	private final AlertingFacade alertingFacade;
 	private final ProcessedLogEvidenceReader processedLogEvidenceReader;
 	private final AnomalyFacade anomalyFacade;
+	private final ObjectMapper objectMapper;
 
 	public List<IncidentEvidenceCandidate> collectFromTriggerAlert(
 		UUID triggerAlertId,
@@ -35,20 +39,19 @@ public class IncidentEvidenceCollector {
 
 		if (isAnomalyAlert(triggerAlert) && triggerAlert.sourceId() != null) {
 			AnomalyFacade.AnomalyReportDto report = anomalyFacade.findReportById(triggerAlert.sourceId());
-			evidence.add(new IncidentEvidenceCandidate(
-				evidenceType(report),
-				"ANOMALY_REPORT:" + report.id(),
-				applicationId,
-				null,
-				report.severity(),
-				report.title(),
-				report.evidencePayloadJson(),
-				report.windowStart(),
-				"{\"kind\":\"ANOMALY_REPORT\",\"sourceType\":\"" + escape(report.sourceType()) + "\"}"));
+			AnomalyReportEvidenceContext context = AnomalyReportEvidenceContext.from(report, objectMapper);
+			evidence.add(fromAnomalyReport(report, context));
+			evidence.addAll(processedLogEvidenceReader.findRelatedLogs(
+					applicationId,
+					windowStart,
+					windowEnd,
+					context.traceIds(),
+					context.fingerprints()).stream()
+				.map(sample -> fromRelatedLog(applicationId, sample))
+				.toList());
 		}
 
-		// fingerprint and eventId are no longer available in AlertDto since it supports global counting
-		evidence.addAll(processedLogEvidenceReader.findTopErrorFingerprints(applicationId, windowStart, windowEnd)
+		evidence.addAll(processedLogEvidenceReader.findTopSignalFingerprints(applicationId, windowStart, windowEnd)
 			.stream()
 			.map(summary -> fromTopFingerprint(applicationId, summary))
 			.toList());
@@ -90,8 +93,8 @@ public class IncidentEvidenceCollector {
 		return fromFingerprintSummary(
 			applicationId,
 			summary,
-			"TOP_ERROR_FINGERPRINT",
-			"Top error fingerprint " + summary.fingerprint() + " appeared "
+			"TOP_SIGNAL_FINGERPRINT",
+			"Top signal fingerprint " + summary.fingerprint() + " appeared "
 				+ summary.occurrenceCount() + " times from " + formatTime(summary.firstSeenAt()) + " to " + formatTime(summary.lastSeenAt()));
 	}
 
@@ -128,12 +131,69 @@ public class IncidentEvidenceCollector {
 			metadata);
 	}
 
+	private IncidentEvidenceCandidate fromAnomalyReport(
+		AnomalyFacade.AnomalyReportDto report,
+		AnomalyReportEvidenceContext context
+	) {
+		String countSummary = context.countSummary();
+		String dimension = context.dimensionType().isBlank()
+			? ""
+			: " for " + context.dimensionType() + " " + context.dimensionValue();
+		String sample = context.firstSampleMessage();
+		String summary = displayName(report.title(), report.summary());
+		if (!countSummary.isBlank()) {
+			summary = summary + " (" + countSummary + dimension + ")";
+		}
+		return new IncidentEvidenceCandidate(
+			evidenceType(report),
+			"ANOMALY_REPORT:" + report.id(),
+			report.applicationId(),
+			context.fingerprints().isEmpty() ? null : context.fingerprints().getFirst(),
+			report.severity(),
+			summary,
+			sample.isBlank() ? displayName(report.summary(), report.hypothesis()) : sample,
+			report.windowStart(),
+			toJson(java.util.Map.of(
+				"kind", "ANOMALY_REPORT",
+				"sourceType", displayName(report.sourceType(), ""),
+				"ruleName", displayName(report.ruleName(), ""),
+				"traceIds", context.traceIds(),
+				"fingerprints", context.fingerprints(),
+				"observedCount", context.observedCount() == null ? 0 : context.observedCount(),
+				"thresholdCount", context.thresholdCount() == null ? 0 : context.thresholdCount())));
+	}
+
+	private IncidentEvidenceCandidate fromRelatedLog(UUID applicationId, LogSample sample) {
+		String trace = sample.traceId() == null || sample.traceId().isBlank() ? "" : " traceId=" + sample.traceId();
+		return new IncidentEvidenceCandidate(
+			EvidenceType.LOG,
+			sourceId("RELATED_LOG", sample.eventId()),
+			applicationId,
+			sample.fingerprint(),
+			sample.severity(),
+			"Related log" + trace,
+			sample.message(),
+			sample.occurredAt(),
+			toJson(java.util.Map.of(
+				"kind", "RELATED_LOG",
+				"traceId", displayName(sample.traceId(), ""),
+				"fingerprint", displayName(sample.fingerprint(), ""))));
+	}
+
 	private String displayName(String displayName, String fallback) {
 		return displayName == null || displayName.isBlank() ? fallback : displayName;
 	}
 
 	private String escape(String value) {
 		return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
+	}
+
+	private String toJson(Object value) {
+		try {
+			return objectMapper.writeValueAsString(value);
+		} catch (JsonProcessingException exception) {
+			return "{}";
+		}
 	}
 
 	private String sourceId(String prefix, String value) {

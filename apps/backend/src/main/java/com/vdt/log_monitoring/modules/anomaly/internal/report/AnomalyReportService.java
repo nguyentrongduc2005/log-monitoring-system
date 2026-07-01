@@ -23,6 +23,22 @@ public class AnomalyReportService {
 	}
 
 	@Transactional
+	public AnomalyReportEntity createOrUpdateReport(AnomalyFacade.CreateAnomalyReportCommand command) {
+		return anomalyReportRepository
+			.findFirstByApplicationIdAndSourceTypeAndRuleNameAndFingerprintAndStatusNotOrderByUpdatedAtDesc(
+				command.applicationId(),
+				command.sourceType(),
+				command.ruleName(),
+				command.fingerprint(),
+				"RESOLVED")
+			.map(report -> {
+				report.recordOccurrence(command);
+				return report;
+			})
+			.orElseGet(() -> anomalyReportRepository.save(AnomalyReportEntity.create(command)));
+	}
+
+	@Transactional
 	public AnomalyReportEntity markAlerted(UUID reportId, UUID alertId) {
 		AnomalyReportEntity report = getReportById(reportId);
 		report.markAlerted(alertId);
@@ -50,6 +66,13 @@ public class AnomalyReportService {
 		return report;
 	}
 
+	@Transactional
+	public AnomalyReportEntity resolveReport(UUID reportId, UUID resolvedBy) {
+		AnomalyReportEntity report = getReportById(reportId);
+		report.resolve(resolvedBy);
+		return report;
+	}
+
 	@Transactional(readOnly = true)
 	public AnomalyReportEntity getReportById(UUID id) {
 		return anomalyReportRepository.findById(id)
@@ -63,6 +86,8 @@ public class AnomalyReportService {
 		if (visibleApplicationIds == null || visibleApplicationIds.isEmpty()) {
 			return List.of();
 		}
-		return anomalyReportRepository.findByApplicationIdInOrderByCreatedAtDesc(visibleApplicationIds);
+		return anomalyReportRepository.findByApplicationIdInOrderByCreatedAtDesc(visibleApplicationIds).stream()
+			.filter(report -> !"RESOLVED".equals(report.getStatus()))
+			.toList();
 	}
 }

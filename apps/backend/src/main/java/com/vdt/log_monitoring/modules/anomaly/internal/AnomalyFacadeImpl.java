@@ -7,8 +7,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.vdt.log_monitoring.modules.anomaly.api.AnomalyFacade;
-import com.vdt.log_monitoring.modules.anomaly.api.events.AnomalyReportUpdatedEvent;
-import com.vdt.log_monitoring.modules.anomaly.internal.publisher.AnomalyReportUpdatedPublisher;
 import com.vdt.log_monitoring.modules.anomaly.internal.report.AnomalyReportEntity;
 import com.vdt.log_monitoring.modules.anomaly.internal.report.AnomalyReportService;
 
@@ -19,7 +17,6 @@ import lombok.RequiredArgsConstructor;
 public class AnomalyFacadeImpl implements AnomalyFacade {
 
 	private final AnomalyReportService anomalyReportService;
-	private final AnomalyReportUpdatedPublisher anomalyReportUpdatedPublisher;
 
 	@Override
 	@Transactional(readOnly = true)
@@ -43,6 +40,12 @@ public class AnomalyFacadeImpl implements AnomalyFacade {
 
 	@Override
 	@Transactional
+	public AnomalyReportDto createOrUpdateReport(CreateAnomalyReportCommand command) {
+		return mapReport(anomalyReportService.createOrUpdateReport(command));
+	}
+
+	@Override
+	@Transactional
 	public void markAlerted(UUID reportId, UUID alertId) {
 		anomalyReportService.markAlerted(reportId, alertId);
 	}
@@ -50,29 +53,25 @@ public class AnomalyFacadeImpl implements AnomalyFacade {
 	@Override
 	@Transactional
 	public void markAiPending(UUID reportId, String reason) {
-		publishUpdate(anomalyReportService.markAiPending(reportId, reason), "AI_STARTED");
+		anomalyReportService.markAiPending(reportId, reason);
 	}
 
 	@Override
 	@Transactional
 	public void updateAiResult(UUID reportId, AnomalyAiResult result) {
-		publishUpdate(anomalyReportService.updateAiResult(reportId, result), "AI_COMPLETED");
+		anomalyReportService.updateAiResult(reportId, result);
 	}
 
 	@Override
 	@Transactional
 	public void updateAiFailure(UUID reportId, String error) {
-		publishUpdate(anomalyReportService.updateAiFailure(reportId, error), "AI_FAILED");
+		anomalyReportService.updateAiFailure(reportId, error);
 	}
 
-	private void publishUpdate(AnomalyReportEntity report, String updateType) {
-		anomalyReportUpdatedPublisher.publish(new AnomalyReportUpdatedEvent(
-			report.getId(),
-			report.getApplicationId(),
-			report.getSourceType(),
-			updateType,
-			report.getAiStatus(),
-			report.getUpdatedAt() == null ? java.time.Instant.now() : report.getUpdatedAt()));
+	@Override
+	@Transactional
+	public AnomalyReportDto resolveReport(UUID reportId, UUID resolvedBy) {
+		return mapReport(anomalyReportService.resolveReport(reportId, resolvedBy));
 	}
 
 	private AnomalyReportDto mapReport(AnomalyReportEntity report) {
@@ -82,42 +81,28 @@ public class AnomalyFacadeImpl implements AnomalyFacade {
 			report.getAlertId(),
 			report.getSourceType(),
 			report.getRuleName(),
+			report.getFingerprint(),
 			report.getSeverity(),
 			report.getStatus(),
 			report.getTitle(),
 			report.getSummary(),
 			report.getHypothesis(),
 			report.getConfidenceScore(),
-			report.getLikelihoodLabel(),
-			report.getImpactSummary(),
-			report.getInvestigationStepsJson(),
-			report.getRecommendedActionsJson(),
-			report.getDimensionType(),
-			report.getDimensionValue(),
-			report.getMetricGroup(),
-			report.getObservedValue(),
-			report.getThresholdValue(),
-			report.getObservedCount(),
-			report.getThresholdCount(),
 			report.getWindowStart(),
 			report.getWindowEnd(),
+			report.getOccurrenceCount(),
+			report.getFirstSeenAt(),
+			report.getLastSeenAt(),
 			report.getEvidencePayloadJson(),
 			report.isAiTriggerRequested(),
 			report.getAiTriggerReason(),
 			report.getAiStatus(),
-			report.getAiModel(),
-			report.getAiPromptVersion(),
 			report.getAiStartedAt(),
 			report.getAiCompletedAt(),
-			report.getAiSummary(),
-			report.getAiConfidenceScore(),
-			report.getAiLikelihoodLabel(),
-			report.getAiRootCauseCandidatesJson(),
-			report.getAiRecommendedActionsJson(),
-			report.getAiInvestigationStepsJson(),
 			report.getAiResultJson(),
-			report.getAiRawResponseJson(),
 			report.getAiError(),
+			report.getResolvedBy(),
+			report.getResolvedAt(),
 			report.getCreatedAt(),
 			report.getUpdatedAt());
 	}

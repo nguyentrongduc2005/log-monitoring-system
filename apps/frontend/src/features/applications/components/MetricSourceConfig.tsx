@@ -32,11 +32,7 @@ export default function MetricSourceConfig({ applicationId }: MetricSourceConfig
   const [scrapeInterval, setScrapeInterval] = useState("15s");
   const [enabled, setEnabled] = useState(true);
 
-  useEffect(() => {
-    loadConfig();
-  }, [applicationId]);
-
-  async function loadConfig() {
+  const loadConfig = async () => {
     try {
       setLoading(true);
       setError(null);
@@ -54,7 +50,11 @@ export default function MetricSourceConfig({ applicationId }: MetricSourceConfig
     } finally {
       setLoading(false);
     }
-  }
+  };
+
+  useEffect(() => {
+    void loadConfig();
+  }, [applicationId]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();

@@ -34,9 +34,7 @@ class AnomalyMetricRuleHandlerTest {
 	private final AnomalyRedisKeys keys = new AnomalyRedisKeys();
 	private final AnomalyDetectionProperties properties = new AnomalyDetectionProperties(
 		Duration.ofMinutes(15),
-		new AnomalyDetectionProperties.Metric(Duration.ofSeconds(30), Duration.ofSeconds(60), null),
-		null,
-		null);
+		new AnomalyDetectionProperties.Metric(Duration.ofSeconds(30), Duration.ofSeconds(60)));
 	private final AnomalyMetricRuleHandler handler = new AnomalyMetricRuleHandler(
 		redisTemplate,
 		objectMapper,

@@ -26,7 +26,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "anomaly_reports", schema = "anomaly", indexes = {
 	@Index(name = "idx_anomaly_reports_application_created_at", columnList = "application_id,created_at"),
 	@Index(name = "idx_anomaly_reports_source_rule_window", columnList = "source_type,rule_name,window_start,window_end"),
-	@Index(name = "idx_anomaly_reports_dimension", columnList = "application_id,rule_name,dimension_type,dimension_value")
+	@Index(name = "idx_anomaly_reports_open_identity", columnList = "application_id,source_type,rule_name,fingerprint,status")
 })
 public class AnomalyReportEntity {
 
@@ -44,6 +44,9 @@ public class AnomalyReportEntity {
 
 	@Column(name = "rule_name", nullable = false, length = 120)
 	private String ruleName;
+
+	@Column(nullable = false, length = 255)
+	private String fingerprint;
 
 	@Column(nullable = false, length = 32)
 	private String severity;
@@ -63,46 +66,20 @@ public class AnomalyReportEntity {
 	@Column(name = "confidence_score")
 	private Double confidenceScore;
 
-	@Column(name = "likelihood_label", length = 32)
-	private String likelihoodLabel;
-
-	@Column(name = "impact_summary", columnDefinition = "TEXT")
-	private String impactSummary;
-
-	@JdbcTypeCode(SqlTypes.JSON)
-	@Column(name = "investigation_steps", columnDefinition = "jsonb")
-	private String investigationStepsJson;
-
-	@JdbcTypeCode(SqlTypes.JSON)
-	@Column(name = "recommended_actions", columnDefinition = "jsonb")
-	private String recommendedActionsJson;
-
-	@Column(name = "dimension_type", length = 64)
-	private String dimensionType;
-
-	@Column(name = "dimension_value")
-	private String dimensionValue;
-
-	@Column(name = "metric_group", length = 120)
-	private String metricGroup;
-
-	@Column(name = "observed_value")
-	private Double observedValue;
-
-	@Column(name = "threshold_value")
-	private Double thresholdValue;
-
-	@Column(name = "observed_count")
-	private Long observedCount;
-
-	@Column(name = "threshold_count")
-	private Long thresholdCount;
-
 	@Column(name = "window_start", nullable = false)
 	private Instant windowStart;
 
 	@Column(name = "window_end", nullable = false)
 	private Instant windowEnd;
+
+	@Column(name = "occurrence_count", nullable = false)
+	private long occurrenceCount;
+
+	@Column(name = "first_seen_at", nullable = false)
+	private Instant firstSeenAt;
+
+	@Column(name = "last_seen_at", nullable = false)
+	private Instant lastSeenAt;
 
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(name = "evidence_payload", nullable = false, columnDefinition = "jsonb")
@@ -117,49 +94,24 @@ public class AnomalyReportEntity {
 	@Column(name = "ai_status", nullable = false, length = 32)
 	private String aiStatus;
 
-	@Column(name = "ai_model", length = 120)
-	private String aiModel;
-
-	@Column(name = "ai_prompt_version", length = 64)
-	private String aiPromptVersion;
-
 	@Column(name = "ai_started_at")
 	private Instant aiStartedAt;
 
 	@Column(name = "ai_completed_at")
 	private Instant aiCompletedAt;
 
-	@Column(name = "ai_summary", columnDefinition = "TEXT")
-	private String aiSummary;
-
-	@Column(name = "ai_confidence_score")
-	private Double aiConfidenceScore;
-
-	@Column(name = "ai_likelihood_label", length = 32)
-	private String aiLikelihoodLabel;
-
-	@JdbcTypeCode(SqlTypes.JSON)
-	@Column(name = "ai_root_cause_candidates", columnDefinition = "jsonb")
-	private String aiRootCauseCandidatesJson;
-
-	@JdbcTypeCode(SqlTypes.JSON)
-	@Column(name = "ai_recommended_actions", columnDefinition = "jsonb")
-	private String aiRecommendedActionsJson;
-
-	@JdbcTypeCode(SqlTypes.JSON)
-	@Column(name = "ai_investigation_steps", columnDefinition = "jsonb")
-	private String aiInvestigationStepsJson;
-
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(name = "ai_result", columnDefinition = "jsonb")
 	private String aiResultJson;
 
-	@JdbcTypeCode(SqlTypes.JSON)
-	@Column(name = "ai_raw_response", columnDefinition = "jsonb")
-	private String aiRawResponseJson;
-
 	@Column(name = "ai_error", columnDefinition = "TEXT")
 	private String aiError;
+
+	@Column(name = "resolved_by")
+	private UUID resolvedBy;
+
+	@Column(name = "resolved_at")
+	private Instant resolvedAt;
 
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
@@ -186,30 +138,51 @@ public class AnomalyReportEntity {
 		report.applicationId = Objects.requireNonNull(command.applicationId(), "applicationId must not be null");
 		report.sourceType = requireText(command.sourceType(), "sourceType");
 		report.ruleName = requireText(command.ruleName(), "ruleName");
+		report.fingerprint = trimToLength(requireText(command.fingerprint(), "fingerprint"), 255);
 		report.severity = requireText(command.severity(), "severity");
 		report.status = "DETECTED";
 		report.title = trimToLength(requireText(command.title(), "title"), 180);
 		report.summary = trimOptional(command.summary());
 		report.hypothesis = trimOptional(command.hypothesis());
 		report.confidenceScore = command.confidenceScore();
-		report.likelihoodLabel = trimOptional(command.likelihoodLabel());
-		report.impactSummary = trimOptional(command.impactSummary());
-		report.investigationStepsJson = jsonOrEmptyArray(command.investigationStepsJson());
-		report.recommendedActionsJson = jsonOrEmptyArray(command.recommendedActionsJson());
-		report.dimensionType = trimOptional(command.dimensionType());
-		report.dimensionValue = trimOptional(command.dimensionValue());
-		report.metricGroup = trimOptional(command.metricGroup());
-		report.observedValue = command.observedValue();
-		report.thresholdValue = command.thresholdValue();
-		report.observedCount = command.observedCount();
-		report.thresholdCount = command.thresholdCount();
 		report.windowStart = Objects.requireNonNull(command.windowStart(), "windowStart must not be null");
 		report.windowEnd = Objects.requireNonNull(command.windowEnd(), "windowEnd must not be null");
+		report.occurrenceCount = 1L;
+		report.firstSeenAt = report.windowStart;
+		report.lastSeenAt = report.windowEnd;
 		report.evidencePayloadJson = jsonOrEmptyObject(command.evidencePayloadJson());
 		report.aiTriggerRequested = command.aiTriggerRequested();
 		report.aiTriggerReason = trimOptional(command.aiTriggerReason());
-		report.aiStatus = command.aiTriggerRequested() ? "PENDING" : "NOT_REQUESTED";
+		report.aiStatus = "NOT_REQUESTED";
 		return report;
+	}
+
+	public void recordOccurrence(AnomalyFacade.CreateAnomalyReportCommand command) {
+		Objects.requireNonNull(command, "command must not be null");
+		String previousSeverity = severity;
+		String incomingSeverity = requireText(command.severity(), "severity");
+		boolean escalatedToCritical = isCritical(incomingSeverity) && !isCritical(previousSeverity);
+		occurrenceCount++;
+		windowStart = min(windowStart, Objects.requireNonNull(command.windowStart(), "windowStart must not be null"));
+		windowEnd = max(windowEnd, Objects.requireNonNull(command.windowEnd(), "windowEnd must not be null"));
+		firstSeenAt = min(firstSeenAt, command.windowStart());
+		lastSeenAt = max(lastSeenAt, command.windowEnd());
+		severity = strongerSeverity(previousSeverity, incomingSeverity);
+		title = trimToLength(requireText(command.title(), "title"), 180);
+		summary = trimOptional(command.summary());
+		hypothesis = trimOptional(command.hypothesis());
+		confidenceScore = max(confidenceScore, command.confidenceScore());
+		evidencePayloadJson = jsonOrEmptyObject(command.evidencePayloadJson());
+		if (command.aiTriggerRequested() && canRequestAi(escalatedToCritical)) {
+			aiTriggerRequested = true;
+			aiTriggerReason = trimOptional(command.aiTriggerReason());
+			if (escalatedToCritical && !"PENDING".equals(aiStatus)) {
+				aiStatus = "NOT_REQUESTED";
+				aiStartedAt = null;
+				aiCompletedAt = null;
+				aiError = null;
+			}
+		}
 	}
 
 	public void markAlerted(UUID alertId) {
@@ -220,6 +193,9 @@ public class AnomalyReportEntity {
 	}
 
 	public void markAiPending(String reason) {
+		if ("RESOLVED".equals(status)) {
+			return;
+		}
 		aiTriggerRequested = true;
 		aiTriggerReason = trimOptional(reason);
 		aiStatus = "PENDING";
@@ -232,26 +208,27 @@ public class AnomalyReportEntity {
 	public void updateAiResult(AnomalyFacade.AnomalyAiResult result) {
 		Objects.requireNonNull(result, "result must not be null");
 		aiStatus = "SUCCEEDED";
-		status = "AI_SUCCEEDED";
-		aiModel = trimOptional(result.model());
-		aiPromptVersion = trimOptional(result.promptVersion());
-		aiSummary = trimOptional(result.summary());
-		aiConfidenceScore = result.confidenceScore();
-		aiLikelihoodLabel = trimOptional(result.likelihoodLabel());
-		aiRootCauseCandidatesJson = jsonOrEmptyArray(result.rootCauseCandidatesJson());
-		aiRecommendedActionsJson = jsonOrEmptyArray(result.recommendedActionsJson());
-		aiInvestigationStepsJson = jsonOrEmptyArray(result.investigationStepsJson());
+		if (!"RESOLVED".equals(status)) {
+			status = "AI_SUCCEEDED";
+		}
 		aiResultJson = jsonOrEmptyObject(result.resultJson());
-		aiRawResponseJson = trimOptional(result.rawResponseJson());
 		aiError = null;
 		aiCompletedAt = Instant.now();
 	}
 
 	public void updateAiFailure(String error) {
 		aiStatus = "FAILED";
-		status = "AI_FAILED";
+		if (!"RESOLVED".equals(status)) {
+			status = "AI_FAILED";
+		}
 		aiError = trimOptional(error);
 		aiCompletedAt = Instant.now();
+	}
+
+	public void resolve(UUID resolvedBy) {
+		this.status = "RESOLVED";
+		this.resolvedBy = Objects.requireNonNull(resolvedBy, "resolvedBy must not be null");
+		this.resolvedAt = Instant.now();
 	}
 
 	private static String requireText(String value, String fieldName) {
@@ -269,13 +246,64 @@ public class AnomalyReportEntity {
 		return value.length() <= maxLength ? value : value.substring(0, maxLength - 3) + "...";
 	}
 
-	private static String jsonOrEmptyArray(String value) {
-		String trimmed = trimOptional(value);
-		return trimmed == null ? "[]" : trimmed;
-	}
-
 	private static String jsonOrEmptyObject(String value) {
 		String trimmed = trimOptional(value);
 		return trimmed == null ? "{}" : trimmed;
+	}
+
+	private boolean canRequestAi(boolean escalatedToCritical) {
+		return "NOT_REQUESTED".equals(aiStatus)
+			|| (escalatedToCritical && !"PENDING".equals(aiStatus));
+	}
+
+	private static Instant min(Instant current, Instant candidate) {
+		if (current == null) {
+			return candidate;
+		}
+		if (candidate == null) {
+			return current;
+		}
+		return candidate.isBefore(current) ? candidate : current;
+	}
+
+	private static Instant max(Instant current, Instant candidate) {
+		if (current == null) {
+			return candidate;
+		}
+		if (candidate == null) {
+			return current;
+		}
+		return candidate.isAfter(current) ? candidate : current;
+	}
+
+	private static Double max(Double current, Double candidate) {
+		if (current == null) {
+			return candidate;
+		}
+		if (candidate == null) {
+			return current;
+		}
+		return Math.max(current, candidate);
+	}
+
+	private static String strongerSeverity(String current, String candidate) {
+		return severityRank(candidate) > severityRank(current) ? candidate : current;
+	}
+
+	private static int severityRank(String severity) {
+		if ("CRITICAL".equalsIgnoreCase(severity)) {
+			return 4;
+		}
+		if ("ERROR".equalsIgnoreCase(severity)) {
+			return 3;
+		}
+		if ("WARN".equalsIgnoreCase(severity) || "WARNING".equalsIgnoreCase(severity)) {
+			return 2;
+		}
+		return 1;
+	}
+
+	private static boolean isCritical(String severity) {
+		return "CRITICAL".equalsIgnoreCase(severity);
 	}
 }

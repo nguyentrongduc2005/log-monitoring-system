@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 public class LogIngestionFacadeImpl implements LogIngestionFacade {
 
     private final LogIngestionService ingestionService;
+    private final com.vdt.log_monitoring.modules.ingestion.internal.storage.IngestionMetricsStore metricsStore;
 
     @Override
     public IngestLogResult ingest(IngestLogCommand command) {
@@ -21,6 +22,11 @@ public class LogIngestionFacadeImpl implements LogIngestionFacade {
     @Override
     public BatchIngestLogResult batchIngest(BatchIngestLogCommand command) {
         return ingestionService.batchIngest(command);
+    }
+
+    @Override
+    public long getIngestedLogsPerMinute(java.util.List<java.util.UUID> applicationIds) {
+        return metricsStore.getLogsCountLastMinute(applicationIds);
     }
 
 }

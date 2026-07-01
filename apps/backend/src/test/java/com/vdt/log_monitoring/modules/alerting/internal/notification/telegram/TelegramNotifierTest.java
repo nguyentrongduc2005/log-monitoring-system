@@ -56,6 +56,8 @@ class TelegramNotifierTest {
 		TelegramNotifier notifier = new TelegramNotifier(
 			RestClient.builder(),
 			mock(ChatRoomRepository.class),
+			new com.fasterxml.jackson.databind.ObjectMapper(),
+			mock(com.vdt.log_monitoring.modules.identity.api.ApplicationAccessFacade.class),
 			"https://api.telegram.test",
 			"test-token");
 

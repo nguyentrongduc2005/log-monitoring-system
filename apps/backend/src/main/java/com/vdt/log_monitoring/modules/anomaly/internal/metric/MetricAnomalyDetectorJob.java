@@ -82,42 +82,24 @@ public class MetricAnomalyDetectorJob {
 			.mapToDouble(state -> state.rule().confidenceScore(state.current()))
 			.max()
 			.orElse(0.5);
-		MetricState highest = breached.stream()
-			.max(Comparator.comparingDouble(MetricState::current))
-			.orElse(breached.getFirst());
 		String title = "Resource anomaly detected for application " + applicationId;
 		String summary = metricSummary(breached);
-		AnomalyFacade.AnomalyReportDto report = anomalyFacade.createReport(new AnomalyFacade.CreateAnomalyReportCommand(
+		AnomalyFacade.AnomalyReportDto report = anomalyFacade.createOrUpdateReport(new AnomalyFacade.CreateAnomalyReportCommand(
 			applicationId,
 			"ANOMALY_METRIC",
 			RULE_NAME,
+			METRIC_GROUP,
 			severity,
 			title,
-			summary,
-			"Resource metrics exceeded configured thresholds in the same evaluation window.",
-			confidence,
-			likelihoodLabel(confidence),
-			"Resource pressure may degrade request latency, availability, or background processing.",
-			toJson(List.of(
-				"Check recent deployment, traffic, and autoscaling activity for the application.",
-				"Compare breached metrics with error logs in the same time window.",
-				"Inspect host/container saturation and downstream dependency behavior.")),
-			toJson(List.of(
-				"Scale or restart the affected workload if saturation continues.",
-				"Review resource limits and recent workload changes.",
-				"Create an incident if user impact is visible or AI analysis flags likely root cause.")),
-			null,
-			null,
-			METRIC_GROUP,
-			highest.current(),
-			highest.rule().thresholdFor(highest.current()),
-			(long) breached.size(),
-			1L,
-			windowStart,
-			windowEnd,
-			evidencePayload(breached, states, windowStart, windowEnd, confidence),
+				summary,
+				"Resource metrics exceeded configured thresholds in the same evaluation window.",
+				confidence,
+				windowStart,
+				windowEnd,
+				evidencePayload(breached, states, windowStart, windowEnd, confidence),
 			aiTriggerRequested,
 			aiTriggerReason));
+		boolean aiTriggerForEvent = shouldTriggerAiForEvent(report);
 
 		anomalyDetectedPublisher.publish(new AnomalyDetectedEvent(
 			report.id(),
@@ -131,8 +113,8 @@ public class MetricAnomalyDetectorJob {
 			report.summary(),
 			windowStart,
 			windowEnd,
-			aiTriggerRequested,
-			aiTriggerReason,
+			aiTriggerForEvent,
+			aiTriggerForEvent ? aiTriggerReason : null,
 			Instant.now()));
 		redisTemplate.opsForValue().set(dedupKey, "1", java.time.Duration.ofMinutes(5));
 	}
@@ -241,21 +223,13 @@ public class MetricAnomalyDetectorJob {
 			.orElse("Metric threshold breached");
 	}
 
-	private String likelihoodLabel(double confidence) {
-		if (confidence >= 0.85) {
-			return "VERY_HIGH";
-		}
-		if (confidence >= 0.70) {
-			return "HIGH";
-		}
-		if (confidence >= 0.55) {
-			return "MEDIUM";
-		}
-		return "LOW";
-	}
-
 	private String format(double value) {
 		return String.format(java.util.Locale.ROOT, "%.2f", value);
+	}
+
+	private boolean shouldTriggerAiForEvent(AnomalyFacade.AnomalyReportDto report) {
+		return report.aiTriggerRequested()
+			&& "NOT_REQUESTED".equals(report.aiStatus());
 	}
 
 	private java.util.Optional<UUID> parseUuid(String value) {

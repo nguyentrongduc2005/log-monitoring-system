@@ -482,6 +482,8 @@ function EvidenceList({ evidence }: { evidence: IncidentEvidence[] }) {
 }
 
 function EvidenceRow({ item }: { item: IncidentEvidence }) {
+  const metadata = parseEvidenceMetadata(item.metadataJson);
+  const sample = displayEvidenceSample(item);
   return (
     <article className="grid gap-3 p-4 transition hover:bg-surface-raised/45 lg:grid-cols-[9rem_minmax(0,1fr)_12rem] lg:items-start">
       <div className="flex flex-wrap gap-2 lg:block lg:space-y-2">
@@ -493,19 +495,87 @@ function EvidenceRow({ item }: { item: IncidentEvidence }) {
       <div className="min-w-0">
         <p className="break-words font-semibold text-sm text-text">{item.summary}</p>
         <div className="mt-2 text-xs text-muted bg-surface/50 p-2 rounded border border-border/50">
-          <p className="font-mono whitespace-pre-wrap">{item.sampleMessage}</p>
+          <p className="font-mono whitespace-pre-wrap">{sample || "No sample message captured."}</p>
         </div>
-        {item.fingerprint ? (
-          <div className="mt-2 flex items-center gap-2 text-xs text-muted">
+        {(item.fingerprint || metadata.traceIds.length > 0 || metadata.kind) ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
+            {metadata.kind ? (
+              <span className="font-mono bg-background px-1.5 py-0.5 rounded border border-border">
+                {metadata.kind}
+              </span>
+            ) : null}
+            {metadata.traceIds.slice(0, 3).map(traceId => (
+              <span className="font-mono bg-background px-1.5 py-0.5 rounded border border-border" key={traceId}>
+                traceId: {traceId}
+              </span>
+            ))}
+            {item.fingerprint ? (
             <span className="font-mono bg-background px-1.5 py-0.5 rounded border border-border">
               fingerprint: {item.fingerprint}
             </span>
+            ) : null}
           </div>
         ) : null}
       </div>
       <p className="text-xs text-muted lg:text-right">{formatShortDate(item.occurredAt)}</p>
     </article>
   );
+}
+
+function displayEvidenceSample(item: IncidentEvidence) {
+  const value = item.sampleMessage || "";
+  const parsed = parseJson(value);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return value;
+  }
+  const record = parsed as Record<string, unknown>;
+  const samples = Array.isArray(record.logSamples)
+    ? record.logSamples
+        .filter((sample): sample is Record<string, unknown> => Boolean(sample) && typeof sample === "object" && !Array.isArray(sample))
+        .map(sample => textValue(sample.message))
+        .filter(Boolean)
+    : [];
+  const count = numberValue(record.observedCount);
+  const threshold = numberValue(record.thresholdCount);
+  const hypothesis = textValue(record.hypothesis);
+  const parts = [
+    samples[0],
+    count != null && threshold != null ? `${count} matching events exceeded threshold ${threshold}.` : "",
+    hypothesis
+  ].filter(Boolean);
+  return parts.join("\n");
+}
+
+function parseEvidenceMetadata(value?: string | null) {
+  const parsed = parseJson(value || "");
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { kind: "", traceIds: [] as string[] };
+  }
+  const record = parsed as Record<string, unknown>;
+  const traceIds = Array.isArray(record.traceIds)
+    ? record.traceIds.map(textValue).filter(Boolean)
+    : textValue(record.traceId) ? [textValue(record.traceId)] : [];
+  return {
+    kind: textValue(record.kind),
+    traceIds
+  };
+}
+
+function parseJson(value: string) {
+  if (!value.trim().startsWith("{")) return null;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function textValue(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function numberValue(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function Timeline({ events }: { events: IncidentDetail["timeline"] }) {
@@ -570,5 +640,4 @@ function statusTone(value: IncidentStatus): "error" | "warning" | "success" {
 function statusLabel(value: IncidentStatus) {
   return value === "INVESTIGATING" ? "Investigating" : value === "MITIGATED" ? "Mitigated" : "Resolved";
 }
-
 

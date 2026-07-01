@@ -38,7 +38,7 @@ class AlertServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		service = new AlertService(repository);
+		service = new AlertService(repository, mock(com.vdt.log_monitoring.modules.identity.api.ApplicationAccessFacade.class));
 	}
 
 	@Test
@@ -130,6 +130,36 @@ class AlertServiceTest {
 			List.of(rule.applicationId()), "OPEN", "ERROR");
 
 		assertThat(result).containsExactly(openError);
+	}
+
+	@Test
+	void listAlertsExcludesResolvedAlertsByDefault() {
+		AlertRuleDefinition rule = rule();
+		AlertEntity openError = existingAlert(rule);
+		AlertEntity resolvedError = existingAlert(rule);
+		resolvedError.resolve(UUID.randomUUID());
+		when(repository.findByApplicationIdInOrderByTriggeredAtDesc(List.of(rule.applicationId())))
+			.thenReturn(List.of(openError, resolvedError));
+
+		List<AlertEntity> result = service.listAlerts(
+			List.of(rule.applicationId()), null, null);
+
+		assertThat(result).containsExactly(openError);
+	}
+
+	@Test
+	void listAlertsAllowsExplicitResolvedStatusFilter() {
+		AlertRuleDefinition rule = rule();
+		AlertEntity openError = existingAlert(rule);
+		AlertEntity resolvedError = existingAlert(rule);
+		resolvedError.resolve(UUID.randomUUID());
+		when(repository.findByApplicationIdInOrderByTriggeredAtDesc(List.of(rule.applicationId())))
+			.thenReturn(List.of(openError, resolvedError));
+
+		List<AlertEntity> result = service.listAlerts(
+			List.of(rule.applicationId()), "RESOLVED", null);
+
+		assertThat(result).containsExactly(resolvedError);
 	}
 
 	private AlertRuleDefinition rule() {

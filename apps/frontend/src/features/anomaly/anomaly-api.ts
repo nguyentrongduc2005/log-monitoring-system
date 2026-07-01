@@ -26,3 +26,10 @@ export async function getAnomalyReport(id: string): Promise<AnomalyReport> {
   );
   return requireData(response.data, "Unable to load anomaly report.");
 }
+
+export async function resolveAnomalyReport(id: string): Promise<AnomalyReport> {
+  const response = await apiClient.put<ApiEnvelope<AnomalyReport>>(
+    `/anomaly/reports/${id}/resolve`
+  );
+  return requireData(response.data, "Unable to resolve anomaly report.");
+}

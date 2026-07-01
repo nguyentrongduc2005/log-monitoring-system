@@ -48,8 +48,8 @@ public class IncidentFacadeImpl implements IncidentFacade {
 	@Transactional(readOnly = true)
 	public List<IncidentAnomalyReportDto> findAnomalyReports(List<UUID> visibleApplicationIds) {
 		return anomalyFacade.findReports(visibleApplicationIds).stream()
-			.map(this::mapAnomalyReport)
-			.toList();
+				.map(this::mapAnomalyReport)
+				.toList();
 	}
 
 	@Override
@@ -65,13 +65,14 @@ public class IncidentFacadeImpl implements IncidentFacade {
 
 	private IncidentAnomalyReportDto mapAnomalyReport(AnomalyFacade.AnomalyReportDto report) {
 		return new IncidentAnomalyReportDto(
-			report.id(),
-			report.alertId(),
-			report.status(),
-			report.evidencePayloadJson(),
-			report.createdAt(),
-			report.updatedAt());
+				report.id(),
+				report.alertId(),
+				report.status(),
+				report.evidencePayloadJson(),
+				report.createdAt(),
+				report.updatedAt());
 	}
+
 	@Override
 	@Transactional(readOnly = true)
 	public IncidentDto findIncidentById(UUID incidentId) {
@@ -82,110 +83,111 @@ public class IncidentFacadeImpl implements IncidentFacade {
 	@Transactional(readOnly = true)
 	public List<IncidentSummaryDto> findIncidents(List<UUID> visibleApplicationIds, String status, String severity) {
 		return incidentService.listIncidents(visibleApplicationIds, status, severity).stream()
-			.map(this::mapSummary)
-			.toList();
+				.map(this::mapSummary)
+				.toList();
 	}
 
 	private IncidentSummaryDto mapSummary(IncidentEntity incident) {
 		return new IncidentSummaryDto(
-			incident.getId(),
-			incident.getTitle(),
-			incident.getDescription(),
-			summaryText(incident),
-			impactText(incident, 0),
-			incident.getStatus().name(),
-			incident.getSeverity().name(),
-			incident.getScope().name(),
-			incident.getTriggerType().name(),
-			incident.getStartedAt(),
-			incident.getWindowStart(),
-			incident.getWindowEnd(),
-			incident.getLastEvidenceCollectedAt(),
-			incident.applicationIds(),
-			incident.getCreatedBy(),
-			incident.getResolvedBy(),
-			incident.getResolvedAt(),
-			incident.getCreatedAt(),
-			incident.getUpdatedAt());
+				incident.getId(),
+				incident.getTitle(),
+				incident.getDescription(),
+				summaryText(incident),
+				impactText(incident, 0),
+				incident.getStatus().name(),
+				incident.getSeverity().name(),
+				incident.getScope().name(),
+				incident.getTriggerType().name(),
+				incident.getStartedAt(),
+				incident.getWindowStart(),
+				incident.getWindowEnd(),
+				incident.getLastEvidenceCollectedAt(),
+				incident.applicationIds(),
+				incident.getCreatedBy(),
+				incident.getResolvedBy(),
+				incident.getResolvedAt(),
+				incident.getCreatedAt(),
+				incident.getUpdatedAt());
 	}
 
 	private IncidentDto mapIncident(IncidentEntity incident) {
 		IncidentAiAnalysisEntity latestAnalysis = latestAnalysis(incident);
 		long relatedAlertOccurrences = relatedAlertOccurrences(incident);
 		return new IncidentDto(
-			incident.getId(),
-			incident.getTitle(),
-			incident.getDescription(),
-			summaryText(incident),
-			impactText(incident, relatedAlertOccurrences),
-			latestAnalysis == null ? null : latestAnalysis.getLikelyCause(),
-			latestAnalysis == null ? List.of() : suggestedActions(latestAnalysis.getSuggestedActionsJson()),
-			incident.getStatus().name(),
-			incident.getSeverity().name(),
-			incident.getScope().name(),
-			incident.getTriggerType().name(),
-			incident.getStartedAt(),
-			incident.getWindowStart(),
-			incident.getWindowEnd(),
-			incident.getLastEvidenceCollectedAt(),
-			mapApplications(incident),
-			mapEvidence(incident),
-			mapTimeline(incident),
-			incident.getCreatedBy(),
-			incident.getResolvedBy(),
-			incident.getResolvedAt(),
-			incident.getCreatedAt(),
-			incident.getUpdatedAt());
+				incident.getId(),
+				incident.getTitle(),
+				incident.getDescription(),
+				summaryText(incident),
+				impactText(incident, relatedAlertOccurrences),
+				latestAnalysis == null ? null : latestAnalysis.getLikelyCause(),
+				latestAnalysis == null ? List.of() : suggestedActions(latestAnalysis.getSuggestedActionsJson()),
+				incident.getStatus().name(),
+				incident.getSeverity().name(),
+				incident.getScope().name(),
+				incident.getTriggerType().name(),
+				incident.getStartedAt(),
+				incident.getWindowStart(),
+				incident.getWindowEnd(),
+				incident.getLastEvidenceCollectedAt(),
+				mapApplications(incident),
+				mapEvidence(incident),
+				mapTimeline(incident),
+				incident.getCreatedBy(),
+				incident.getResolvedBy(),
+				incident.getResolvedAt(),
+				incident.getCreatedAt(),
+				incident.getUpdatedAt());
 	}
 
 	private List<ApplicationImpactDto> mapApplications(IncidentEntity incident) {
 		return incident.getApplications().stream()
-			.sorted(Comparator.comparing(application -> application.getApplicationId().toString()))
-			.map(this::mapApplication)
-			.toList();
+				.sorted(Comparator.comparing(application -> application.getApplicationId().toString()))
+				.map(this::mapApplication)
+				.toList();
 	}
 
 	private ApplicationImpactDto mapApplication(IncidentApplicationEntity application) {
 		return new ApplicationImpactDto(
-			application.getApplicationId(),
-			application.getImpactRole().name(),
-			application.getCreatedAt());
+				application.getApplicationId(),
+				application.getImpactRole().name(),
+				application.getCreatedAt());
 	}
 
 	private List<EvidenceDto> mapEvidence(IncidentEntity incident) {
 		return incident.getEvidence().stream()
-			.map(this::mapEvidence)
-			.toList();
+				.map(this::mapEvidence)
+				.toList();
 	}
 
-	private EvidenceDto mapEvidence(com.vdt.log_monitoring.modules.incident.internal.incident.IncidentEvidenceEntity evidence) {
+	private EvidenceDto mapEvidence(
+			com.vdt.log_monitoring.modules.incident.internal.incident.IncidentEvidenceEntity evidence) {
 		return new EvidenceDto(
-			evidence.getId(),
-			evidence.getType().name(),
-			evidence.getSourceId(),
-			evidence.getApplicationId(),
-			evidence.getFingerprint(),
-			evidence.getSeverity(),
-			evidence.getSummary(),
-			evidence.getSampleMessage(),
-			evidence.getMetadataJson(),
-			evidence.getOccurredAt());
+				evidence.getId(),
+				evidence.getType().name(),
+				evidence.getSourceId(),
+				evidence.getApplicationId(),
+				evidence.getFingerprint(),
+				evidence.getSeverity(),
+				evidence.getSummary(),
+				evidence.getSampleMessage(),
+				evidence.getMetadataJson(),
+				evidence.getOccurredAt());
 	}
 
 	private List<TimelineEventDto> mapTimeline(IncidentEntity incident) {
 		return incident.getTimelineEvents().stream()
-			.map(this::mapTimeline)
-			.toList();
+				.map(this::mapTimeline)
+				.toList();
 	}
 
 	private TimelineEventDto mapTimeline(IncidentTimelineEventEntity event) {
 		return new TimelineEventDto(
-			event.getId(),
-			event.getEventType(),
-			event.getMessage(),
-			event.getActorUserId(),
-			event.getMetadataJson(),
-			event.getCreatedAt());
+				event.getId(),
+				event.getEventType(),
+				event.getMessage(),
+				event.getActorUserId(),
+				event.getMetadataJson(),
+				event.getCreatedAt());
 	}
 
 	private String summaryText(IncidentEntity incident) {
@@ -201,8 +203,8 @@ public class IncidentFacadeImpl implements IncidentFacade {
 
 	private String impactText(IncidentEntity incident, long occurrences) {
 		String serviceText = incident.applicationIds().size() == 1
-			? "1 affected service"
-			: incident.applicationIds().size() + " affected services";
+				? "1 affected service"
+				: incident.applicationIds().size() + " affected services";
 		if (occurrences > 0) {
 			return serviceText + " with " + occurrences + " related alert occurrences.";
 		}
@@ -211,16 +213,16 @@ public class IncidentFacadeImpl implements IncidentFacade {
 
 	private long relatedAlertOccurrences(IncidentEntity incident) {
 		return incident.getAlerts().stream()
-			.map(IncidentAlertEntity::getAlertId)
-			.map(alertingFacade::findAlertById)
-			.mapToLong(AlertingFacade.AlertDto::occurrenceCount)
-			.sum();
+				.map(IncidentAlertEntity::getAlertId)
+				.map(alertingFacade::findAlertById)
+				.mapToLong(AlertingFacade.AlertDto::occurrenceCount)
+				.sum();
 	}
 
 	private IncidentAiAnalysisEntity latestAnalysis(IncidentEntity incident) {
 		return incident.getAnalyses().stream()
-			.findFirst()
-			.orElse(null);
+				.findFirst()
+				.orElse(null);
 	}
 
 	private List<String> suggestedActions(String suggestedActionsJson) {
@@ -229,12 +231,13 @@ public class IncidentFacadeImpl implements IncidentFacade {
 		}
 		try {
 			List<String> actions = objectMapper.readValue(
-				suggestedActionsJson,
-				new TypeReference<List<String>>() {});
+					suggestedActionsJson,
+					new TypeReference<List<String>>() {
+					});
 			return actions.stream()
-				.filter(this::hasText)
-				.map(String::trim)
-				.toList();
+					.filter(this::hasText)
+					.map(String::trim)
+					.toList();
 		} catch (JsonProcessingException exception) {
 			return List.of();
 		}
