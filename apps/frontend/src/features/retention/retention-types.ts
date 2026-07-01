@@ -12,13 +12,17 @@ export type RetentionJob = {
   maxDays: number;
   enabled: boolean;
   nextRunAt: string;
-  recentOperation: null | {
-    status: RetentionOperationStatus;
-    message: string;
-    startedAt: string;
-    finishedAt: string | null;
-    affectedRows: number;
-  };
+  recentOperation: RetentionRun | null;
+};
+
+export type RetentionRun = {
+  id: string;
+  policyId: string;
+  status: RetentionOperationStatus;
+  message: string;
+  startedAt: string;
+  finishedAt: string | null;
+  affectedRows: number;
 };
 
 export type RetentionJobDraft = Pick<RetentionJob, "id" | "retentionDays" | "enabled">;

@@ -3,11 +3,16 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PageHeaderProvider } from "@/shared/layouts/page-header-context";
 import { Component as RetentionPage } from "./RetentionPage";
-import { getRetentionJobs, saveRetentionJobs } from "./retention-adapter";
+import {
+  getRetentionJobs,
+  runRetentionJob,
+  saveRetentionJobs
+} from "./retention-adapter";
 import type { RetentionJob } from "./retention-types";
 
 vi.mock("./retention-adapter", () => ({
   getRetentionJobs: vi.fn(),
+  runRetentionJob: vi.fn(),
   saveRetentionJobs: vi.fn()
 }));
 
@@ -23,6 +28,8 @@ const retentionJobs: RetentionJob[] = [
     enabled: true,
     nextRunAt: "2026-06-12T04:00:00Z",
     recentOperation: {
+      id: "ret-run-info-existing",
+      policyId: "ret-info",
       status: "SUCCESS",
       message: "Purged 1.1TB of expired INFO logs from production cluster.",
       startedAt: "2026-06-11T01:00:00Z",
@@ -41,6 +48,8 @@ const retentionJobs: RetentionJob[] = [
     enabled: true,
     nextRunAt: "2026-06-12T04:00:00Z",
     recentOperation: {
+      id: "ret-run-warn-existing",
+      policyId: "ret-warn",
       status: "FAILED",
       message: "Retention delete failed.",
       startedAt: "2026-06-10T22:00:00Z",
@@ -59,6 +68,8 @@ const retentionJobs: RetentionJob[] = [
     enabled: true,
     nextRunAt: "2026-06-12T04:00:00Z",
     recentOperation: {
+      id: "ret-run-error-existing",
+      policyId: "ret-error",
       status: "SUCCESS",
       message: "Deleted expired ERROR logs.",
       startedAt: "2026-06-10T19:00:00Z",
@@ -92,6 +103,15 @@ describe("RetentionPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getRetentionJobs).mockResolvedValue(retentionJobs);
+    vi.mocked(runRetentionJob).mockResolvedValue({
+      id: "ret-run-info",
+      policyId: "ret-info",
+      status: "SUCCESS",
+      message: "Deleted 42 expired INFO logs.",
+      startedAt: "2026-06-12T04:00:00Z",
+      finishedAt: "2026-06-12T04:00:01Z",
+      affectedRows: 42
+    });
     vi.mocked(saveRetentionJobs).mockResolvedValue(retentionJobs);
   });
 
@@ -128,5 +148,16 @@ describe("RetentionPage", () => {
         ])
       )
     );
+  });
+
+  it("runs a saved retention policy immediately", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("Log Aging Controls");
+    await user.click(screen.getAllByRole("button", { name: "Run now" })[0]);
+
+    await waitFor(() => expect(runRetentionJob).toHaveBeenCalledWith("ret-info"));
+    expect(await screen.findByText("Deleted 42 expired INFO logs.")).toBeInTheDocument();
   });
 });

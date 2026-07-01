@@ -11,9 +11,12 @@ type RetentionControlsProps = {
   drafts: RetentionJobDraft[];
   error: string | null;
   jobs: RetentionJob[];
+  hasUnsavedChanges: boolean;
   loading: boolean;
+  runningJobId: string | null;
   saving: boolean;
   onReset: () => void;
+  onRunJob: (jobId: string) => void;
   onSave: () => void;
   onUpdateDraft: (draft: RetentionJobDraft) => void;
 };
@@ -21,10 +24,13 @@ type RetentionControlsProps = {
 export default function RetentionControls({
   drafts,
   error,
+  hasUnsavedChanges,
   jobs,
   loading,
+  runningJobId,
   saving,
   onReset,
+  onRunJob,
   onSave,
   onUpdateDraft
 }: RetentionControlsProps) {
@@ -75,6 +81,7 @@ export default function RetentionControls({
               enabled: job.enabled,
               retentionDays: job.retentionDays
             };
+            const running = runningJobId === job.id;
 
             return (
               <div className="p-4" key={job.id}>
@@ -90,6 +97,23 @@ export default function RetentionControls({
                   <span className="rounded-md bg-surface-raised px-2 py-1 text-xs font-semibold text-text ring-1 ring-border">
                     {draft.retentionDays} Days
                   </span>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <button
+                    className={managementButtonClass}
+                    disabled={
+                      loading ||
+                      saving ||
+                      runningJobId !== null ||
+                      hasUnsavedChanges ||
+                      !draft.enabled
+                    }
+                    onClick={() => onRunJob(job.id)}
+                    type="button"
+                  >
+                    {running ? "Running..." : "Run now"}
+                  </button>
                 </div>
 
                 <label className="mt-4 flex items-center gap-2 text-sm text-text">

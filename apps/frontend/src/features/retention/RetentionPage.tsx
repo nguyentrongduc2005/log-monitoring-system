@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/shared/layouts/page-header-context";
-import { getRetentionJobs, saveRetentionJobs } from "./retention-adapter";
+import {
+  getRetentionJobs,
+  runRetentionJob,
+  saveRetentionJobs
+} from "./retention-adapter";
 import type { RetentionJob, RetentionJobDraft } from "./retention-types";
 import RetentionControls from "./components/RetentionControls";
 import RetentionInsights from "./components/RetentionInsights";
@@ -19,6 +23,7 @@ export function Component() {
   const [drafts, setDrafts] = useState<RetentionJobDraft[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [runningJobId, setRunningJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function loadJobs() {
@@ -50,6 +55,19 @@ export function Component() {
     [drafts, jobs]
   );
 
+  const hasUnsavedChanges = useMemo(
+    () =>
+      jobs.some(job => {
+        const draft = drafts.find(item => item.id === job.id);
+        return (
+          draft &&
+          (draft.retentionDays !== job.retentionDays ||
+            draft.enabled !== job.enabled)
+        );
+      }),
+    [drafts, jobs]
+  );
+
   function updateDraft(nextDraft: RetentionJobDraft) {
     setDrafts(current =>
       current.map(draft => (draft.id === nextDraft.id ? nextDraft : draft))
@@ -67,6 +85,23 @@ export function Component() {
       setError("Unable to save retention settings.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function runJob(jobId: string) {
+    setRunningJobId(jobId);
+    setError(null);
+    try {
+      const run = await runRetentionJob(jobId);
+      setJobs(current =>
+        current.map(job =>
+          job.id === run.policyId ? { ...job, recentOperation: run } : job
+        )
+      );
+    } catch {
+      setError("Unable to run retention job.");
+    } finally {
+      setRunningJobId(null);
     }
   }
 
@@ -90,9 +125,12 @@ export function Component() {
             jobs={jobs}
             loading={loading}
             onReset={resetChanges}
+            onRunJob={jobId => void runJob(jobId)}
             onSave={() => void saveChanges()}
             onUpdateDraft={updateDraft}
+            runningJobId={runningJobId}
             saving={saving}
+            hasUnsavedChanges={hasUnsavedChanges}
           />
           <RetentionMetrics jobs={previewJobs} />
         </div>
