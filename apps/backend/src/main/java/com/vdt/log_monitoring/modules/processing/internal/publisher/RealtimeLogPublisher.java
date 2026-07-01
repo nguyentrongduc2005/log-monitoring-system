@@ -33,6 +33,6 @@ public class RealtimeLogPublisher extends AbstractKafkaProcessingEventPublisher<
                 log.processedAt(),
                 RealtimeLogEvent.CURRENT_SCHEMA_VERSION);
 
-        publish(log.applicationId().toString(), event);
+        publishAsync(log.applicationId().toString(), event);
     }
 }

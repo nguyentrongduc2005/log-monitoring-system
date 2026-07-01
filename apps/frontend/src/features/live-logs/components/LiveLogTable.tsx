@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import type { LiveLogEntry } from "@/features/live-logs/live-logs-types";
 
@@ -15,6 +15,68 @@ const levelLabelClasses = {
   ERROR: "text-[#ef4444] bg-[#ef4444]/10 border-[#ef4444]/20",
   CRITICAL: "text-[#ef4444] bg-[#ef4444]/20 border-[#ef4444] animate-live"
 } as const;
+
+const LiveLogRow = React.memo(
+  function LiveLogRow({
+    entry,
+    isSelected,
+    keyword,
+    wrapLines,
+    onSelect
+  }: {
+    entry: LiveLogEntry;
+    isSelected: boolean;
+    keyword: string;
+    wrapLines: boolean;
+    onSelect: (entry: LiveLogEntry) => void;
+  }) {
+    return (
+      <button
+        className={`grid min-w-[900px] w-full grid-cols-[11rem_10rem_minmax(24rem,1fr)_10rem] items-start border-l-[3px] border-b border-border/50 px-3 py-1.5 text-left transition hover:bg-surface-raised ${
+          isSelected
+            ? "border-l-primary bg-primary/10"
+            : `${severityRowStyles[entry.level]} odd:bg-surface/10`
+        }`}
+        onClick={() => onSelect(entry)}
+        role="row"
+        type="button"
+      >
+        <span className="whitespace-nowrap text-[#62666d]" role="cell">
+          {entry.timestamp}
+        </span>
+        <span className="truncate pr-4 text-[#8a8f98]" role="cell">
+          {entry.applicationName}
+        </span>
+        <span
+          className={`pr-4 leading-5 text-[#f7f8f8] flex items-start gap-1.5 min-w-0 ${
+            wrapLines ? "whitespace-pre-wrap break-words" : "truncate"
+          }`}
+          role="cell"
+        >
+          <span
+            className={`inline-flex shrink-0 items-center justify-center rounded border px-1 py-0.5 text-[9px] font-bold tracking-wider uppercase leading-none ${levelLabelClasses[entry.level]}`}
+          >
+            {entry.level}
+          </span>
+          <span className={wrapLines ? "break-words" : "truncate"}>
+            {highlightKeyword(entry.message, keyword)}
+          </span>
+        </span>
+        <span className="truncate text-[#8a8f98] font-mono" role="cell">
+          {entry.traceId || "—"}
+        </span>
+      </button>
+    );
+  },
+  (prevProps, nextProps) => {
+    return (
+      prevProps.entry.id === nextProps.entry.id &&
+      prevProps.isSelected === nextProps.isSelected &&
+      prevProps.keyword === nextProps.keyword &&
+      prevProps.wrapLines === nextProps.wrapLines
+    );
+  }
+);
 
 export default function LiveLogTable({
   entries,
@@ -130,42 +192,14 @@ export default function LiveLogTable({
           </div>
           <div className="font-mono text-xs" role="rowgroup">
             {entries.map((entry) => (
-              <button
-                className={`grid min-w-[900px] w-full grid-cols-[11rem_10rem_minmax(24rem,1fr)_10rem] items-start border-l-[3px] border-b border-border/50 px-3 py-1.5 text-left transition hover:bg-surface-raised ${
-                  selectedEntryId === entry.id
-                    ? "border-l-primary bg-primary/10"
-                    : `${severityRowStyles[entry.level]} odd:bg-surface/10`
-                }`}
+              <LiveLogRow
                 key={entry.id}
-                onClick={() => onSelect(entry)}
-                role="row"
-                type="button"
-              >
-                <span className="whitespace-nowrap text-[#62666d]" role="cell">
-                  {entry.timestamp}
-                </span>
-                <span className="truncate pr-4 text-[#8a8f98]" role="cell">
-                  {entry.applicationName}
-                </span>
-                <span
-                  className={`pr-4 leading-5 text-[#f7f8f8] flex items-start gap-1.5 min-w-0 ${
-                    wrapLines ? "whitespace-pre-wrap break-words" : "truncate"
-                  }`}
-                  role="cell"
-                >
-                  <span
-                    className={`inline-flex shrink-0 items-center justify-center rounded border px-1 py-0.5 text-[9px] font-bold tracking-wider uppercase leading-none ${levelLabelClasses[entry.level]}`}
-                  >
-                    {entry.level}
-                  </span>
-                  <span className={wrapLines ? "break-words" : "truncate"}>
-                    {highlightKeyword(entry.message, keyword)}
-                  </span>
-                </span>
-                <span className="truncate text-[#8a8f98] font-mono" role="cell">
-                  {entry.traceId || "—"}
-                </span>
-              </button>
+                entry={entry}
+                isSelected={selectedEntryId === entry.id}
+                keyword={keyword}
+                wrapLines={wrapLines}
+                onSelect={onSelect}
+              />
             ))}
           </div>
         </div>

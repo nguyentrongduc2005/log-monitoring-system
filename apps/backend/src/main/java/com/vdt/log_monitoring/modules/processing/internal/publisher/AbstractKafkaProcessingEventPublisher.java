@@ -5,11 +5,15 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 
 import com.vdt.log_monitoring.modules.processing.api.ProcessingException;
 
 abstract class AbstractKafkaProcessingEventPublisher<T> {
+
+    private static final Logger log = LoggerFactory.getLogger(AbstractKafkaProcessingEventPublisher.class);
 
     private final KafkaTemplate<String, T> kafkaTemplate;
     private final String topic;
@@ -35,6 +39,15 @@ abstract class AbstractKafkaProcessingEventPublisher<T> {
         } catch (ExecutionException | TimeoutException ex) {
             throw eventPublishFailed("Failed to publish processing event to " + topic, ex);
         }
+    }
+
+    protected void publishAsync(String key, T event) {
+        kafkaTemplate.send(topic, key, event)
+                .whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        log.warn("Failed to publish processing event asynchronously to topic={}", topic, ex);
+                    }
+                });
     }
 
     private ProcessingException eventPublishFailed(String message, Exception cause) {

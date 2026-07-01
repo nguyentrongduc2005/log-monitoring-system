@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createLiveLogConnection,
   filterLiveLogEntries,
@@ -25,6 +25,7 @@ const defaultFilters: LiveLogFiltersValue = {
 };
 
 const MAX_BUFFERED_LOGS = 1_000;
+const LIVE_LOG_FLUSH_INTERVAL_MS = 250;
 
 function getEmptySnapshot(): LiveLogSnapshot {
   return {
@@ -49,6 +50,58 @@ export function Component() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const pausedRef = useRef(paused);
+  const pendingEntriesRef = useRef<LiveLogEntry[]>([]);
+  const pendingBufferedRef = useRef(0);
+  const flushTimerRef = useRef<number | null>(null);
+
+  const clearPendingLiveLogFlush = useCallback(() => {
+    if (flushTimerRef.current !== null) {
+      window.clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+    pendingEntriesRef.current = [];
+    pendingBufferedRef.current = 0;
+  }, []);
+
+  const flushPendingLiveLogs = useCallback(() => {
+    flushTimerRef.current = null;
+    const pendingEntries = pendingEntriesRef.current.splice(0);
+    const pendingBuffered = pendingBufferedRef.current;
+    pendingBufferedRef.current = 0;
+
+    if (pendingEntries.length === 0 && pendingBuffered === 0) {
+      return;
+    }
+
+    if (pendingEntries.length > 0) {
+      setCleared(false);
+    }
+
+    setSnapshot((current) => {
+      const entries =
+        pendingEntries.length > 0
+          ? [...current.entries, ...pendingEntries]
+          : current.entries;
+      const dropped = Math.max(0, entries.length - MAX_BUFFERED_LOGS);
+
+      return {
+        ...current,
+        entries: dropped > 0 ? entries.slice(dropped) : entries,
+        buffered: current.buffered + pendingBuffered,
+        dropped: current.dropped + dropped
+      };
+    });
+  }, []);
+
+  const scheduleLiveLogFlush = useCallback(() => {
+    if (flushTimerRef.current !== null) {
+      return;
+    }
+    flushTimerRef.current = window.setTimeout(
+      flushPendingLiveLogs,
+      LIVE_LOG_FLUSH_INTERVAL_MS
+    );
+  }, [flushPendingLiveLogs]);
 
   async function loadSnapshot() {
     setLoading(true);
@@ -74,6 +127,8 @@ export function Component() {
   useEffect(() => {
     pausedRef.current = paused;
   }, [paused]);
+
+  useEffect(() => clearPendingLiveLogFlush, [clearPendingLiveLogFlush]);
 
   useEffect(() => {
     if (loading || error || snapshot.applications.length === 0) {
@@ -104,24 +159,13 @@ export function Component() {
         }
 
         if (pausedRef.current) {
-          setSnapshot((current) => ({
-            ...current,
-            buffered: current.buffered + 1
-          }));
+          pendingBufferedRef.current += 1;
+          scheduleLiveLogFlush();
           return;
         }
 
-        setCleared(false);
-        setSnapshot((current) => {
-          const entries = [...current.entries, entry];
-          const dropped = Math.max(0, entries.length - MAX_BUFFERED_LOGS);
-
-          return {
-            ...current,
-            entries: entries.slice(dropped),
-            dropped: current.dropped + dropped
-          };
-        });
+        pendingEntriesRef.current.push(entry);
+        scheduleLiveLogFlush();
       },
       onStateChange: (connectionState) => {
         if (!active) {
@@ -137,6 +181,7 @@ export function Component() {
 
     return () => {
       active = false;
+      clearPendingLiveLogFlush();
       connection.disconnect();
     };
   }, [
@@ -144,7 +189,9 @@ export function Component() {
     filters.applicationId,
     loading,
     session?.accessToken,
-    snapshot.applications
+    snapshot.applications,
+    clearPendingLiveLogFlush,
+    scheduleLiveLogFlush
   ]);
 
   const filteredEntries = cleared
@@ -156,6 +203,12 @@ export function Component() {
     ? "paused"
     : snapshot.connectionState;
   const bufferedCount = snapshot.buffered + overflowCount;
+
+  const handleSelectEntry = useCallback((entry: LiveLogEntry) => {
+    setSelectedEntry(entry);
+    setDetailCollapsed(false);
+    setStickyToLatest(false);
+  }, []);
 
   function resetFilters() {
     setFilters(defaultFilters);
@@ -270,11 +323,7 @@ export function Component() {
                 expanded={!selectedEntry || detailCollapsed}
                 entries={visibleEntries}
                 keyword={filters.keyword}
-                onSelect={(entry) => {
-                  setSelectedEntry(entry);
-                  setDetailCollapsed(false);
-                  setStickyToLatest(false);
-                }}
+                onSelect={handleSelectEntry}
                 onStickyChange={setStickyToLatest}
                 selectedEntryId={selectedEntry?.id}
                 stickyToLatest={stickyToLatest}
