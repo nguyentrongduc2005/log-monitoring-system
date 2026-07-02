@@ -390,30 +390,31 @@ graph TD
     Idempotency -- Đã xử lý (False) --> Skip
     
     Idempotency -- Chưa xử lý (True) --> IncWindow[6. Tăng window count & cập nhật lastSeenAt trong Redis]
-    IncWindow --> CheckCooldown{7. Khóa Cooldown của rule:applicationId có trong Redis?}
+    IncWindow --> CheckThreshold{7. Window count >= thresholdCount?}
     
-    CheckCooldown -- Có (Đang Cooldown) --> AddDirty[8. Thêm khóa vào Set dirty_alerts trong Redis]
+    CheckThreshold -- Chưa đủ ngưỡng (False) --> Skip
+    
+    CheckThreshold -- Đủ ngưỡng (True) --> CheckCooldown{8. Khóa Cooldown của rule:applicationId có trong Redis?}
+    
+    CheckCooldown -- Có (Đang trong Cooldown) --> AddDirty[9. Thêm khóa vào Set dirty_alerts trong Redis]
     AddDirty --> Skip
     
+    CheckCooldown -- Không (Cảnh báo mới) --> SetCooldown[10. Thiết lập Khóa Cooldown trong Redis kèm TTL]
+    SetCooldown --> QueryCH[11. Truy vấn lấy Logs mẫu đại diện từ ClickHouse]
+    QueryCH --> SaveAlert[12. Tạo Alert mới trạng thái OPEN trong Postgres]
+    SaveAlert --> SendNoti[13. Kích hoạt thông báo Telegram & Stream Real-time]
+    SendNoti --> End([14. Kết thúc])
+
     %% Tiến trình đồng bộ bất đồng bộ
     Scheduler([AlertSyncScheduler - Mỗi 5s]) --> PopDirty[S1. Pop khóa từ Set dirty_alerts]
     PopDirty --> ReadRedis[S2. Đọc count và lastSeenAt từ Redis]
     ReadRedis --> SyncSQL[S3. Cập nhật occurrence_count và last_seen_at trong Postgres]
     SyncSQL --> PopDirty
     
-    CheckCooldown -- Không --> CheckThreshold{9. Window count >= thresholdCount?}
-    CheckThreshold -- Không --> Skip
-    
-    CheckThreshold -- Có --> SetCooldown[10. Tạo Khóa Cooldown trong Redis kèm thời gian TTL]
-    SetCooldown --> QueryCH[11. Truy vấn lấy Logs mẫu đại diện từ ClickHouse]
-    QueryCH --> SaveAlert[12. Tạo Alert mới trạng thái OPEN trong Postgres]
-    SaveAlert --> SendNoti[13. Kích hoạt thông báo Telegram & Stream Real-time]
-    SendNoti --> End([14. Kết thúc])
-
     classDef step fill:#ffffff,stroke:#000000,stroke-width:2px,color:#000000;
     classDef decision fill:#ffffff,stroke:#000000,stroke-width:2px,color:#000000;
     class Start,FetchRules,IncWindow,AddDirty,Scheduler,PopDirty,ReadRedis,SyncSQL,SetCooldown,QueryCH,SaveAlert,SendNoti,End,Skip step;
-    class MatchRules,Idempotency,CheckCooldown,CheckThreshold decision;
+    class MatchRules,Idempotency,CheckThreshold,CheckCooldown decision;
 ```
 
 ### Bản vẽ PlantUML:
@@ -438,23 +439,23 @@ else (Có)
         stop
     else (Không)
         :6. Tăng bộ đếm window count & cập nhật lastSeenAt trong Redis;
-        if (Khóa Cooldown "cooldown:ruleId:appId" tồn tại trong Redis?) then (Có - Đang trong Cooldown)
-            :7. Đưa khóa window vào Set "dirty_alerts";
-            note right
-                Hệ thống không kích hoạt cảnh báo mới.
-                Số lượng và thời gian xuất hiện cuối (last_seen_at) 
-                sẽ được đồng bộ ngầm vào Postgres qua AlertSyncScheduler.
-            end note
-            stop
-        else (Không - Cảnh báo mới hoặc hết Cooldown)
-            if (Bộ đếm window count >= thresholdCount?) then (Có - Vi phạm luật)
+        if (Bộ đếm window count >= thresholdCount?) then (Có - Đủ ngưỡng kích hoạt)
+            if (Khóa Cooldown "cooldown:ruleId:appId" tồn tại trong Redis?) then (Có - Đang trong Cooldown)
+                :7. Đưa khóa window vào Set "dirty_alerts";
+                note right
+                    Hệ thống không kích hoạt cảnh báo mới.
+                    Số lượng và thời gian xuất hiện cuối (last_seen_at) 
+                    sẽ được đồng bộ ngầm vào Postgres qua AlertSyncScheduler.
+                end note
+                stop
+            else (Không - Cảnh báo mới)
                 :8. Thiết lập khóa Cooldown trong Redis với TTL;
                 :9. Truy vấn log mẫu đại diện (Samples) từ ClickHouse;
                 :10. Tạo và lưu Alert mới vào PostgreSQL với trạng thái OPEN;
                 :11. Phân phối cảnh báo đến Telegram API và đẩy realtime lên Web Dashboard;
-            else (Không - Chưa đủ ngưỡng)
-                :12. Bỏ qua sự kiện (Chưa đủ ngưỡng kích hoạt);
             endif
+        else (Không - Chưa đủ ngưỡng)
+            :12. Bỏ qua sự kiện (Chưa đủ ngưỡng kích hoạt);
         endif
     endif
 endif
