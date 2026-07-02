@@ -152,9 +152,7 @@ sequenceDiagram
         Worker->>CH: Ghi Batch Log chuẩn hóa vào bảng `processed_logs`
     end
     
-    alt Log có mức độ nghiêm trọng WARN/ERROR
-        Worker->>Kafka: Đẩy log tín hiệu nghi ngờ vào topic `logs.anomaly.signals`
-    end
+    Worker->>Kafka: Đẩy log tín hiệu nghi ngờ vào topic `logs.anomaly.signals`
 ```
 
 ### Bản vẽ PlantUML:
@@ -205,12 +203,11 @@ alt Kích thước Batch đạt giới hạn hoặc hết Timeout (1s)
     Worker -> CH : Ghi Batch log vào bảng "processed_logs"
 end
 
-alt Log có tín hiệu cảnh báo/bất thường (WARN/ERROR)
-    Worker -> Kafka : Gửi tín hiệu log nghi ngờ vào topic "logs.anomaly.signals"
-end
+Worker -> Kafka : Gửi tín hiệu log nghi ngờ vào topic "logs.anomaly.signals"
 deactivate Worker
 
 @enduml
+```
 ```
 
 ---
