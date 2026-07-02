@@ -371,34 +371,44 @@ stop
 ## 5. Alerting & Deduplication (Đánh giá Cảnh báo & Khử trùng lặp)
 
 - **Loại sơ đồ**: Sơ đồ hoạt động (Activity Diagram).
-- **Mô tả**: Logic kiểm tra luật cảnh báo và khử trùng lặp (Deduplication) dựa trên bộ đếm Redis nhằm ngăn ngừa ngập lụt cảnh báo (Alert Fatigue).
+- **Mô tả**: Logic đánh giá luật cảnh báo và khử trùng lặp (Deduplication) dựa trên Redis và đồng bộ bất đồng bộ (Asynchronous Sync) bằng Scheduler ngầm.
+  * **Idempotency Check**: Dùng Redis `SET event:... NX` để chống xử lý trùng lặp cùng một sự kiện log.
+  * **Deduplication & Cooldown**: Thuật toán băm và theo dõi trạng thái cooldown được định danh duy nhất theo phạm vi `ruleId:applicationId` (không theo fingerprint).
+  * **Asynchronous Sync**: Khi trong thời gian cooldown, số lượng đếm lỗi (`occurrence_count`) và thời gian xuất hiện gần nhất (`last_seen_at`) chỉ được cập nhật trên Redis và đưa vào tập hợp `dirty_alerts`. Luồng `AlertSyncScheduler` chạy định kỳ (mỗi 5 giây) sẽ lấy từ tập này để cập nhật đồng bộ xuống PostgreSQL.
 
 ### Bản vẽ Mermaid:
 
 ```mermaid
 graph TD
-    Start([1. Nhận sự kiện Alert Candidate]) --> FetchRule[2. Truy vấn Luật Cảnh báo từ PostgreSQL/Cache]
-    FetchRule --> CheckActiveTime{3. Đang trong khung giờ hoạt động của luật?}
-
-    CheckActiveTime -- Không --> Skip([4. Bỏ qua cảnh báo])
-    CheckActiveTime -- Có --> BuildKey[5. Tạo Deduplication Key: alert:dedup:rule_id:fingerprint]
-
-    BuildKey --> CheckRedis{6. Key đã tồn tại trong Redis?}
-
-    CheckRedis -- Có (Đang trong cooldown) --> IncCounter[7. Tăng bộ đếm occurrence_count trong Redis]
-    IncCounter --> UpdateAlert[8. Cập nhật last_seen_at và bộ đếm vào Postgres]
-    UpdateAlert --> Skip
-
-    CheckRedis -- Chưa có (Cảnh báo mới/Cooldown hết) --> QueryCH[9. Truy vấn lấy Log mẫu đại diện từ ClickHouse]
-    QueryCH --> SaveAlert[10. Lưu Cảnh báo mới vào Postgres với status = OPEN]
-    SaveAlert --> SetRedis[11. Lưu Deduplication Key vào Redis kèm thời gian hết hạn TTL]
-    SetRedis --> SendNoti[12. Gửi thông báo đến Telegram & Stream Real-time]
-    SendNoti --> End([13. Kết thúc])
+    Start([1. Nhận sự kiện Alert Candidate]) --> Idempotency{2. Check trùng Event bằng Redis SET event:rule:eventId NX?}
+    
+    Idempotency -- Đã xử lý (False) --> Skip([3. Bỏ qua Candidate])
+    
+    Idempotency -- Chưa xử lý (True) --> IncWindow[4. Tăng window count & cập nhật lastSeenAt trong Redis]
+    IncWindow --> CheckCooldown{5. Khóa Cooldown của rule:applicationId có trong Redis?}
+    
+    CheckCooldown -- Có (Đang Cooldown) --> AddDirty[6. Thêm khóa vào Set dirty_alerts trong Redis]
+    AddDirty --> Skip
+    
+    %% Tiến trình đồng bộ bất đồng bộ
+    Scheduler([AlertSyncScheduler - Mỗi 5s]) --> PopDirty[S1. Pop khóa từ Set dirty_alerts]
+    PopDirty --> ReadRedis[S2. Đọc count và lastSeenAt từ Redis]
+    ReadRedis --> SyncSQL[S3. Cập nhật occurrence_count và last_seen_at trong Postgres]
+    SyncSQL --> PopDirty
+    
+    CheckCooldown -- Không --> CheckThreshold{7. Window count >= thresholdCount?}
+    CheckThreshold -- Không --> Skip
+    
+    CheckThreshold -- Có --> SetCooldown[8. Tạo Khóa Cooldown trong Redis kèm thời gian TTL]
+    SetCooldown --> QueryCH[9. Truy vấn lấy Logs mẫu đại diện từ ClickHouse]
+    QueryCH --> SaveAlert[10. Tạo Alert mới trạng thái OPEN trong Postgres]
+    SaveAlert --> SendNoti[11. Kích hoạt thông báo Telegram & Stream Real-time]
+    SendNoti --> End([12. Kết thúc])
 
     classDef step fill:#ffffff,stroke:#000000,stroke-width:2px,color:#000000;
     classDef decision fill:#ffffff,stroke:#000000,stroke-width:2px,color:#000000;
-    class Start,FetchRule,BuildKey,IncCounter,UpdateAlert,QueryCH,SaveAlert,SetRedis,SendNoti,End,Skip step;
-    class CheckActiveTime,CheckRedis decision;
+    class Start,IncWindow,AddDirty,Scheduler,PopDirty,ReadRedis,SyncSQL,SetCooldown,QueryCH,SaveAlert,SendNoti,End,Skip step;
+    class Idempotency,CheckCooldown,CheckThreshold decision;
 ```
 
 ### Bản vẽ PlantUML:
@@ -411,30 +421,35 @@ skinparam shadowing false
 skinparam defaultFontName "Courier New"
 
 start
-:1. Nhận sự kiện Alert Candidate (từ Kafka/Anomaly);
-:2. Truy vấn Luật Cảnh báo tương ứng từ PostgreSQL (alerting.alert_rules);
-
-if (Khung giờ hiện tại nằm ngoài active time window?) then (Đúng)
-    :4. Bỏ qua sự kiện cảnh báo;
+:1. Nhận sự kiện Alert Candidate;
+:2. Kiểm tra trùng lặp sự kiện (Idempotency check: SET event:... NX);
+if (Sự kiện đã được xử lý?) then (Có)
+    :3. Bỏ qua sự kiện (Duplicate Event);
     stop
-else (Sai)
-    :5. Tạo khóa khử trùng: "alert:dedup:rule_id:fingerprint";
-
-    if (Khóa "alert:dedup..." đã tồn tại trong Redis?) then (Có - Đang trong Cooldown)
-        :7. Tăng bộ đếm occurrence_count trong Redis;
-        :8. Cập nhật mốc "last_seen_at" và bộ đếm của Alert hiện tại trong PostgreSQL;
-        :4. Bỏ qua việc gửi thông báo mới (Tránh ngập lụt);
+else (Không)
+    :4. Tăng bộ đếm window count & cập nhật lastSeenAt trong Redis;
+    if (Khóa Cooldown "cooldown:ruleId:appId" tồn tại trong Redis?) then (Có - Đang trong Cooldown)
+        :5. Đưa khóa window vào Set "dirty_alerts";
+        note right
+            Hệ thống không kích hoạt cảnh báo mới.
+            Số lượng và thời gian xuất hiện cuối (last_seen_at) 
+            sẽ được đồng bộ ngầm vào Postgres qua AlertSyncScheduler.
+        end note
         stop
-    else (Không - Cảnh báo mới hoặc Cooldown đã hết hạn)
-        :9. Truy vấn log mẫu đại diện (Samples) từ ClickHouse;
-        :10. Tạo bản ghi Alert mới trong PostgreSQL (alerting.alerts) với trạng thái OPEN;
-        :11. Thiết lập khóa "alert:dedup..." trong Redis với thời gian sống (TTL = cooldown_seconds);
-        :12. Phân phối cảnh báo đến Telegram API và đẩy realtime lên Web Dashboard;
+    else (Không - Cảnh báo mới hoặc hết Cooldown)
+        if (Bộ đếm window count >= thresholdCount?) then (Có - Vi phạm luật)
+            :6. Thiết lập khóa Cooldown trong Redis với TTL;
+            :7. Truy vấn log mẫu đại diện (Samples) từ ClickHouse;
+            :8. Tạo và lưu Alert mới vào PostgreSQL với trạng thái OPEN;
+            :9. Phân phối cảnh báo đến Telegram API và đẩy realtime lên Web Dashboard;
+        else (Không - Chưa đủ ngưỡng)
+            :10. Bỏ qua sự kiện (Chưa đủ ngưỡng kích hoạt);
+        endif
     endif
 endif
-
 stop
 @enduml
+```
 ```
 
 ---
