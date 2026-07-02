@@ -7,7 +7,7 @@ Tài liệu này cung cấp các sơ đồ luồng chi tiết cho từng phân h
 ## 1. Phân hệ Identity & Access (Quản lý Định danh & Quyền truy cập)
 
 * **Loại sơ đồ**: Sơ đồ tuần tự (Sequence Diagram) mô tả luồng đăng nhập.
-* **Mô tả**: Mô tả chi tiết quá trình xác thực tài khoản người dùng, đối chiếu thông tin với cơ sở dữ liệu PostgreSQL và tạo Token JWT phiên làm việc để lưu vào Redis.
+* **Mô tả**: Mô tả chi tiết quá trình xác thực tài khoản người dùng, đối chiếu thông tin với cơ sở dữ liệu PostgreSQL, tạo Access Token (JWT) và lưu trữ Refresh Token vào Redis.
 
 ### Bản vẽ Mermaid:
 ```mermaid
@@ -34,10 +34,10 @@ sequenceDiagram
         alt Mật khẩu sai
             API-->>Dashboard: Trả về lỗi HTTP 401 Unauthorized
         else Mật khẩu đúng
-            Note over API: Tạo JWT token (chứa userId, role, email)
-            API->>Redis: Lưu metadata token & đánh dấu hoạt động (Set TTL)
-            API-->>Dashboard: HTTP 200 OK (Trả về Access Token & Profile)
-            Dashboard->>Dashboard: Lưu token vào LocalStorage/Cookie
+            Note over API: Tạo JWT Access Token (chứa userId, role, email)
+            API->>Redis: Lưu Refresh Token (Set TTL)
+            API-->>Dashboard: HTTP 200 OK (Trả về Access Token, Refresh Token & Profile)
+            Dashboard->>Dashboard: Lưu Tokens vào LocalStorage/Cookie
             Dashboard-->>User: Chuyển hướng về trang chủ & hiển thị giao diện
         end
     end
@@ -75,10 +75,10 @@ else User hợp lệ
     alt Mật khẩu không trùng khớp
         API --> Dashboard : HTTP 401 Unauthorized (Lỗi mật khẩu)
     else Mật khẩu chính xác
-        Note over API : Tạo JWT token (chứa userId, role, email, exp)
-        API -> Redis : Lưu Session/Token metadata (thiết lập TTL)
-        API --> Dashboard : HTTP 200 OK (Access Token + User Profile)
-        Dashboard -> Dashboard : Lưu Token vào bộ nhớ trình duyệt
+        Note over API : Tạo JWT Access Token (chứa userId, role, email, exp)
+        API -> Redis : Lưu Refresh Token (thiết lập TTL)
+        API --> Dashboard : HTTP 200 OK (Access Token, Refresh Token + User Profile)
+        Dashboard -> Dashboard : Lưu Tokens vào bộ nhớ trình duyệt
         Dashboard --> User : Chuyển hướng sang giao diện chính tương ứng với quyền
     end
 end
