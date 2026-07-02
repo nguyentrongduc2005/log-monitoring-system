@@ -126,7 +126,6 @@ sequenceDiagram
     participant Kafka as Hàng đợi Kafka (D1)
     participant Worker as Processing Worker (P2)
     participant CH as ClickHouse (D2)
-    participant Anomaly as Anomaly Module (P4)
 
     App->>Ingest: HTTP POST /api/v1/logs (Payload + API Key)
     Note over Ingest: Kiểm tra xác thực & Rate limit
@@ -154,7 +153,7 @@ sequenceDiagram
     end
     
     alt Log có mức độ nghiêm trọng WARN/ERROR
-        Worker->>Anomaly: Đẩy log tín hiệu nghi ngờ sang Kafka logs.anomaly.signals
+        Worker->>Kafka: Đẩy log tín hiệu nghi ngờ vào topic `logs.anomaly.signals`
     end
 ```
 
@@ -172,7 +171,6 @@ database "Redis Cache (D4)" as Redis
 queue "Hàng đợi Kafka (D1)" as Kafka
 participant "Processing Worker (P2)" as Worker
 database "ClickHouse (D2)" as CH
-participant "Anomaly Module (P4)" as Anomaly
 
 autonumber
 
@@ -208,7 +206,7 @@ alt Kích thước Batch đạt giới hạn hoặc hết Timeout (1s)
 end
 
 alt Log có tín hiệu cảnh báo/bất thường (WARN/ERROR)
-    Worker -> Anomaly : Gửi tín hiệu log nghi ngờ sang Kafka logs.anomaly.signals
+    Worker -> Kafka : Gửi tín hiệu log nghi ngờ vào topic "logs.anomaly.signals"
 end
 deactivate Worker
 
