@@ -6,69 +6,42 @@ Tài liệu này cung cấp các sơ đồ luồng chi tiết cho từng phân h
 
 ## 1. Phân hệ Identity & Access (Quản lý Định danh & Quyền truy cập)
 
-* **Loại sơ đồ**: Sơ đồ lớp (Class Diagram) mô tả các thực thể phân quyền và quản lý tài nguyên.
-* **Mô tả**: Phân hệ chịu trách nhiệm xác thực người dùng, ứng dụng, cấp phát API Key và quản lý nguồn thu thập metrics từ các máy chủ.
+* **Loại sơ đồ**: Sơ đồ tuần tự (Sequence Diagram) mô tả luồng đăng nhập.
+* **Mô tả**: Mô tả chi tiết quá trình xác thực tài khoản người dùng, đối chiếu thông tin với cơ sở dữ liệu PostgreSQL và tạo Token JWT phiên làm việc để lưu vào Redis.
 
 ### Bản vẽ Mermaid:
 ```mermaid
-classDiagram
-    class USERS {
-        +uuid id
-        +varchar email
-        +varchar password_hash
-        +varchar display_name
-        +varchar role
-        +varchar status
-        +timestamptz last_login_at
-        +timestamptz created_at
-    }
+sequenceDiagram
+    autonumber
+    actor User as Kỹ sư / Admin
+    participant Dashboard as Web Dashboard
+    participant API as Identity Service (Auth Controller)
+    participant DB as PostgreSQL (D3)
+    participant Redis as Redis Cache (D4)
 
-    class APPLICATIONS {
-        +uuid id
-        +varchar name
-        +varchar display_name
-        +text description
-        +varchar status
-        +uuid created_by
-        +timestamptz created_at
-    }
-
-    class USER_APPLICATION_ACCESS {
-        +uuid user_id
-        +uuid application_id
-        +varchar access_level
-        +uuid granted_by
-        +timestamptz created_at
-    }
-
-    class APPLICATION_API_KEYS {
-        +uuid id
-        +uuid application_id
-        +varchar name
-        +varchar key_prefix
-        +varchar key_hash
-        +varchar status
-        +timestamptz expires_at
-        +uuid created_by
-        +timestamptz created_at
-    }
-
-    class METRIC_SOURCES {
-        +uuid id
-        +uuid application_id
-        +varchar target_host
-        +integer target_port
-        +varchar metrics_path
-        +varchar scrape_interval
-        +boolean enabled
-    }
-
-    USERS "1" --> "*" APPLICATIONS : "creates"
-    USERS "1" --> "*" USER_APPLICATION_ACCESS : "grants/has"
-    APPLICATIONS "1" --> "*" USER_APPLICATION_ACCESS : "accessed_by"
-    USERS "1" --> "*" APPLICATION_API_KEYS : "generates"
-    APPLICATIONS "1" --> "*" APPLICATION_API_KEYS : "owns"
-    APPLICATIONS "1" --> "0..1" METRIC_SOURCES : "scrapes"
+    User->>Dashboard: Nhập Email & Mật khẩu
+    Dashboard->>API: HTTP POST /api/v1/auth/login (email, password)
+    activate API
+    API->>DB: Truy vấn User bằng email
+    activate DB
+    DB-->>API: Trả về bản ghi User (password_hash, role, status)
+    deactivate DB
+    
+    alt User không tồn tại HOẶC trạng thái khác ACTIVE
+        API-->>Dashboard: Trả về lỗi HTTP 401 Unauthorized
+    else User hợp lệ
+        Note over API: So sánh mật khẩu bằng BCrypt
+        alt Mật khẩu sai
+            API-->>Dashboard: Trả về lỗi HTTP 401 Unauthorized
+        else Mật khẩu đúng
+            Note over API: Tạo JWT token (chứa userId, role, email)
+            API->>Redis: Lưu metadata token & đánh dấu hoạt động (Set TTL)
+            API-->>Dashboard: HTTP 200 OK (Trả về Access Token & Profile)
+            Dashboard->>Dashboard: Lưu token vào LocalStorage/Cookie
+            Dashboard-->>User: Chuyển hướng về trang chủ & hiển thị giao diện
+        end
+    end
+    deactivate API
 ```
 
 ### Bản vẽ PlantUML:
@@ -77,69 +50,64 @@ classDiagram
 !theme plain
 skinparam monochrome true
 skinparam shadowing false
-skinparam classAttributeIconSize 0
 skinparam defaultFontName "Courier New"
 
-class "identity.users" as users {
-    + id : UUID [PK]
-    + email : VARCHAR(320)
-    + password_hash : VARCHAR(255)
-    + display_name : VARCHAR(150)
-    + role : VARCHAR(32)
-    + status : VARCHAR(32)
-    + last_login_at : TIMESTAMPTZ
-    + created_at : TIMESTAMPTZ
-}
+actor "Kỹ sư / Admin" as User
+participant "Web Dashboard" as Dashboard
+participant "Identity Service (Auth)" as API
+database "PostgreSQL (D3)" as DB
+database "Redis Cache (D4)" as Redis
 
-class "identity.applications" as apps {
-    + id : UUID [PK]
-    + name : VARCHAR(100)
-    + display_name : VARCHAR(150)
-    + description : TEXT
-    + status : VARCHAR(32)
-    + created_by : UUID [FK]
-    + created_at : TIMESTAMPTZ
-}
+autonumber
 
-class "identity.user_application_access" as access {
-    + user_id : UUID [PK, FK]
-    + application_id : UUID [PK, FK]
-    + access_level : VARCHAR(32)
-    + granted_by : UUID [FK]
-    + created_at : TIMESTAMPTZ
-}
+User -> Dashboard : Nhập Email & Mật khẩu
+Dashboard -> API : HTTP POST /api/v1/auth/login (email, password)
+activate API
+API -> DB : Truy vấn User bằng email
+activate DB
+DB --> API : Trả về bản ghi User (password_hash, role, status)
+deactivate DB
 
-class "identity.application_api_keys" as api_keys {
-    + id : UUID [PK]
-    + application_id : UUID [FK]
-    + name : VARCHAR(100)
-    + key_prefix : VARCHAR(32)
-    + key_hash : VARCHAR(255)
-    + status : VARCHAR(32)
-    + expires_at : TIMESTAMPTZ
-    + created_by : UUID [FK]
-    + created_at : TIMESTAMPTZ
-}
-
-class "identity.metric_sources" as metrics {
-    + id : UUID [PK]
-    + application_id : UUID [FK, Unique]
-    + target_host : VARCHAR(255)
-    + target_port : INT
-    + metrics_path : VARCHAR(255)
-    + scrape_interval : VARCHAR(32)
-    + enabled : BOOLEAN
-}
-
-users "1" --> "*" apps : "creates"
-users "1" --> "*" access : "grants/has"
-apps "1" --> "*" access : "accessed_by"
-users "1" --> "*" api_keys : "generates"
-apps "1" --> "*" api_keys : "owns"
-apps "1" --> "0..1" metrics : "scrapes"
+alt User không tồn tại hoặc status != 'ACTIVE'
+    API --> Dashboard : HTTP 401 Unauthorized (Lỗi đăng nhập)
+else User hợp lệ
+    Note over API : So sánh mật khẩu (BCrypt verify)
+    alt Mật khẩu không trùng khớp
+        API --> Dashboard : HTTP 401 Unauthorized (Lỗi mật khẩu)
+    else Mật khẩu chính xác
+        Note over API : Tạo JWT token (chứa userId, role, email, exp)
+        API -> Redis : Lưu Session/Token metadata (thiết lập TTL)
+        API --> Dashboard : HTTP 200 OK (Access Token + User Profile)
+        Dashboard -> Dashboard : Lưu Token vào bộ nhớ trình duyệt
+        Dashboard --> User : Chuyển hướng sang giao diện chính tương ứng với quyền
+    end
+end
+deactivate API
 
 @enduml
 ```
+
+### Bảng Phân quyền Vai trò (Permission Matrix)
+
+Hệ thống phân tách quyền lợi cụ thể giữa vai trò **Admin** và **Engineer** như sau:
+
+| Danh mục | Chức năng nghiệp vụ | Quyền Admin | Quyền Engineer | Ghi chú |
+| :--- | :--- | :---: | :---: | :--- |
+| **Quản trị người dùng** | Tạo mới, khóa hoặc xóa tài khoản người dùng | **Có** | **Không** | Quyền quản trị hệ thống tối cao |
+| | Thay đổi vai trò người dùng (`role`) | **Có** | **Không** | Chỉ Admin mới được nâng/hạ quyền |
+| **Quản lý ứng dụng** | Đăng ký ứng dụng mới cần theo dõi log | **Có** | **Không** | Tạo dự án giám sát mới |
+| | Cấu hình quyền truy cập ứng dụng (`user_application_access`) | **Có** | **Không** | Gán ứng dụng cho kỹ sư cụ thể |
+| | Tạo mới, thu hồi API Key của ứng dụng | **Có** | **Có** | Engineer chỉ thực hiện trên ứng dụng được cấp quyền `MANAGE` |
+| | Cấu hình nguồn cào chỉ số (`metric_sources`) | **Có** | **Có** | Engineer chỉ thực hiện trên ứng dụng được cấp quyền `MANAGE` |
+| **Giám sát & Logs** | Xem log realtime & truy vấn logs từ ClickHouse | **Có** | **Có** | Engineer chỉ xem được ứng dụng được gán quyền `VIEW` hoặc `MANAGE` |
+| | Xem danh sách cảnh báo phát sinh (`alerts`) | **Có** | **Có** | Engineer chỉ xem cảnh báo của ứng dụng được phân quyền |
+| **Cấu hình Cảnh báo** | Thiết lập luật cảnh báo (`alert_rules`) | **Có** | **Có** | Engineer chỉ cấu hình trên ứng dụng có quyền `MANAGE` |
+| | Cấu hình chat room nhận tin nhắn (Telegram) | **Có** | **Có** | Toàn quyền thiết lập cổng kết nối |
+| **Điều tra Sự cố** | Mở sự cố mới (`incidents`) | **Có** | **Có** | Ghi nhận sự cố để điều tra |
+| | Đóng/Giải quyết sự cố, cập nhật timeline | **Có** | **Có** | Cập nhật tiến độ xử lý |
+| | Yêu cầu trợ lý AI phân tích sự cố (`AI analysis`) | **Có** | **Có** | Gọi API phân tích bundle bằng chứng |
+| **Chính sách lưu trữ** | Thiết lập chính sách lưu giữ logs (`retention_policies`) | **Có** | **Không** | Tránh rủi ro thất thoát dữ liệu logs |
+| | Kích hoạt chạy tiến trình dọn dẹp log thủ công | **Có** | **Không** | Chỉ Admin mới kích hoạt dọn dẹp đĩa cứng ClickHouse |
 
 ---
 
