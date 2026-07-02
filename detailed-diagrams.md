@@ -114,7 +114,7 @@ Hệ thống phân tách quyền lợi cụ thể giữa vai trò **Admin** và 
 ## 2. Logs Ingestion & Processing (Tiếp nhận & Chuẩn hóa Log)
 
 * **Loại sơ đồ**: Sơ đồ tuần tự (Sequence Diagram).
-* **Mô tả**: Mô tả luồng đi của log từ khi ứng dụng bên ngoài đẩy về API, qua hàng đợi Kafka, được Worker chuẩn hóa và lưu trữ theo cơ chế Batch vào ClickHouse.
+* **Mô tả**: Mô tả luồng đi của log từ khi ứng dụng bên ngoài đẩy về API, qua hàng đợi Kafka, được Worker chuẩn hóa, truy vấn tập luật trên Redis để lọc sơ bộ cảnh báo (Alert Candidates) và đẩy live log phục vụ giám sát thời gian thực trước khi ghi Batch vào ClickHouse.
 
 ### Bản vẽ Mermaid:
 ```mermaid
@@ -137,15 +137,24 @@ sequenceDiagram
     
     Note over Worker: Chu kỳ Consume log từ Kafka
     Worker->>Kafka: Đọc log thô từ topic `logs.raw`
-    Note over Worker: Xử lý, chuẩn hóa timestamp,<br/>phân loại level & băm fingerprint
-    Worker->>Worker: Đưa log vào bộ đệm Batch Queue
+    Note over Worker: Chuẩn hóa log (timestamp, traceId, fingerprint)
+    
+    Note over Worker: Kiểm tra luật cảnh báo hoạt động
+    Worker->>Redis: Đọc cache luật cảnh báo (Active Alert Rules)
+    Redis-->>Worker: Trả về danh sách luật (keyword, minSeverity)
+    
+    alt Log khớp luật cảnh báo sơ bộ
+        Worker->>Kafka: Đẩy alert candidate vào topic `alerts.critical`
+    end
+    
+    Worker->>Kafka: Đẩy log đã xử lý vào topic `logs.live` (Real-time Stream)
     
     alt Kích thước Batch đạt giới hạn hoặc hết Timeout (1 giây)
         Worker->>CH: Ghi Batch Log chuẩn hóa vào bảng `processed_logs`
     end
     
-    alt Log có mức độ nghiêm trọng WARN/ERROR/CRITICAL
-        Worker->>Anomaly: Đẩy log tín hiệu nghi ngờ sang Anomaly Module
+    alt Log có mức độ nghiêm trọng WARN/ERROR
+        Worker->>Anomaly: Đẩy log tín hiệu nghi ngờ sang Kafka logs.anomaly.signals
     end
 ```
 
@@ -181,15 +190,25 @@ deactivate Ingest
 Note over Worker : Chu kỳ Consume log bất đồng bộ
 activate Worker
 Worker -> Kafka : Đọc log thô từ topic "logs.raw"
-Note over Worker : Phân tích, chuẩn hóa timestamp,\nphân loại level và băm fingerprint
-Worker -> Worker : Đưa log vào bộ đệm Batch (Batch Queue)
+Note over Worker : Chuẩn hóa log (timestamp, traceId, fingerprint)
+
+Worker -> Redis : Đọc cache luật cảnh báo (Active Alert Rules)
+activate Redis
+Redis --> Worker : Trả về danh sách luật (keyword, minSeverity)
+deactivate Redis
+
+alt Log khớp luật cảnh báo sơ bộ
+    Worker -> Kafka : Đẩy alert candidate vào topic "alerts.critical"
+end
+
+Worker -> Kafka : Đẩy log đã xử lý vào topic "logs.live" (Real-time Stream)
 
 alt Kích thước Batch đạt giới hạn hoặc hết Timeout (1s)
     Worker -> CH : Ghi Batch log vào bảng "processed_logs"
 end
 
 alt Log có tín hiệu cảnh báo/bất thường (WARN/ERROR)
-    Worker -> Anomaly : Gửi tín hiệu log nghi ngờ sang Anomaly Module
+    Worker -> Anomaly : Gửi tín hiệu log nghi ngờ sang Kafka logs.anomaly.signals
 end
 deactivate Worker
 
