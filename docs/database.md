@@ -558,81 +558,19 @@ Hệ thống phân chia rạch ròi quyền sở hữu dữ liệu giữa các m
 | `min_days` | INTEGER | NO | | Giới hạn số ngày tối thiểu có thể cấu hình |
 | `max_days` | INTEGER | NO | | Giới hạn số ngày tối đa có thể cấu hình |
 | `enabled` | BOOLEAN | NO | `TRUE` | Trạng thái kích hoạt chính sách |
-| `sort_order` | INTEGER | NO | | Thứ tự sắp xếp hiển thị (Unique) |
-| `created_at` | TIMESTAMPTZ | NO | `NOW()` | Thời gian tạo chính sách |
-| `updated_at` | TIMESTAMPTZ | NO | `NOW()` | Thời gian cập nhật |
+| `sor## Relationships
 
-* **Keys and Relationships**:
-  - Khóa chính trên `id`.
-* **Indexes and Constraints**:
-  - Unique Index trên cột `log_level`.
-  - Check constraint `ck_retention_days_range` đảm bảo `retention_days` nằm trong khoảng từ `min_days` đến `max_days`.
-  - Check constraint `ck_retention_log_level` giới hạn giá trị trong `INFO`, `WARN`, `ERROR`, `CRITICAL`.
+Do cấu trúc của hệ thống được xây dựng theo kiến trúc **Modular Monolith** với ranh giới cơ sở dữ liệu phân tách độc lập, việc vẽ toàn bộ các bảng trên cùng một sơ đồ sẽ gây rối và khó nhìn. 
+
+Hệ thống phân rã mối quan hệ dữ liệu thành các **sơ đồ thực thể quan hệ theo từng mô-đun (Modular ERD)** riêng biệt. Các bảng thuộc mô-đun khác được định nghĩa dưới dạng các thực thể đơn giản (chỉ hiển thị trường khóa chính `id`) để làm rõ ranh giới liên kết chéo mô-đun.
 
 ---
 
-#### `retention.retention_runs`
-* **Purpose**: Nhật ký ghi nhận các phiên chạy dọn dẹp log (Retention job runs).
-* **Owner**: `retention`
+### 1. Mô-đun Identity & Access (Quản lý định danh và quyền truy cập)
 
-| Field | Type | Nullable | Default | Description |
-| ----- | ---- | -------- | ------- | ----------- |
-| `id` | UUID | NO | | Khóa chính của lượt chạy |
-| `policy_id` | UUID | NO | | ID chính sách áp dụng |
-| `status` | VARCHAR(32) | NO | | Trạng thái chạy: `SUCCESS`, `FAILED` |
-| `started_at` | TIMESTAMPTZ | NO | | Thời điểm bắt đầu chạy |
-| `finished_at` | TIMESTAMPTZ | YES | | Thời điểm kết thúc chạy |
-| `affected_rows` | BIGINT | NO | `0` | Số lượng bản ghi log bị xóa trong ClickHouse |
-| `message` | TEXT | YES | | Tin nhắn nhật ký chi tiết hoặc nội dung lỗi |
+* **Phạm vi**: Người dùng (`users`), ứng dụng (`applications`), quyền hiển thị log (`user_application_access`), khóa kết nối API (`application_api_keys`) và nguồn dữ liệu metrics (`metric_sources`).
 
-* **Keys and Relationships**:
-  - Khóa chính trên `id`.
-  - Khóa ngoại liên kết tới `retention.retention_policies(id)` (ON DELETE RESTRICT).
-* **Indexes and Constraints**:
-  - Index `idx_retention_runs_policy_started` trên `(policy_id, started_at DESC)`.
-  - Check constraint `ck_retention_run_status` giới hạn giá trị trong `SUCCESS`, `FAILED`.
-
----
-
-### 2. ClickHouse Tables
-
-#### `processed_logs`
-* **Purpose**: Cơ sở dữ liệu chính dạng cột lưu trữ toàn bộ các bản ghi log đã chuẩn hóa với dung lượng lớn.
-* **Owner**: `logs`
-
-| Field | Type | Nullable | Default | Description |
-| ----- | ---- | -------- | ------- | ----------- |
-| `event_id` | UUID | NO | | ID duy nhất của sự kiện log |
-| `ingestion_id` | UUID | NO | | ID mẻ nhận log của Ingestion API |
-| `application_id` | UUID | NO | | ID ứng dụng gửi log |
-| `application_name` | String | NO | | Tên định danh viết thường của ứng dụng |
-| `application_display_name` | String | YES | | Tên hiển thị ứng dụng |
-| `level` | LowCardinality (String)| NO | | Cấp độ log (`INFO`, `WARN`, `ERROR`, `CRITICAL`) |
-| `message` | String | NO | | Nội dung log chi tiết |
-| `trace_id` | String | YES | | ID chuỗi vết trace (nếu có) |
-| `log_timestamp` | DateTime64 (3, 'UTC') | NO | | Thời gian xảy ra sự kiện log |
-| `received_at` | DateTime64 (3, 'UTC') | NO | | Thời gian Ingestion API tiếp nhận |
-| `processed_at` | DateTime64 (3, 'UTC') | NO | | Thời gian Worker xử lý xong |
-| `fingerprint` | String | YES | | Vân tay băm phân loại định danh dòng lỗi |
-| `status` | LowCardinality (String)| NO | | Trạng thái xử lý log |
-
-* **Keys and Engine**:
-  - **Engine**: `ReplacingMergeTree (processed_at)` giúp ghi đè các bản ghi log trùng lắp dựa trên `processed_at` khi có cơ chế ghi lại hoặc xử lý lại lỗi.
-  - **Partition**: Phân vùng theo tháng dựa trên thời gian log `log_timestamp` (`toYYYYMM(log_timestamp)`).
-  - **Primary/Order Key**: Sắp xếp theo khóa phức hợp `(application_id, log_timestamp, event_id)` giúp ghi cực nhanh và truy vấn theo bộ lọc ứng dụng + mốc thời gian tối ưu.
-
----
-
-## Relationships
-
-Dưới đây là sơ đồ mối quan hệ thực thể (ERD) mô tả toàn bộ cấu trúc cơ sở dữ liệu của dự án. 
-
-Sơ đồ được phân tách rõ ràng theo ranh giới schema cấu trúc:
-- **`identity`**: Thông tin người dùng, phân quyền truy cập, API Key và nguồn metrics.
-- **`alerting`**: Cấu hình cảnh báo, tin nhắn cảnh báo và kênh gửi.
-- **`anomaly`**: Các báo cáo bất thường do module phân tích tự động hoặc liên kết từ alert.
-- **`incident`**: Tiến trình điều tra sự cố nghiệp vụ liên kết với ứng dụng, alert, bằng chứng và phân tích AI.
-- **`retention`**: Cấu hình và nhật ký chạy các chính sách lưu giữ log.
+#### Sơ đồ bằng Mermaid:
 
 ```mermaid
 erDiagram
@@ -689,6 +627,115 @@ erDiagram
         boolean enabled
         timestamptz created_at
         timestamptz updated_at
+    }
+    USERS ||--o{ APPLICATIONS : "creates"
+    USERS ||--o{ USER_APPLICATION_ACCESS : "grants"
+    USERS ||--o{ USER_APPLICATION_ACCESS : "has"
+    USERS ||--o{ APPLICATION_API_KEYS : "creates"
+    APPLICATIONS ||--o{ USER_APPLICATION_ACCESS : "has"
+    APPLICATIONS ||--o{ APPLICATION_API_KEYS : "has"
+    APPLICATIONS ||--o| METRIC_SOURCES : "has"
+```
+
+#### Sơ đồ bằng PlantUML:
+
+```plantuml
+@startuml
+!theme plain
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "Courier New"
+
+entity "identity.users" as users {
+    * id : UUID <<PK>>
+    --
+    * email : VARCHAR(320)
+    * password_hash : VARCHAR(255)
+    * display_name : VARCHAR(150)
+    * role : VARCHAR(32)
+    * status : VARCHAR(32)
+    last_login_at : TIMESTAMPTZ
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
+    deleted_at : TIMESTAMPTZ
+}
+
+entity "identity.applications" as apps {
+    * id : UUID <<PK>>
+    --
+    * name : VARCHAR(100)
+    * display_name : VARCHAR(150)
+    description : TEXT
+    * status : VARCHAR(32)
+    * created_by : UUID <<FK>>
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
+}
+
+entity "identity.user_application_access" as app_access {
+    * user_id : UUID <<PK, FK>>
+    * application_id : UUID <<PK, FK>>
+    --
+    * access_level : VARCHAR(32)
+    * granted_by : UUID <<FK>>
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
+}
+
+entity "identity.application_api_keys" as api_keys {
+    * id : UUID <<PK>>
+    --
+    * application_id : UUID <<FK>>
+    * name : VARCHAR(100)
+    * key_prefix : VARCHAR(32)
+    * key_hash : VARCHAR(255)
+    * status : VARCHAR(32)
+    expires_at : TIMESTAMPTZ
+    last_used_at : TIMESTAMPTZ
+    * created_by : UUID <<FK>>
+    * created_at : TIMESTAMPTZ
+    revoked_at : TIMESTAMPTZ
+}
+
+entity "identity.metric_sources" as metrics {
+    * id : UUID <<PK>>
+    --
+    * application_id : UUID <<FK, Unique>>
+    * target_host : VARCHAR(255)
+    * target_port : INT
+    * metrics_path : VARCHAR(255)
+    * scrape_interval : VARCHAR(32)
+    * enabled : BOOLEAN
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
+}
+
+users ||--o{ apps : "creates"
+users ||--o{ app_access : "grants/has"
+users ||--o{ api_keys : "creates"
+apps ||--o{ app_access : "has"
+apps ||--o{ api_keys : "has"
+apps ||--o| metrics : "has"
+
+@enduml
+```
+
+---
+
+### 2. Mô-đun Alerting (Quản lý cảnh báo và luật kích hoạt)
+
+* **Phạm vi**: Luật cảnh báo (`alert_rules`), kênh phòng chat (`chat_rooms`), liên kết kênh cho luật (`alert_rule_channels`), lịch sử cảnh báo (`alerts`) và lịch sử phân phối tin nhắn (`alert_delivery_channels`).
+* **Liên kết chéo**: Liên kết tới ứng dụng (`identity.applications`) và người dùng (`identity.users`).
+
+#### Sơ đồ bằng Mermaid:
+
+```mermaid
+erDiagram
+    APPLICATIONS {
+        uuid id PK
+    }
+    USERS {
+        uuid id PK
     }
     ALERT_RULES {
         uuid id PK
@@ -751,6 +798,142 @@ erDiagram
         varchar channel
         uuid chat_room_id FK
     }
+
+    APPLICATIONS ||--o{ ALERT_RULES : "has"
+    APPLICATIONS ||--o{ ALERTS : "has"
+    USERS ||--o{ ALERT_RULES : "creates"
+    USERS ||--o{ CHAT_ROOMS : "creates"
+    USERS ||--o{ ALERTS : "acknowledges"
+    USERS ||--o{ ALERTS : "resolves"
+    ALERT_RULES ||--o{ ALERT_RULE_CHANNELS : "has"
+    ALERT_RULES ||--o{ ALERTS : "triggers"
+    CHAT_ROOMS ||--o{ ALERT_RULE_CHANNELS : "associated"
+    CHAT_ROOMS ||--o{ ALERT_DELIVERY_CHANNELS : "associated"
+    ALERTS ||--o{ ALERT_DELIVERY_CHANNELS : "has"
+```
+
+#### Sơ đồ bằng PlantUML:
+
+```plantuml
+@startuml
+!theme plain
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "Courier New"
+
+entity "identity.users" as users {
+    * id : UUID <<PK>>
+}
+
+entity "identity.applications" as apps {
+    * id : UUID <<PK>>
+}
+
+entity "alerting.alert_rules" as rules {
+    * id : UUID <<PK>>
+    --
+    * application_id : UUID <<FK>>
+    * name : VARCHAR(120)
+    description : TEXT
+    * min_severity : VARCHAR(32)
+    * severity : VARCHAR(32)
+    keyword_pattern : VARCHAR(255)
+    * threshold_count : INTEGER
+    * threshold_window_seconds : INTEGER
+    * cooldown_seconds : INTEGER
+    * status : VARCHAR(32)
+    * created_by : UUID <<FK>>
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
+    active_start_time : TIME
+    active_end_time : TIME
+}
+
+entity "alerting.chat_rooms" as chats {
+    * id : UUID <<PK>>
+    --
+    * channel : VARCHAR(32)
+    * name : VARCHAR(120)
+    * chat_id : VARCHAR(128)
+    description : TEXT
+    * status : VARCHAR(32)
+    created_by : UUID <<FK>>
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
+}
+
+entity "alerting.alert_rule_channels" as rule_channels {
+    * id : UUID <<PK>>
+    --
+    * rule_id : UUID <<FK>>
+    * channel : VARCHAR(32)
+    chat_room_id : UUID <<FK>>
+}
+
+entity "alerting.alerts" as alerts {
+    * id : UUID <<PK>>
+    --
+    * rule_id : UUID <<FK>>
+    * application_id : UUID <<FK>>
+    * application_name : VARCHAR(100)
+    application_display_name : VARCHAR(150)
+    * severity : VARCHAR(32)
+    * status : VARCHAR(32)
+    acknowledged_by : UUID <<FK>>
+    acknowledged_at : TIMESTAMPTZ
+    resolved_by : UUID <<FK>>
+    resolved_at : TIMESTAMPTZ
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
+    * occurrence_count : BIGINT
+    * first_seen_at : TIMESTAMPTZ
+    * last_seen_at : TIMESTAMPTZ
+    * log_samples : JSONB
+    * rule_name : VARCHAR(255)
+}
+
+entity "alerting.alert_delivery_channels" as delivery_channels {
+    * id : UUID <<PK>>
+    --
+    * alert_id : UUID <<FK>>
+    * channel : VARCHAR(32)
+    chat_room_id : UUID <<FK>>
+}
+
+apps ||--o{ rules : "has"
+apps ||--o{ alerts : "has"
+users ||--o{ rules : "creates"
+users ||--o{ chats : "creates"
+users ||--o{ alerts : "acknowledges/resolves"
+rules ||--o{ rule_channels : "has"
+rules ||--o{ alerts : "triggers"
+chats ||--o{ rule_channels : "associated"
+chats ||--o{ delivery_channels : "associated"
+alerts ||--o{ delivery_channels : "has"
+
+@enduml
+```
+
+---
+
+### 3. Mô-đun Anomaly (Phát hiện bất thường của hệ thống)
+
+* **Phạm vi**: Bản ghi báo cáo bất thường log/metric (`anomaly_reports`).
+* **Liên kết chéo**: Liên kết tới ứng dụng (`identity.applications`), cảnh báo lôi kéo (`alerting.alerts`) và người xử lý giải quyết (`identity.users`).
+
+#### Sơ đồ bằng Mermaid:
+
+```mermaid
+erDiagram
+    APPLICATIONS {
+        uuid id PK
+    }
+    ALERTS {
+        uuid id PK
+    }
+    USERS {
+        uuid id PK
+    }
     ANOMALY_REPORTS {
         uuid id PK
         uuid application_id FK
@@ -781,6 +964,93 @@ erDiagram
         timestamptz last_seen_at
         uuid resolved_by FK
         timestamptz resolved_at
+    }
+
+    APPLICATIONS ||--o{ ANOMALY_REPORTS : "has"
+    ALERTS ||--o{ ANOMALY_REPORTS : "associated"
+    USERS ||--o{ ANOMALY_REPORTS : "resolves"
+```
+
+#### Sơ đồ bằng PlantUML:
+
+```plantuml
+@startuml
+!theme plain
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "Courier New"
+
+entity "identity.users" as users {
+    * id : UUID <<PK>>
+}
+
+entity "identity.applications" as apps {
+    * id : UUID <<PK>>
+}
+
+entity "alerting.alerts" as alerts {
+    * id : UUID <<PK>>
+}
+
+entity "anomaly.anomaly_reports" as anomalies {
+    * id : UUID <<PK>>
+    --
+    * application_id : UUID <<FK>>
+    alert_id : UUID <<FK>>
+    * source_type : VARCHAR(32)
+    * rule_name : VARCHAR(120)
+    * severity : VARCHAR(32)
+    * status : VARCHAR(32)
+    * title : VARCHAR(180)
+    summary : TEXT
+    hypothesis : TEXT
+    confidence_score : DOUBLE
+    * window_start : TIMESTAMPTZ
+    * window_end : TIMESTAMPTZ
+    * evidence_payload : JSONB
+    * ai_trigger_requested : BOOLEAN
+    ai_trigger_reason : VARCHAR(120)
+    * ai_status : VARCHAR(32)
+    ai_started_at : TIMESTAMPTZ
+    ai_completed_at : TIMESTAMPTZ
+    ai_result : JSONB
+    ai_error : TEXT
+    * created_at : TIMESTAMPTZ
+    * updated_at : TIMESTAMPTZ
+    * fingerprint : VARCHAR(255)
+    * occurrence_count : BIGINT
+    * first_seen_at : TIMESTAMPTZ
+    * last_seen_at : TIMESTAMPTZ
+    resolved_by : UUID <<FK>>
+    resolved_at : TIMESTAMPTZ
+}
+
+apps ||--o{ anomalies : "has"
+alerts ||--o{ anomalies : "associated"
+users ||--o{ anomalies : "resolves"
+
+@enduml
+```
+
+---
+
+### 4. Mô-đun Incident (Điều tra sự cố & Trí tuệ Nhân tạo)
+
+* **Phạm vi**: Sự cố (`incidents`), ứng dụng chịu tác động (`incident_applications`), cảnh báo liên đới (`incident_alerts`), bằng chứng sự cố (`incident_evidence`), phân tích của AI (`incident_ai_analyses`) và dòng thời gian timeline (`incident_timeline_events`).
+* **Liên kết chéo**: Liên kết tới người dùng hành động (`identity.users`), ứng dụng (`identity.applications`), và các cảnh báo gốc (`alerting.alerts`).
+
+#### Sơ đồ bằng Mermaid:
+
+```mermaid
+erDiagram
+    USERS {
+        uuid id PK
+    }
+    APPLICATIONS {
+        uuid id PK
+    }
+    ALERTS {
+        uuid id PK
     }
     INCIDENTS {
         uuid id PK
@@ -855,74 +1125,22 @@ erDiagram
         text metadata_json
         timestamptz created_at
     }
-    RETENTION_POLICIES {
-        uuid id PK
-        varchar log_level
-        varchar label
-        text description
-        integer retention_days
-        integer min_days
-        integer max_days
-        boolean enabled
-        integer sort_order
-        timestamptz created_at
-        timestamptz updated_at
-    }
-    RETENTION_RUNS {
-        uuid id PK
-        uuid policy_id FK
-        varchar status
-        timestamptz started_at
-        timestamptz finished_at
-        bigint affected_rows
-        text message
-    }
 
-    USERS ||--o{ APPLICATIONS : "creates"
-    USERS ||--o{ USER_APPLICATION_ACCESS : "grants"
-    USERS ||--o{ USER_APPLICATION_ACCESS : "has"
-    USERS ||--o{ APPLICATION_API_KEYS : "creates"
-    USERS ||--o{ CHAT_ROOMS : "creates"
-    USERS ||--o{ ALERT_RULES : "creates"
-    USERS ||--o{ ALERTS : "acknowledges"
-    USERS ||--o{ ALERTS : "resolves"
-    USERS ||--o{ ANOMALY_REPORTS : "resolves"
     USERS ||--o{ INCIDENTS : "creates"
     USERS ||--o{ INCIDENTS : "resolves"
     USERS ||--o{ INCIDENT_AI_ANALYSES : "requests"
     USERS ||--o{ INCIDENT_TIMELINE_EVENTS : "acts"
-
-    APPLICATIONS ||--o{ USER_APPLICATION_ACCESS : "has"
-    APPLICATIONS ||--o{ APPLICATION_API_KEYS : "has"
-    APPLICATIONS ||--o| METRIC_SOURCES : "has"
-    APPLICATIONS ||--o{ ALERT_RULES : "has"
-    APPLICATIONS ||--o{ ALERTS : "has"
-    APPLICATIONS ||--o{ ANOMALY_REPORTS : "has"
     APPLICATIONS ||--o{ INCIDENT_APPLICATIONS : "has"
     APPLICATIONS ||--o{ INCIDENT_EVIDENCE : "has"
-
-    ALERT_RULES ||--o{ ALERT_RULE_CHANNELS : "has"
-    ALERT_RULES ||--o{ ALERTS : "triggers"
-
-    CHAT_ROOMS ||--o{ ALERT_RULE_CHANNELS : "associated"
-    CHAT_ROOMS ||--o{ ALERT_DELIVERY_CHANNELS : "associated"
-
-    ALERTS ||--o{ ALERT_DELIVERY_CHANNELS : "has"
-    ALERTS ||--o{ ANOMALY_REPORTS : "associated"
     ALERTS ||--o{ INCIDENT_ALERTS : "has"
-
     INCIDENTS ||--o{ INCIDENT_APPLICATIONS : "has"
     INCIDENTS ||--o{ INCIDENT_ALERTS : "has"
     INCIDENTS ||--o{ INCIDENT_EVIDENCE : "has"
     INCIDENTS ||--o{ INCIDENT_AI_ANALYSES : "has"
     INCIDENTS ||--o{ INCIDENT_TIMELINE_EVENTS : "has"
-
-    RETENTION_POLICIES ||--o{ RETENTION_RUNS : "has"
 ```
 
-### Sơ đồ thực thể quan hệ bằng PlantUML
-
-Dưới đây là sơ đồ thực thể quan hệ (ERD) được viết bằng mã PlantUML, mô tả chi tiết các trường dữ liệu, kiểu dữ liệu, các thuộc tính khóa chính (PK) và khóa ngoại (FK):
+#### Sơ đồ bằng PlantUML:
 
 ```plantuml
 @startuml
@@ -931,174 +1149,16 @@ skinparam monochrome true
 skinparam shadowing false
 skinparam defaultFontName "Courier New"
 
-' Thiết lập các bảng trong cơ sở dữ liệu
-
 entity "identity.users" as users {
     * id : UUID <<PK>>
-    --
-    * email : VARCHAR(320)
-    * password_hash : VARCHAR(255)
-    * display_name : VARCHAR(150)
-    * role : VARCHAR(32)
-    * status : VARCHAR(32)
-    last_login_at : TIMESTAMPTZ
-    * created_at : TIMESTAMPTZ
-    * updated_at : TIMESTAMPTZ
-    deleted_at : TIMESTAMPTZ
 }
 
 entity "identity.applications" as apps {
     * id : UUID <<PK>>
-    --
-    * name : VARCHAR(100)
-    * display_name : VARCHAR(150)
-    description : TEXT
-    * status : VARCHAR(32)
-    * created_by : UUID <<FK>>
-    * created_at : TIMESTAMPTZ
-    * updated_at : TIMESTAMPTZ
-}
-
-entity "identity.user_application_access" as app_access {
-    * user_id : UUID <<PK, FK>>
-    * application_id : UUID <<PK, FK>>
-    --
-    * access_level : VARCHAR(32)
-    * granted_by : UUID <<FK>>
-    * created_at : TIMESTAMPTZ
-    * updated_at : TIMESTAMPTZ
-}
-
-entity "identity.application_api_keys" as api_keys {
-    * id : UUID <<PK>>
-    --
-    * application_id : UUID <<FK>>
-    * name : VARCHAR(100)
-    * key_prefix : VARCHAR(32)
-    * key_hash : VARCHAR(255)
-    * status : VARCHAR(32)
-    expires_at : TIMESTAMPTZ
-    last_used_at : TIMESTAMPTZ
-    * created_by : UUID <<FK>>
-    * created_at : TIMESTAMPTZ
-    revoked_at : TIMESTAMPTZ
-}
-
-entity "identity.metric_sources" as metrics {
-    * id : UUID <<PK>>
-    --
-    * application_id : UUID <<FK, Unique>>
-    * target_host : VARCHAR(255)
-    * target_port : INT
-    * metrics_path : VARCHAR(255)
-    * scrape_interval : VARCHAR(32)
-    * enabled : BOOLEAN
-    * created_at : TIMESTAMPTZ
-    * updated_at : TIMESTAMPTZ
-}
-
-entity "alerting.alert_rules" as rules {
-    * id : UUID <<PK>>
-    --
-    * application_id : UUID <<FK>>
-    * name : VARCHAR(120)
-    description : TEXT
-    * min_severity : VARCHAR(32)
-    * severity : VARCHAR(32)
-    keyword_pattern : VARCHAR(255)
-    * threshold_count : INTEGER
-    * threshold_window_seconds : INTEGER
-    * cooldown_seconds : INTEGER
-    * status : VARCHAR(32)
-    * created_by : UUID <<FK>>
-    * created_at : TIMESTAMPTZ
-    * updated_at : TIMESTAMPTZ
-    active_start_time : TIME
-    active_end_time : TIME
-}
-
-entity "alerting.chat_rooms" as chats {
-    * id : UUID <<PK>>
-    --
-    * channel : VARCHAR(32)
-    * name : VARCHAR(120)
-    * chat_id : VARCHAR(128)
-    description : TEXT
-    * status : VARCHAR(32)
-    created_by : UUID <<FK>>
-    * created_at : TIMESTAMPTZ
-    * updated_at : TIMESTAMPTZ
-}
-
-entity "alerting.alert_rule_channels" as rule_channels {
-    * id : UUID <<PK>>
-    --
-    * rule_id : UUID <<FK>>
-    * channel : VARCHAR(32)
-    chat_room_id : UUID <<FK>>
 }
 
 entity "alerting.alerts" as alerts {
     * id : UUID <<PK>>
-    --
-    * rule_id : UUID <<FK>>
-    * application_id : UUID <<FK>>
-    * application_name : VARCHAR(100)
-    application_display_name : VARCHAR(150)
-    * severity : VARCHAR(32)
-    * status : VARCHAR(32)
-    acknowledged_by : UUID <<FK>>
-    acknowledged_at : TIMESTAMPTZ
-    resolved_by : UUID <<FK>>
-    resolved_at : TIMESTAMPTZ
-    * created_at : TIMESTAMPTZ
-    * updated_at : TIMESTAMPTZ
-    * occurrence_count : BIGINT
-    * first_seen_at : TIMESTAMPTZ
-    * last_seen_at : TIMESTAMPTZ
-    * log_samples : JSONB
-    * rule_name : VARCHAR(255)
-}
-
-entity "alerting.alert_delivery_channels" as delivery_channels {
-    * id : UUID <<PK>>
-    --
-    * alert_id : UUID <<FK>>
-    * channel : VARCHAR(32)
-    chat_room_id : UUID <<FK>>
-}
-
-entity "anomaly.anomaly_reports" as anomalies {
-    * id : UUID <<PK>>
-    --
-    * application_id : UUID <<FK>>
-    alert_id : UUID <<FK>>
-    * source_type : VARCHAR(32)
-    * rule_name : VARCHAR(120)
-    * severity : VARCHAR(32)
-    * status : VARCHAR(32)
-    * title : VARCHAR(180)
-    summary : TEXT
-    hypothesis : TEXT
-    confidence_score : DOUBLE
-    * window_start : TIMESTAMPTZ
-    * window_end : TIMESTAMPTZ
-    * evidence_payload : JSONB
-    * ai_trigger_requested : BOOLEAN
-    ai_trigger_reason : VARCHAR(120)
-    * ai_status : VARCHAR(32)
-    ai_started_at : TIMESTAMPTZ
-    ai_completed_at : TIMESTAMPTZ
-    ai_result : JSONB
-    ai_error : TEXT
-    * created_at : TIMESTAMPTZ
-    * updated_at : TIMESTAMPTZ
-    * fingerprint : VARCHAR(255)
-    * occurrence_count : BIGINT
-    * first_seen_at : TIMESTAMPTZ
-    * last_seen_at : TIMESTAMPTZ
-    resolved_by : UUID <<FK>>
-    resolved_at : TIMESTAMPTZ
 }
 
 entity "incident.incidents" as incidents {
@@ -1186,6 +1246,67 @@ entity "incident.incident_timeline_events" as timeline {
     * created_at : TIMESTAMPTZ
 }
 
+users ||--o{ incidents : "creates"
+users ||--o{ incidents : "resolves"
+users ||--o{ ai_analyses : "requests"
+users ||--o{ timeline : "acts"
+apps ||--o{ inc_apps : "has"
+apps ||--o{ evidence : "has"
+alerts ||--o{ inc_alerts : "has"
+incidents ||--o{ inc_apps : "has"
+incidents ||--o{ inc_alerts : "has"
+incidents ||--o{ evidence : "has"
+incidents ||--o{ ai_analyses : "has"
+incidents ||--o{ timeline : "has"
+
+@enduml
+```
+
+---
+
+### 5. Mô-đun Retention (Quản lý thời hạn và dọn dẹp log)
+
+* **Phạm vi**: Chính sách xóa log (`retention_policies`) và nhật ký phiên chạy (`retention_runs`).
+
+#### Sơ đồ bằng Mermaid:
+
+```mermaid
+erDiagram
+    RETENTION_POLICIES {
+        uuid id PK
+        varchar log_level
+        varchar label
+        text description
+        integer retention_days
+        integer min_days
+        integer max_days
+        boolean enabled
+        integer sort_order
+        timestamptz created_at
+        timestamptz updated_at
+    }
+    RETENTION_RUNS {
+        uuid id PK
+        uuid policy_id FK
+        varchar status
+        timestamptz started_at
+        timestamptz finished_at
+        bigint affected_rows
+        text message
+    }
+
+    RETENTION_POLICIES ||--o{ RETENTION_RUNS : "has"
+```
+
+#### Sơ đồ bằng PlantUML:
+
+```plantuml
+@startuml
+!theme plain
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "Courier New"
+
 entity "retention.retention_policies" as policies {
     * id : UUID <<PK>>
     --
@@ -1212,48 +1333,12 @@ entity "retention.retention_runs" as runs {
     message : TEXT
 }
 
-' Định nghĩa quan hệ
-
-users ||--o{ apps : "creates"
-users ||--o{ app_access : "grants/has"
-users ||--o{ api_keys : "creates"
-users ||--o{ chats : "creates"
-users ||--o{ rules : "creates"
-users ||--o{ alerts : "acknowledges/resolves"
-users ||--o{ anomalies : "resolves"
-users ||--o{ incidents : "creates/resolves"
-users ||--o{ ai_analyses : "requests"
-users ||--o{ timeline : "acts"
-
-apps ||--o{ app_access : "has"
-apps ||--o{ api_keys : "has"
-apps ||--o| metrics : "has"
-apps ||--o{ rules : "has"
-apps ||--o{ alerts : "has"
-apps ||--o{ anomalies : "has"
-apps ||--o{ inc_apps : "has"
-apps ||--o{ evidence : "has"
-
-rules ||--o{ rule_channels : "has"
-rules ||--o{ alerts : "triggers"
-
-chats ||--o{ rule_channels : "associated"
-chats ||--o{ delivery_channels : "associated"
-
-alerts ||--o{ delivery_channels : "has"
-alerts ||--o{ anomalies : "associated"
-alerts ||--o{ inc_alerts : "has"
-
-incidents ||--o{ inc_apps : "has"
-incidents ||--o{ inc_alerts : "has"
-incidents ||--o{ evidence : "has"
-incidents ||--o{ ai_analyses : "has"
-incidents ||--o{ timeline : "has"
-
 policies ||--o{ runs : "has"
 
 @enduml
 ```
+
+
 
 ----
 
