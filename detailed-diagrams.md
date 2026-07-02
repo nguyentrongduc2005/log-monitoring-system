@@ -380,14 +380,19 @@ stop
 
 ```mermaid
 graph TD
-    Start([1. Nhận sự kiện Alert Candidate]) --> Idempotency{2. Check trùng Event bằng Redis SET event:rule:eventId NX?}
+    Start([1. Nhận sự kiện Alert Candidate]) --> FetchRules[2. Truy vấn các Luật Cảnh báo đang hoạt động của app]
+    FetchRules --> MatchRules{3. Sự kiện log khớp cấu hình luật: Severity, Keyword, Time Window?}
     
-    Idempotency -- Đã xử lý (False) --> Skip([3. Bỏ qua Candidate])
+    MatchRules -- Không khớp --> Skip([4. Bỏ qua sự kiện])
     
-    Idempotency -- Chưa xử lý (True) --> IncWindow[4. Tăng window count & cập nhật lastSeenAt trong Redis]
-    IncWindow --> CheckCooldown{5. Khóa Cooldown của rule:applicationId có trong Redis?}
+    MatchRules -- Khớp luật --> Idempotency{5. Check trùng Event bằng Redis SET event:rule:eventId NX?}
     
-    CheckCooldown -- Có (Đang Cooldown) --> AddDirty[6. Thêm khóa vào Set dirty_alerts trong Redis]
+    Idempotency -- Đã xử lý (False) --> Skip
+    
+    Idempotency -- Chưa xử lý (True) --> IncWindow[6. Tăng window count & cập nhật lastSeenAt trong Redis]
+    IncWindow --> CheckCooldown{7. Khóa Cooldown của rule:applicationId có trong Redis?}
+    
+    CheckCooldown -- Có (Đang Cooldown) --> AddDirty[8. Thêm khóa vào Set dirty_alerts trong Redis]
     AddDirty --> Skip
     
     %% Tiến trình đồng bộ bất đồng bộ
@@ -396,19 +401,19 @@ graph TD
     ReadRedis --> SyncSQL[S3. Cập nhật occurrence_count và last_seen_at trong Postgres]
     SyncSQL --> PopDirty
     
-    CheckCooldown -- Không --> CheckThreshold{7. Window count >= thresholdCount?}
+    CheckCooldown -- Không --> CheckThreshold{9. Window count >= thresholdCount?}
     CheckThreshold -- Không --> Skip
     
-    CheckThreshold -- Có --> SetCooldown[8. Tạo Khóa Cooldown trong Redis kèm thời gian TTL]
-    SetCooldown --> QueryCH[9. Truy vấn lấy Logs mẫu đại diện từ ClickHouse]
-    QueryCH --> SaveAlert[10. Tạo Alert mới trạng thái OPEN trong Postgres]
-    SaveAlert --> SendNoti[11. Kích hoạt thông báo Telegram & Stream Real-time]
-    SendNoti --> End([12. Kết thúc])
+    CheckThreshold -- Có --> SetCooldown[10. Tạo Khóa Cooldown trong Redis kèm thời gian TTL]
+    SetCooldown --> QueryCH[11. Truy vấn lấy Logs mẫu đại diện từ ClickHouse]
+    QueryCH --> SaveAlert[12. Tạo Alert mới trạng thái OPEN trong Postgres]
+    SaveAlert --> SendNoti[13. Kích hoạt thông báo Telegram & Stream Real-time]
+    SendNoti --> End([14. Kết thúc])
 
     classDef step fill:#ffffff,stroke:#000000,stroke-width:2px,color:#000000;
     classDef decision fill:#ffffff,stroke:#000000,stroke-width:2px,color:#000000;
-    class Start,IncWindow,AddDirty,Scheduler,PopDirty,ReadRedis,SyncSQL,SetCooldown,QueryCH,SaveAlert,SendNoti,End,Skip step;
-    class Idempotency,CheckCooldown,CheckThreshold decision;
+    class Start,FetchRules,IncWindow,AddDirty,Scheduler,PopDirty,ReadRedis,SyncSQL,SetCooldown,QueryCH,SaveAlert,SendNoti,End,Skip step;
+    class MatchRules,Idempotency,CheckCooldown,CheckThreshold decision;
 ```
 
 ### Bản vẽ PlantUML:
@@ -422,28 +427,34 @@ skinparam defaultFontName "Courier New"
 
 start
 :1. Nhận sự kiện Alert Candidate;
-:2. Kiểm tra trùng lặp sự kiện (Idempotency check: SET event:... NX);
-if (Sự kiện đã được xử lý?) then (Có)
-    :3. Bỏ qua sự kiện (Duplicate Event);
+:2. Truy vấn các Luật Cảnh báo đang hoạt động (Active Rules) từ DB;
+if (Sự kiện log khớp luật? (Severity, Keyword, Active Time Window)) then (Không)
+    :3. Bỏ qua sự kiện;
     stop
-else (Không)
-    :4. Tăng bộ đếm window count & cập nhật lastSeenAt trong Redis;
-    if (Khóa Cooldown "cooldown:ruleId:appId" tồn tại trong Redis?) then (Có - Đang trong Cooldown)
-        :5. Đưa khóa window vào Set "dirty_alerts";
-        note right
-            Hệ thống không kích hoạt cảnh báo mới.
-            Số lượng và thời gian xuất hiện cuối (last_seen_at) 
-            sẽ được đồng bộ ngầm vào Postgres qua AlertSyncScheduler.
-        end note
+else (Có)
+    :4. Kiểm tra trùng lặp sự kiện (Idempotency: SET event:... NX);
+    if (Sự kiện đã được xử lý?) then (Có)
+        :5. Bỏ qua sự kiện (Duplicate Event);
         stop
-    else (Không - Cảnh báo mới hoặc hết Cooldown)
-        if (Bộ đếm window count >= thresholdCount?) then (Có - Vi phạm luật)
-            :6. Thiết lập khóa Cooldown trong Redis với TTL;
-            :7. Truy vấn log mẫu đại diện (Samples) từ ClickHouse;
-            :8. Tạo và lưu Alert mới vào PostgreSQL với trạng thái OPEN;
-            :9. Phân phối cảnh báo đến Telegram API và đẩy realtime lên Web Dashboard;
-        else (Không - Chưa đủ ngưỡng)
-            :10. Bỏ qua sự kiện (Chưa đủ ngưỡng kích hoạt);
+    else (Không)
+        :6. Tăng bộ đếm window count & cập nhật lastSeenAt trong Redis;
+        if (Khóa Cooldown "cooldown:ruleId:appId" tồn tại trong Redis?) then (Có - Đang trong Cooldown)
+            :7. Đưa khóa window vào Set "dirty_alerts";
+            note right
+                Hệ thống không kích hoạt cảnh báo mới.
+                Số lượng và thời gian xuất hiện cuối (last_seen_at) 
+                sẽ được đồng bộ ngầm vào Postgres qua AlertSyncScheduler.
+            end note
+            stop
+        else (Không - Cảnh báo mới hoặc hết Cooldown)
+            if (Bộ đếm window count >= thresholdCount?) then (Có - Vi phạm luật)
+                :8. Thiết lập khóa Cooldown trong Redis với TTL;
+                :9. Truy vấn log mẫu đại diện (Samples) từ ClickHouse;
+                :10. Tạo và lưu Alert mới vào PostgreSQL với trạng thái OPEN;
+                :11. Phân phối cảnh báo đến Telegram API và đẩy realtime lên Web Dashboard;
+            else (Không - Chưa đủ ngưỡng)
+                :12. Bỏ qua sự kiện (Chưa đủ ngưỡng kích hoạt);
+            endif
         endif
     endif
 endif
