@@ -291,34 +291,51 @@ deactivate Gateway
 
 ## 4. Anomaly Detection (Phát hiện Bất thường)
 
-- **Loại sơ đồ**: Sơ đồ hoạt động/luồng xử lý (Flowchart / Activity Diagram).
-- **Mô tả**: Mô tả luồng tự động quét và đánh giá các tín hiệu hệ thống (Metrics từ Prometheus và Logs nghi ngờ từ Worker) để kết luận và tạo báo cáo bất thường.
+- **Loại sơ đồ**: Sơ đồ hoạt động (Activity Diagram / Flowchart).
+- **Mô tả**: Tách biệt thành 2 luồng xử lý độc lập tương ứng với thực tế mã nguồn:
+  1. **Luồng Metrics (Timer-driven)**: Quét Prometheus định kỳ, lưu snapshot vào Redis, đánh giá luật ngưỡng và đẩy sự kiện bất thường.
+  2. **Luồng Logs (Event-driven)**: Lắng nghe log nghi ngờ từ Kafka topic `logs.anomaly.signals`, cập nhật bộ đếm Redis, đánh giá tần suất lỗi và đẩy sự kiện bất thường.
+
+Cả hai luồng sau khi phát hiện bất thường đều lưu báo cáo vào PostgreSQL (`anomaly.anomaly_reports`) và đẩy sự kiện vào Kafka topic `anomaly.detected`.
 
 ### Bản vẽ Mermaid:
 
+#### 1. Luồng Phát hiện Bất thường qua Metrics (Timer-driven)
 ```mermaid
 graph TD
-    Start([1. Trigger Quét Anomaly]) --> FetchConfig[2. Đọc cấu hình Metric Sources từ Postgres]
-    FetchConfig --> ScrapeProm[3. Thu thập Metrics từ Prometheus]
-    FetchConfig --> ReadSignals[4. Đọc Logs nghi ngờ từ Kafka logs.anomaly.signals]
-
-    ScrapeProm --> CompareRules{5. So sánh với các Luật Bất thường}
-    ReadSignals --> CompareRules
-
-    CompareRules -- Không bất thường --> End([6. Kết thúc chu kỳ quét])
-    CompareRules -- Phát hiện bất thường --> CreateReport[7. Tạo Anomaly Report trong PostgreSQL]
-
-    CreateReport --> WriteKafka[8. Đẩy sự kiện bất thường vào Kafka anomaly.detected]
-    WriteKafka --> TriggerAlert{9. Yêu cầu AI phân tích hoặc Gửi Alert?}
-
-    TriggerAlert -- Có --> CallAlert[10. Chuyển thông tin sang Phân hệ Cảnh báo]
-    TriggerAlert -- Không --> End
-    CallAlert --> End
+    StartScrape([1. Prometheus Scraper - Mỗi 10s]) --> ScrapeProm[2. Thu thập Metrics từ Prometheus]
+    ScrapeProm --> SaveRedis[3. Lưu Snapshots vào Redis]
+    
+    StartDetect([4. Metric Detector Job - Mỗi 30s]) --> ReadRedis[5. Đọc Metric Snapshots từ Redis]
+    ReadRedis --> EvaluateMetrics{6. Vượt ngưỡng Luật Anomaly?}
+    
+    EvaluateMetrics -- Không --> EndMetric([7. Kết thúc])
+    EvaluateMetrics -- Có --> CreateMetricReport[8. Tạo/Cập nhật Anomaly Report trong Postgres]
+    CreateMetricReport --> WriteKafkaMetric[9. Đẩy sự kiện vào Kafka topic anomaly.detected]
+    WriteKafkaMetric --> EndMetric
 
     classDef step fill:#ffffff,stroke:#000000,stroke-width:2px,color:#000000;
     classDef decision fill:#ffffff,stroke:#000000,stroke-width:2px,color:#000000;
-    class Start,FetchConfig,ScrapeProm,ReadSignals,CreateReport,WriteKafka,CallAlert,End step;
-    class CompareRules,TriggerAlert decision;
+    class StartScrape,ScrapeProm,SaveRedis,StartDetect,ReadRedis,CreateMetricReport,WriteKafkaMetric,EndMetric step;
+    class EvaluateMetrics decision;
+```
+
+#### 2. Luồng Phát hiện Bất thường qua Logs (Event-driven)
+```mermaid
+graph TD
+    StartLog([1. Nhận AnomalySignalEvent từ Kafka]) --> ConsumeLog[2. Consume từ topic logs.anomaly.signals]
+    ConsumeLog --> IncRedis[3. Tăng bộ đếm occurrence_count trong Redis]
+    IncRedis --> EvaluateLogs{4. Vi phạm Luật tần suất lỗi?}
+    
+    EvaluateLogs -- Không --> EndLog([5. Kết thúc])
+    EvaluateLogs -- Có --> CreateLogReport[6. Tạo/Cập nhật Anomaly Report trong Postgres]
+    CreateLogReport --> WriteKafkaLog[7. Đẩy sự kiện vào Kafka topic anomaly.detected]
+    WriteKafkaLog --> EndLog
+
+    classDef step fill:#ffffff,stroke:#000000,stroke-width:2px,color:#000000;
+    classDef decision fill:#ffffff,stroke:#000000,stroke-width:2px,color:#000000;
+    class StartLog,ConsumeLog,IncRedis,CreateLogReport,WriteKafkaLog,EndLog step;
+    class EvaluateLogs decision;
 ```
 
 ### Bản vẽ PlantUML:
@@ -330,30 +347,40 @@ skinparam monochrome true
 skinparam shadowing false
 skinparam defaultFontName "Courier New"
 
-start
-:1. Trigger Quét Bất thường (Scheduler định kỳ hoặc Kafka Event);
-:2. Đọc cấu hình Metric Sources từ PostgreSQL;
-fork
-    :3. Thu thập Metrics thực tế từ Prometheus;
-fork again
-    :4. Đọc các tín hiệu Log nghi ngờ từ Kafka logs.anomaly.signals;
-end fork
-
-:5. So sánh dữ liệu với các Luật Bất thường (Rule Evaluation);
-
-if (Phát hiện dấu hiệu bất thường?) then (Có)
-    :7. Khởi tạo Anomaly Report lưu vào PostgreSQL (anomaly.anomaly_reports);
-    :8. Đẩy sự kiện bất thường vào Kafka topic "anomaly.detected";
-    if (Yêu cầu gửi cảnh báo ngay?) then (Có)
-        :10. Chuyển tiếp sự kiện sang Phân hệ Cảnh báo;
+partition "Luồng Metrics (Timer-driven)" {
+    start
+    :1. Job quét định kỳ chạy (Scrape mỗi 10s, Detect mỗi 30s);
+    :2. Thu thập Metrics thực tế từ Prometheus;
+    :3. Lưu trữ Metric Snapshots ngắn hạn vào Redis;
+    :4. Đọc các Snapshots từ Redis;
+    :5. Đánh giá dữ liệu dựa trên AnomalyMetricRule;
+    if (Vượt ngưỡng bất thường?) then (Có)
+        :6. Tạo/Cập nhật Anomaly Report trong PostgreSQL;
+        :7. Đẩy sự kiện AnomalyDetectedEvent vào Kafka topic "anomaly.detected";
     else (Không)
     endif
-else (Không)
-    :6. Cập nhật bộ đếm kiểm tra bình thường trong Redis;
-endif
+    stop
+}
 
-stop
+partition "Luồng Logs (Event-driven)" {
+    start
+    :1. Kafka Consumer lắng nghe thông điệp bất đồng bộ;
+    :2. Nhận AnomalySignalEvent từ Kafka topic "logs.anomaly.signals";
+    :3. Tăng bộ đếm sự kiện lỗi tương ứng trong Redis (Slide Window);
+    :4. Đánh giá tần suất lỗi dựa trên AnomalyLogRule;
+    if (Đạt ngưỡng vi phạm?) then (Có)
+        if (Đang trong cooldown?) then (Không)
+            :5. Tạo/Cập nhật Anomaly Report trong PostgreSQL;
+            :6. Đẩy sự kiện AnomalyDetectedEvent vào Kafka topic "anomaly.detected";
+        else (Có)
+            :7. Chỉ tăng bộ đếm lặp lại trong Redis;
+        endif
+    else (Không)
+    endif
+    stop
+}
 @enduml
+```
 ```
 
 ---
