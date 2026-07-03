@@ -108,9 +108,11 @@ export function Component() {
   }, [liveTail, filters, selectedLogId, loadLogs]);
 
   const selectedLog =
-    snapshot.results.find((log) => log.id === selectedLogId) ??
-    snapshot.results[0] ??
-    null;
+    selectedLogId === "closed"
+      ? null
+      : snapshot.results.find((log) => log.id === selectedLogId) ??
+        snapshot.results[0] ??
+        null;
 
   function updateFilters(nextFilters: Partial<LogSearchFilters>) {
     setFilters((current) => ({ ...current, ...nextFilters }));
@@ -396,7 +398,7 @@ export function Component() {
         </section>
       ) : null}
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(25rem,0.75fr)]">
+      <section className={`grid gap-5 ${selectedLog ? "xl:grid-cols-[minmax(0,1.25fr)_minmax(25rem,0.75fr)]" : "grid-cols-1"}`}>
         <LogResults
           results={paginatedResults}
           totalResults={snapshot.results.length}
@@ -413,13 +415,16 @@ export function Component() {
             setPage(1);
           }}
         />
-        <LogInspector
-          log={selectedLog}
-          relatedTrace={snapshot.relatedTrace}
-          onFilterTrace={(traceId) => applyQuickQuery(traceId)}
-          onFilterHost={(host) => applyQuickQuery(host)}
-          onCopy={copyToClipboard}
-        />
+        {selectedLog && (
+          <LogInspector
+            log={selectedLog}
+            relatedTrace={snapshot.relatedTrace}
+            onFilterTrace={(traceId) => applyQuickQuery(traceId)}
+            onFilterHost={(host) => applyQuickQuery(host)}
+            onCopy={copyToClipboard}
+            onClose={() => setSelectedLogId("closed")}
+          />
+        )}
       </section>
     </div>
   );
@@ -559,21 +564,15 @@ function LogInspector({
   onFilterTrace,
   onFilterHost,
   onCopy,
+  onClose,
 }: {
-  log: LogSearchEntry | null;
+  log: LogSearchEntry;
   relatedTrace: LogSearchEntry[];
   onFilterTrace: (traceId: string) => void;
   onFilterHost: (host: string) => void;
   onCopy: (text: string) => void;
+  onClose: () => void;
 }) {
-  if (!log) {
-    return (
-      <aside className="rounded-lg border border-border bg-surface p-5 text-sm text-muted">
-        Select a log to inspect details.
-      </aside>
-    );
-  }
-
   return (
     <aside className="space-y-5">
       <article className="rounded-lg border border-border bg-surface p-5">
@@ -599,6 +598,14 @@ function LogInspector({
             >
               {log.level}
             </span>
+            <button
+              onClick={onClose}
+              className="inline-flex items-center justify-center rounded-md border border-border bg-surface-raised h-7 w-7 text-muted transition hover:border-primary hover:text-primary cursor-pointer text-base font-semibold"
+              title="Close detail panel"
+              type="button"
+            >
+              ×
+            </button>
           </div>
         </div>
 
