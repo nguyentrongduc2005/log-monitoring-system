@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Component as LiveLogsPage } from "@/features/live-logs/LiveLogsPage";
@@ -285,5 +285,51 @@ describe("LiveLogsPage", () => {
 
     expect(await screen.findByText("Buffered: 2")).toBeInTheDocument();
     expect(screen.getByText("Dropped: 1")).toBeInTheDocument();
+  });
+
+  it("batches incoming live logs before rendering", async () => {
+    const disconnect = vi.fn();
+    vi.mocked(createLiveLogConnection).mockReturnValue({ disconnect });
+
+    renderLiveLogsPage();
+    await screen.findByText("Payment gateway timeout exceeded the critical threshold.");
+
+    const options = vi.mocked(createLiveLogConnection).mock.calls.at(-1)?.[0];
+    expect(options).toBeDefined();
+
+    vi.useFakeTimers();
+    act(() => {
+      options!.onLog({
+        id: "log-live-1",
+        timestamp: "2026-06-09T10:16:00Z",
+        applicationId: "checkout-api",
+        applicationName: "checkout-api",
+        level: "INFO",
+        message: "First streamed row",
+        eventId: "evt-live-1",
+        ingestionId: "ing-live-1"
+      });
+      options!.onLog({
+        id: "log-live-2",
+        timestamp: "2026-06-09T10:16:01Z",
+        applicationId: "checkout-api",
+        applicationName: "checkout-api",
+        level: "WARN",
+        message: "Second streamed row",
+        eventId: "evt-live-2",
+        ingestionId: "ing-live-2"
+      });
+    });
+
+    expect(screen.queryByText("First streamed row")).not.toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+
+    expect(screen.getByText("First streamed row")).toBeInTheDocument();
+    expect(screen.getByText("Second streamed row")).toBeInTheDocument();
+
+    vi.useRealTimers();
   });
 });

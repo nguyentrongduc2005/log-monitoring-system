@@ -4,10 +4,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
-SCENARIO=normal \
-SERVICE=all \
-BATCH_SIZE=1 \
-LOOP_DELAY_MS=300 \
-LINE_STEP_MS=3 \
-FOREVER="${FOREVER:-1}" \
+SCENARIO=invoice \
+SERVICE=order-service \
+BATCH_SIZE="${BATCH_SIZE:-1}" \
+FOREVER="${FOREVER:-0}" \
+REPEAT="${REPEAT:-1}" \
 "$SCRIPT_DIR/send-demo-logs.sh"

@@ -77,11 +77,12 @@ Các chức năng chính:
 - Điểm cộng: analytics sức khỏe ứng dụng, retention policy và phân tích AI.
 
 > [!NOTE]
-> Dự án đang trong giai đoạn phát triển. Frontend scaffold, Dockerfile và hạ
-> tầng Docker Compose đã được thiết lập. Backend triển khai trước các module
-> `identity` và `ingestion` trong một Spring Boot Modular Monolith. `ingestion`
-> là module nhận log và publish Kafka `logs.raw`; processing/query/alerting là
-> các module/worker tách riêng theo roadmap. Analytics là phạm vi điểm cộng.
+> Dự án đang trong giai đoạn phát triển. Frontend dashboard, Dockerfile và hạ
+> tầng Docker Compose đã được thiết lập. Backend được tổ chức theo Spring Boot
+> Modular Monolith với các module `identity`, `ingestion`, `processing`,
+> `realtime`, `alerting`, `anomaly`, `incident`, `analytics` và `retention`.
+> `ingestion` nhận log và publish Kafka `logs.raw`; các module còn lại xử lý
+> chuẩn hóa, realtime, cảnh báo, anomaly, incident AI, analytics và retention.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -95,6 +96,16 @@ flowchart LR
     WORKER --> CH[(ClickHouse)]
     WORKER --> LIVE[Kafka: logs.live]
     WORKER -->|ERROR / CRITICAL| ALERT[Kafka: alerts.critical]
+    WORKER --> SIGNAL[Kafka: logs.anomaly.signals]
+    SIGNAL --> ANOMALY[Anomaly Log Detector]
+
+    BACKEND[Platform API] -->|/internal/prometheus/targets| PROM[Prometheus]
+    PROM -->|scrape| EXPORTERS[Application / Node Exporters]
+    ANOMALY -->|query metrics| PROM
+    ANOMALY --> ANOMALYDB[(PostgreSQL Anomaly Reports)]
+    ANOMALY --> ANOMALY_EVENT[Kafka: anomaly.detected]
+    ANOMALY_EVENT --> ALERT
+
     ALERT --> DEDUP[Priority Alert Consumer]
     DEDUP --> REDIS[(Redis Deduplication)]
     REDIS --> ALERTDB[(PostgreSQL Alert Occurrences)]
@@ -105,7 +116,7 @@ flowchart LR
     WS --> UI[React Dashboard]
     UI -->|Historical Search| QUERY[Logs Query API]
     QUERY --> CH
-    UI -->|Management API| BACKEND[Platform API]
+    UI -->|Management API| BACKEND
     BACKEND --> PG[(PostgreSQL Identity / Alerting)]
 ```
 
@@ -113,22 +124,32 @@ Worker chỉ commit offset `logs.raw` sau khi ClickHouse và các Kafka event
 downstream bắt buộc đều được acknowledge. `alerts.critical` có consumer group
 và tài nguyên xử lý riêng; Kafka không tự cung cấp message priority.
 
+Anomaly được xử lý từ hai nguồn: log signal qua Kafka `logs.anomaly.signals` và
+metric health qua Prometheus. Backend cung cấp endpoint
+`/internal/prometheus/targets` để Prometheus discovery target theo application,
+sau đó module anomaly query Prometheus, tạo anomaly report và publish Kafka
+`anomaly.detected` cho alerting.
+
 Module `ingestion` sở hữu API nhận log và event contract `RawLogReceivedEvent`
-được publish vào Kafka `logs.raw`. Processing/query không nằm trong module này;
-chúng là worker/module độc lập theo roadmap để sau này có thể scale riêng.
+được publish vào Kafka `logs.raw`. `processing`, `realtime`, `alerting`,
+`anomaly`, `incident`, `analytics` và `retention` là các module riêng trong cùng
+backend để tách rõ trách nhiệm và dễ scale/tách service về sau nếu cần.
 
 HTTP/WebSocket controller nằm ở top-level `api`; chúng chỉ chuyển request đến
 public facade của module. Business logic, persistence và Kafka/ClickHouse
 adapter vẫn nằm bên trong module sở hữu.
 
-| Component  | Responsibility                                            |
-| ---------- | --------------------------------------------------------- |
-| PostgreSQL | Identity, alert rule, occurrence và delivery state         |
-| ClickHouse | Log chuẩn hóa, search và analytics điểm cộng               |
-| Kafka      | Buffer log thô và truyền event giữa các bước xử lý         |
-| Redis      | Khóa cảnh báo trùng lặp và dữ liệu tạm thời có TTL         |
-| WebSocket  | Truyền live log và alert tới React dashboard              |
-| Telegram   | Kênh gửi cảnh báo bắt buộc                                |
+| Component   | Responsibility                                                        |
+| ----------- | --------------------------------------------------------------------- |
+| PostgreSQL  | Identity, alert rule, occurrence, anomaly report, incident, retention |
+| ClickHouse  | Log chuẩn hóa, search, analytics và retention                         |
+| Kafka       | Buffer log thô và truyền event giữa ingestion/processing/alerting     |
+| Redis       | Idempotency, alert dedup, anomaly metric snapshot và dữ liệu TTL      |
+| Prometheus  | Scrape metric target và cung cấp metric cho anomaly detection         |
+| Anomaly     | Phát hiện bất thường từ log signal và Prometheus metric               |
+| WebSocket   | Truyền live log, alert và anomaly notification tới React dashboard    |
+| Telegram    | Kênh gửi cảnh báo và anomaly/AI report notification                   |
+| Incident AI | Phân tích anomaly/incident evidence và đề xuất hướng xử lý            |
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -153,6 +174,7 @@ adapter vẫn nằm bên trong module sở hữu.
 #### Infrastructure
 
 - [![Docker][Docker]][Docker-url]
+- [![Prometheus][Prometheus]][Prometheus-url]
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -172,14 +194,14 @@ log-monitoring-system/
 │       ├── nginx.conf
 │       └── package.json
 ├── docs/
-│   ├── api/                     # API overview và OpenAPI được export
-│   ├── diagram/                 # Sơ đồ hệ thống
-│   ├── module-requirement.md    # Bản nháp định hướng module
-│   ├── report/                  # Tài liệu và báo cáo
-│   └── store-requirement.md     # Bản nháp định hướng storage
+│   ├── architecture.md          # Tài liệu kiến trúc dự án
+│   ├── api.md                   # API document chuẩn
+│   ├── database.md              # Database document và ERD
+│   ├── api/openapi.json         # OpenAPI được export
+│   └── diagram/                 # Sơ đồ Mermaid tách theo từng luồng
 ├── scripts/
 │   └── generate-api-types.sh    # Sinh TypeScript type từ OpenAPI
-├── compose.yml                  # PostgreSQL, ClickHouse, Kafka và Redis
+├── compose.yml                  # Hạ tầng local và observability demo
 ├── Makefile                     # Các lệnh phát triển thường dùng
 ├── .env.example
 └── README.md
@@ -198,6 +220,7 @@ Thực hiện các bước dưới đây để chạy dự án trên máy local.
 - Git
 - Java 21
 - Node.js 22 trở lên
+- npm
 - Docker và Docker Compose
 - GNU Make, tùy chọn nhưng được khuyến nghị
 
@@ -217,38 +240,39 @@ docker compose version
    git clone https://github.com/nguyentrongduc2005/log-monitoring-system.git
    cd log-monitoring-system
    ```
-2. Tạo file environment cho Docker Compose
+2. Tạo file environment từ sample
    ```sh
    cp .env.example .env
+   cp apps/backend/.env.example apps/backend/.env
+   cp apps/frontend/.env.example apps/frontend/.env.local
    ```
-3. Thay đổi password mặc định trong `.env`
+3. Kiểm tra các cấu hình bắt buộc trong `.env` và `apps/backend/.env`
    ```env
    POSTGRES_PASSWORD=your-secure-password
    CLICKHOUSE_PASSWORD=your-secure-password
+   JWT_SECRET=your-long-random-secret
    ```
-4. Khởi động PostgreSQL, ClickHouse, Redis và Kafka
+4. Khởi động toàn bộ hạ tầng local
    ```sh
-   docker compose up -d postgres clickhouse redis kafka
+   make infra-up
    ```
-5. Tạo file environment cho frontend
+   Nếu không dùng Make:
    ```sh
-   cp apps/frontend/.env.example apps/frontend/.env.local
+   docker compose up -d
    ```
-6. Cài đặt frontend dependencies
+5. Cài đặt frontend dependencies
    ```sh
    cd apps/frontend
    npm ci
    cd ../..
    ```
-7. Chạy backend
+6. Chạy backend
    ```sh
-   cd apps/backend
-   ./mvnw spring-boot:run
+   make backend
    ```
-8. Mở terminal khác và chạy frontend
+7. Mở terminal khác và chạy frontend
    ```sh
-   cd apps/frontend
-   npm run dev
+   make frontend
    ```
 
 Backend chạy tại `http://localhost:8080` và frontend chạy tại
@@ -264,17 +288,17 @@ Không commit `.env`, credential, token hoặc API key vào repository.
 
 ### Development commands
 
-| Command           | Description                                      |
-| ----------------- | ------------------------------------------------ |
-| `make infra-up`   | Khởi động PostgreSQL, ClickHouse, Redis và Kafka |
-| `make infra-down` | Dừng các container                               |
-| `make backend`    | Chạy Spring Boot backend                         |
-| `make frontend`   | Chạy Vite development server                     |
-| `make api`        | Sinh TypeScript API type từ OpenAPI              |
-| `make build`      | Build backend và frontend                        |
-| `make test`       | Chạy backend tests                               |
-| `make lint`       | Chạy frontend ESLint                             |
-| `make clean`      | Xóa output build                                 |
+| Command           | Description                                   |
+| ----------------- | --------------------------------------------- |
+| `make infra-up`   | Khởi động toàn bộ service trong `compose.yml` |
+| `make infra-down` | Dừng các container                            |
+| `make backend`    | Chạy Spring Boot backend                      |
+| `make frontend`   | Chạy Vite development server                  |
+| `make api`        | Sinh TypeScript API type từ OpenAPI           |
+| `make build`      | Build backend và frontend                     |
+| `make test`       | Chạy backend tests                            |
+| `make lint`       | Chạy frontend ESLint                          |
+| `make clean`      | Xóa output build                              |
 
 ### Build Docker images
 
@@ -283,12 +307,10 @@ docker build -t log-monitoring-backend ./apps/backend
 docker build -t log-monitoring-frontend ./apps/frontend
 ```
 
-`compose.yml` hiện quản lý các service hạ tầng. Backend và frontend sẽ được
-thêm vào Compose sau khi cấu hình production của backend hoàn tất.
-
-Đây là khoảng trống triển khai hiện tại so với yêu cầu bàn giao cuối: Compose
-phải chạy được backend Modular Monolith, frontend, PostgreSQL, ClickHouse,
-Kafka và Redis.
+`compose.yml` hiện quản lý các service hạ tầng và observability local gồm
+PostgreSQL, ClickHouse, Redis, Kafka, Kafka UI, Prometheus và node-exporter demo.
+Backend và frontend đã có Dockerfile, nhưng service trong Compose đang được
+comment để workflow dev ưu tiên chạy bằng `make backend` và `make frontend`.
 
 ### Local service ports
 
@@ -300,7 +322,9 @@ Kafka và Redis.
 | ClickHouse HTTP   | `8123` |
 | ClickHouse Native | `9000` |
 | Kafka             | `9094` |
+| Kafka UI          | `8081` |
 | Redis             | `6379` |
+| Prometheus        | `9090` |
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -333,9 +357,10 @@ apps/frontend/src/api/generated/api-types.ts
 
 Không chỉnh sửa file generated bằng tay.
 
-Quy ước target cho ingestion API, giới hạn batch, idempotency và backpressure
-được mô tả tại [`docs/api/README.md`](docs/api/README.md). Tài liệu này không
-khẳng định endpoint đã tồn tại nếu controller tương ứng chưa được triển khai.
+Tài liệu API chuẩn được mô tả tại [`docs/api.md`](docs/api.md). OpenAPI export
+nằm tại [`docs/api/openapi.json`](docs/api/openapi.json). Kiến trúc, database và
+sơ đồ chi tiết lần lượt nằm ở [`docs/architecture.md`](docs/architecture.md),
+[`docs/database.md`](docs/database.md) và [`docs/diagram/README.md`](docs/diagram/README.md).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -348,23 +373,24 @@ khẳng định endpoint đã tồn tại nếu controller tương ứng chưa �
 - [x] Thiết lập Docker Compose cho PostgreSQL, ClickHouse, Kafka và Redis
 - [x] Tạo backend và frontend Dockerfile
 - [x] Thiết lập OpenAPI và script generate TypeScript type
-- [ ] Thiết kế PostgreSQL schema và Flyway migrations
-- [ ] Thiết kế ClickHouse log table và retention policy
-- [ ] Xây dựng single và batch ingestion API
-- [ ] Đẩy log thô vào Kafka topic `logs.raw`
-- [ ] Xây dựng parsing worker và dead-letter topic
-- [ ] Lưu log chuẩn hóa vào ClickHouse
-- [ ] Xây dựng API tìm kiếm và phân trang log
-- [ ] Hiển thị live log qua WebSocket
-- [ ] Gửi cảnh báo `ERROR` và `CRITICAL`
-- [ ] Chống cảnh báo trùng bằng Redis TTL
-- [ ] Tích hợp Telegram notification
-- [ ] Thêm authentication và application-level permissions
-- [ ] [Điểm cộng] Thêm dashboard throughput, error rate và application health
-- [ ] [Điểm cộng] Thêm retention INFO quá 7 ngày
-- [ ] [Điểm cộng] Thêm AI phân tích và phân loại nhóm lỗi
-- [ ] Viết k6 scenario cho demo 500 log trong 2 giây
-- [ ] Thêm backend và frontend vào Docker Compose
+- [x] Thiết kế PostgreSQL schema và Flyway migrations
+- [x] Thiết kế ClickHouse `processed_logs` table
+- [x] Xây dựng single và batch ingestion API
+- [x] Đẩy log thô vào Kafka topic `logs.raw`
+- [x] Xây dựng processing worker, ClickHouse writer và Kafka event publishers
+- [x] Hiển thị live log qua WebSocket
+- [x] Xây dựng alert rule, alert occurrence và dedup bằng Redis
+- [x] Tích hợp Telegram notification
+- [x] Thêm authentication, API key và application-level permissions
+- [x] Thêm Prometheus target discovery và metric anomaly pipeline
+- [x] Thêm anomaly report, anomaly alert và AI analysis workflow nền tảng
+- [x] Cập nhật architecture, API, database và Mermaid diagram docs
+- [x] Đồng bộ `.env.example`, backend env sample và frontend env sample
+- [x] Hoàn thiện retention policy theo yêu cầu cuối
+- [x] Hoàn thiện dashboard analytics theo yêu cầu demo cuối
+- [x] Hoàn thiện API tìm kiếm và phân trang log nếu cần theo contract cuối
+- [x] Viết k6 scenario cho demo 500 log trong 2 giây
+- [x] Thêm backend và frontend vào Docker Compose
 
 See the [open issues](https://github.com/nguyentrongduc2005/log-monitoring-system/issues)
 for a full list of proposed features and known issues.
@@ -409,3 +435,5 @@ Distributed under the MIT License. See `LICENSE` for more information.
 [Nginx-url]: https://nginx.org/
 [Docker]: https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white
 [Docker-url]: https://www.docker.com/
+[Prometheus]: https://img.shields.io/badge/Prometheus-E6522C?style=for-the-badge&logo=prometheus&logoColor=white
+[Prometheus-url]: https://prometheus.io/

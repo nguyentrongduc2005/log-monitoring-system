@@ -18,6 +18,8 @@ public interface AlertingFacade {
 
 	List<AlertRuleDto> findRules(UUID applicationId);
 
+	List<ActiveAlertRuleCandidateDto> findActiveRuleCandidates(UUID applicationId);
+
 	List<AlertDto> evaluate(AlertCandidate candidate);
 
 	List<AlertDto> findAlerts(List<UUID> applicationIds, String status, String severity);
@@ -119,6 +121,11 @@ public interface AlertingFacade {
 	record AlertDeliveryTargetDto(
 		String channel,
 		UUID chatRoomId
+	) {}
+
+	record ActiveAlertRuleCandidateDto(
+		String minSeverity,
+		String keywordPattern
 	) {}
 
 	record ChatRoomDto(

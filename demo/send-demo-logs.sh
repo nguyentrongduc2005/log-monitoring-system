@@ -23,7 +23,7 @@ Usage:
 Environment variables:
   BASE_URL                 Backend API base URL.
   SCENARIO                 normal, timeout, security, error-flood, resource,
-                           access-denied, suspicious.
+                           access-denied, suspicious, invoice.
   SERVICE                  all, payment-service, or order-service.
   BATCH_SIZE               Logs per API batch.
   REPEAT                   Number of scenario loops when FOREVER=0.

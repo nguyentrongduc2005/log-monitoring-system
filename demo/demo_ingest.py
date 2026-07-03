@@ -40,6 +40,9 @@ SCENARIO_FILES = {
     "suspicious": {
         "payment-service": LOG_ROOT / "incidents" / "payment-suspicious.log",
     },
+    "invoice": {
+        "order-service": LOG_ROOT / "business" / "order-invoice-generation.log",
+    },
 }
 
 API_KEY_ENV = {

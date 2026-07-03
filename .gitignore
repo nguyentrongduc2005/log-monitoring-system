@@ -8,5 +8,6 @@
 **/.idea/
 **/.vscode/
 *.log
+!demo/logs/business/*.log
 
 __pycache__/

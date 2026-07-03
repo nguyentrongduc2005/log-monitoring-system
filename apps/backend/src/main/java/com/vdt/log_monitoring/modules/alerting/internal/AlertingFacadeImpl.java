@@ -93,6 +93,15 @@ public class AlertingFacadeImpl implements AlertingFacade {
 	}
 
 	@Override
+	public List<ActiveAlertRuleCandidateDto> findActiveRuleCandidates(UUID applicationId) {
+		return alertRuleService.findActiveRules(applicationId).stream()
+				.map(rule -> new ActiveAlertRuleCandidateDto(
+						rule.minSeverity().name(),
+						rule.keywordPattern()))
+				.toList();
+	}
+
+	@Override
 	public List<AlertDto> evaluate(AlertingFacade.AlertCandidate candidate) {
 		return alertEvaluationService.evaluate(
 			new AlertEvaluationCandidate(

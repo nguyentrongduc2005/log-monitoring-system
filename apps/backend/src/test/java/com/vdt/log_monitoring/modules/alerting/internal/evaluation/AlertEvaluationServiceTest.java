@@ -65,6 +65,11 @@ class AlertEvaluationServiceTest {
 
 		assertThat(service.evaluate(candidate)).containsExactly(alert);
 
+		verify(logEvidenceReader).findTopLogSamples(
+			candidate.applicationId(),
+			Instant.parse("2026-06-18T03:59:00Z"),
+			candidate.logTimestamp(),
+			rule.minSeverity());
 		verify(dispatcher).dispatch(alert, rule);
 	}
 

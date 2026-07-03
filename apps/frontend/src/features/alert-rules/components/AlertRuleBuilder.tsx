@@ -60,7 +60,7 @@ export default function AlertRuleBuilder({
       draft.activeStartTime === draft.activeEndTime);
 
   return (
-    <form className={managementPanelClass} onSubmit={onSubmit}>
+    <form className={cn(managementPanelClass, "overflow-visible")} onSubmit={onSubmit}>
       <div className="flex flex-col gap-3 border-b border-border bg-surface-raised/35 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-text">Rule builder</h2>
@@ -319,11 +319,11 @@ export default function AlertRuleBuilder({
 
               {roomsDropdownOpen ? (
                 <>
-                  <div 
-                    className="fixed inset-0 z-10 cursor-default" 
-                    onClick={() => setRoomsDropdownOpen(false)} 
+                  <div
+                    className="fixed inset-0 z-40 cursor-default"
+                    onClick={() => setRoomsDropdownOpen(false)}
                   />
-                  <div className="absolute left-0 right-0 mt-1 z-20 max-h-36 overflow-y-auto rounded-md border border-border bg-[#141516] p-1.5 shadow-lg divide-y divide-border/40 shell-scrollbar">
+                  <div className="absolute left-0 right-0 z-50 mt-1 max-h-36 overflow-y-auto rounded-md border border-border bg-[#141516] p-1.5 shadow-lg divide-y divide-border/40 shell-scrollbar">
                     {chatRooms.map(room => {
                       const isChecked = draft.telegramChatRoomIds.includes(room.id);
                       return (

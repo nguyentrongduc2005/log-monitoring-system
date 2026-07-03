@@ -54,8 +54,11 @@ public class AlertEvaluationService {
 
 		return switch (decision.type()) {
 			case TRIGGERED -> {
-				List<AlertLogSample> logSamples = evidenceReader.findTopErrorLogSamples(
-					candidate.applicationId(), decision.firstSeenAt(), candidate.logTimestamp());
+				List<AlertLogSample> logSamples = evidenceReader.findTopLogSamples(
+					candidate.applicationId(),
+					decision.firstSeenAt(),
+					candidate.logTimestamp(),
+					rule.minSeverity());
 				yield List.of(trigger(rule, candidate, decision, logSamples));
 			}
 			case COOLDOWN -> {

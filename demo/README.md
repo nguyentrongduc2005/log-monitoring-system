@@ -48,6 +48,38 @@ Run one controlled incident at a time:
 ./demo/run-suspicious.sh
 ```
 
+## Custom alert rule demo
+
+Use this scenario to test a business-specific alert rule that is different from
+the built-in anomaly rules:
+
+```bash
+./demo/run-invoice.sh
+```
+
+Create this alert rule before running the script:
+
+```text
+Rule name: Invoice job failure
+Application: order-service
+Minimum severity: WARN
+Alert severity: ERROR
+Keyword pattern: invoice_generation_failed
+Threshold count: 2
+Window: 300 seconds
+Cooldown: 300 seconds
+Active time window: All day
+Delivery: WebSocket or Telegram
+```
+
+Expected result:
+
+- The script sends 3 `WARN invoice_generation_failed` logs.
+- The custom alert rule should trigger after 2 matching logs.
+- This scenario should not create a duplicate anomaly notification under the
+  default anomaly thresholds because it stays below the 20-event suspicious
+  keyword threshold.
+
 Useful defaults:
 
 ```bash

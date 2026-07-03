@@ -2,221 +2,279 @@
 
 ## 1. Định hướng hệ thống
 
-Hệ thống Log Monitoring được xây dựng theo hướng **Incident-Centric Monitoring**.
-Thay vì chỉ thu thập và hiển thị log thô, hệ thống chuẩn hóa log, phát hiện lỗi
-và gom nhóm nhiều log lỗi có cùng nguyên nhân thành một **Incident** duy nhất.
+Hệ thống Log Monitoring được xây dựng theo hướng **real-time log monitoring kết
+hợp anomaly và incident investigation**. Hệ thống không chỉ nhận log thô, mà còn
+chuẩn hóa log, phát realtime event, phát hiện cảnh báo, theo dõi metric sức khỏe
+ứng dụng qua Prometheus và hỗ trợ AI phân tích anomaly/incident evidence.
 
-Cách tiếp cận này giúp giảm nhiễu thông tin, hạn chế cảnh báo trùng lặp và hỗ
-trợ kỹ sư vận hành tập trung vào sự cố thực sự thay vì đọc thủ công hàng nghìn
-dòng log tương tự nhau.
+Cách tiếp cận hiện tại giúp kỹ sư vận hành quan sát log theo thời gian thực,
+giảm cảnh báo trùng lặp, theo dõi sức khỏe application và có thêm ngữ cảnh khi
+cần điều tra sự cố.
 
 Mục tiêu chính:
 
-- Thu thập log từ nhiều application/service.
-- Mở rộng nhận biết sức khỏe hệ thống bằng metrics như CPU, RAM, restart,
-  service down, request/error rate và tín hiệu đăng nhập bất thường.
-- Xử lý log bất đồng bộ để chịu được tải cao.
-- Chuẩn hóa, lưu trữ và tìm kiếm log hiệu quả.
-- Phát hiện log lỗi, tương quan với metrics bất thường và gom nhóm thành
-  incident.
-- Cảnh báo realtime theo incident, tránh spam cảnh báo.
-- Tích hợp AI để hỗ trợ phân tích nguyên nhân, phân loại mức độ nghiêm trọng
-  và hướng xử lý.
-- Phân quyền người dùng theo vai trò và phạm vi ứng dụng.
+- Thu thập log đơn lẻ hoặc batch từ nhiều application/service.
+- Xử lý log bất đồng bộ qua Kafka để giảm tải cho ingestion API.
+- Chuẩn hóa log và lưu vào ClickHouse để phục vụ truy vấn theo thời gian.
+- Phát live log, alert và anomaly notification tới dashboard qua WebSocket.
+- Quản lý user, role, application, API key và phạm vi truy cập theo application.
+- Quản lý alert rule, alert occurrence, chat room và Telegram notification.
+- Phát hiện anomaly từ log signal và metric health lấy từ Prometheus.
+- Lưu anomaly report, incident evidence và hỗ trợ AI phân tích nguyên nhân.
+- Cấu hình retention policy cho dữ liệu log theo level và thời gian lưu.
 
 ## 2. Luồng xử lý tổng quan
 
 ```mermaid
 flowchart LR
-    A[External Applications] --> B[Ingestion API]
-    B --> C[Kafka]
-    C --> D[Log Processing]
-    D --> E[(ClickHouse)]
-    D --> F[Incident Detection]
-    M[Metrics Sources] --> N[Metrics Store]
-    N --> F
-    F --> G[(PostgreSQL: Incidents)]
-    G --> H[Alerting + Redis Dedup]
-    H --> I[Telegram / WebSocket]
-    G --> J[AI Analysis]
-    I --> K[React Dashboard]
-    K --> L[Query API]
-    L --> E
+    A[External Applications] -->|single/batch logs| B[Ingestion API]
+    B -->|RawLogReceivedEvent| C[Kafka: logs.raw]
+    C --> D[Processing Worker]
+    D --> E[(ClickHouse: processed_logs)]
+    D --> F[Kafka: logs.live]
+    D --> G[Kafka: alerts.critical]
+    D --> H[Kafka: logs.anomaly.signals]
+
+    F --> I[Realtime Module]
+    I --> J[WebSocket]
+    J --> K[React Dashboard]
+
+    G --> L[Alerting Module]
+    L --> M[(Redis dedup/cache)]
+    L --> N[(PostgreSQL: alerting)]
+    L --> O[Telegram]
+    L --> J
+
+    H --> P[Anomaly Log Detector]
+    Q[Prometheus] -->|query metrics| R[Metric Anomaly Worker]
+    S[Node Exporter / App Metrics] -->|scrape| Q
+    T[Backend /internal/prometheus/targets] -->|HTTP SD| Q
+    P --> U[(PostgreSQL: anomaly reports)]
+    R --> U
+    U --> V[Kafka: anomaly.detected]
+    V --> L
+    V --> W[Incident AI Workflow]
+    W --> U
+
+    K -->|REST API| X[Backend API]
+    X --> N
+    X --> U
+    X --> E
 ```
 
 Luồng chính:
 
 1. Application gửi log vào `Ingestion API`.
-2. Backend validate nhanh và đưa log vào Kafka.
-3. Worker xử lý log, chuẩn hóa dữ liệu và lưu vào ClickHouse.
-4. Log lỗi được phân tích để tạo fingerprint/correlation key.
-5. Metrics từ backend/application/node được đọc từ metrics store để bổ sung
-   ngữ cảnh như RAM cao, service restart, spike lỗi hoặc login bất thường.
-6. Các lỗi và tín hiệu bất thường liên quan được gom vào một incident.
-7. Incident mới hoặc incident quan trọng được cảnh báo realtime.
-8. Redis deduplication giúp tránh gửi cảnh báo trùng lặp.
-9. AI phân tích incident để hỗ trợ root cause analysis, severity và hướng xử lý.
-10. Dashboard hiển thị live log, incident và kết quả phân tích.
+2. Backend validate, kiểm tra idempotency bằng Redis và publish event vào Kafka
+   topic `logs.raw`.
+3. Processing worker consume `logs.raw`, parse/normalize/enrich log, tạo
+   fingerprint và lưu bản ghi chuẩn hóa vào ClickHouse `processed_logs`.
+4. Processing publish các event downstream: `logs.live`, `alerts.critical`,
+   `logs.anomaly.signals` và `processing.errors` khi có lỗi xử lý.
+5. Realtime module consume live log và đẩy dữ liệu qua WebSocket tới React
+   dashboard.
+6. Alerting module xử lý alert rule, threshold/dedup bằng Redis, lưu alert vào
+   PostgreSQL và gửi notification qua Telegram/WebSocket.
+7. Anomaly module nhận log signal từ Kafka và metric health từ Prometheus để tạo
+   hoặc cập nhật anomaly report trong PostgreSQL.
+8. Alerting consume `anomaly.detected` để tạo anomaly alert và kích hoạt AI
+   workflow khi cần.
+9. Dashboard gọi REST API để quản lý user/application/rule/incident/retention và
+   xem live log, alert, anomaly, analytics.
 
 ## 3. Chức năng chính
 
-- Quản lý người dùng, đăng nhập, refresh token và đổi mật khẩu.
-- Phân quyền theo vai trò `ADMIN` và `ENGINEER`.
-- Quản lý application/source gửi log.
-- Nhận log đơn lẻ hoặc batch từ external application.
-- Chuẩn hóa và lưu trữ log vào ClickHouse.
-- Tìm kiếm log theo application, level, thời gian, keyword và trace id.
-- Hiển thị live log realtime.
-- Phát hiện log lỗi, tương quan với metrics bất thường và gom nhóm thành
-  incident.
-- Quản lý incident theo trạng thái, severity, số lần xuất hiện, log mẫu và tín
-  hiệu metrics liên quan.
-- Cảnh báo qua dashboard và Telegram.
-- Chống trùng cảnh báo bằng Redis.
-- Hỗ trợ AI phân tích nguyên nhân và đề xuất hướng xử lý.
+- Đăng nhập, refresh token, logout, đổi mật khẩu và JWT blacklist bằng Redis.
+- Quản lý user, role `ADMIN`/`ENGINEER`, application và application access.
+- Quản lý API key theo application để external service gửi log.
+- Quản lý metric source và endpoint Prometheus service discovery.
+- Nhận log single/batch với idempotency key và publish Kafka `logs.raw`.
+- Chuẩn hóa log, fingerprint, ghi ClickHouse và publish live/anomaly/alert event.
+- Hiển thị live log realtime qua WebSocket.
+- Quản lý alert rule, active time window, chat room và delivery target.
+- Gửi alert qua dashboard/WebSocket và Telegram.
+- Phát hiện anomaly từ log pattern và Prometheus metrics như CPU, memory, disk,
+  network.
+- Lưu anomaly report, resolve report và tạo alert từ anomaly event.
+- Hỗ trợ AI phân tích anomaly report/incident evidence và lưu kết quả phân tích.
+- Dashboard analytics cho overview, log volume, error rate và health signal.
+- Quản lý retention policy và lịch sử retention run.
 
 ## 4. Bố cục hệ thống
 
-Backend là một Spring Boot Modular Monolith. Module được chia theo nhóm chức
-năng chính, không bắt buộc tuân theo DDD. Bên trong mỗi module có thể tổ chức
-theo logic riêng để phù hợp với nghiệp vụ của module đó.
+Backend là một Spring Boot Modular Monolith. Controller/transport DTO nằm trong
+package `api`, business logic và adapter nằm trong `modules`, còn DTO dùng chung,
+exception và security nằm trong `shared`.
 
 ```text
 log-monitoring-system/
 ├── apps/
 │   ├── backend/
-│   │   └── src/main/java/com/vdt/log_monitoring/
-│   │       ├── api/              # Controller và transport DTO
-│   │       ├── modules/
-│   │       │   ├── identity/     # User, auth, role, application access
-│   │       │   ├── ingestion/    # Nhận log, idempotency, publish logs.raw
-│   │       │   ├── processing/   # Future: consume logs.raw, normalize, store
-│   │       │   ├── log-query/    # Future: search log đã xử lý
-│   │       │   ├── incidents/    # Detect, group và quản lý incident
-│   │       │   ├── alerting/     # Rule, dedup và gửi cảnh báo
-│   │       │   ├── metrics/      # Future: đọc metrics/health signals
-│   │       │   ├── ai/           # RCA, severity, suggestion
-│   │       │   └── realtime/     # WebSocket event cho dashboard
-│   │       └── shared/           # Security, DTO, exception, config
+│   │   ├── src/main/java/com/vdt/log_monitoring/
+│   │   │   ├── api/
+│   │   │   │   ├── alerting/
+│   │   │   │   ├── analytics/
+│   │   │   │   ├── anomaly/
+│   │   │   │   ├── identity/
+│   │   │   │   ├── incident/
+│   │   │   │   ├── ingestion/
+│   │   │   │   ├── processing/
+│   │   │   │   ├── realtime/
+│   │   │   │   └── retention/
+│   │   │   ├── modules/
+│   │   │   │   ├── identity/     # User, auth, API key, app access, metric source
+│   │   │   │   ├── ingestion/    # Nhận log, idempotency, publish logs.raw
+│   │   │   │   ├── processing/   # Consume logs.raw, normalize, ClickHouse writer
+│   │   │   │   ├── realtime/     # Kafka live log consumer và WebSocket publisher
+│   │   │   │   ├── alerting/     # Rule, alert, dedup, Telegram, anomaly alert
+│   │   │   │   ├── anomaly/      # Log/metric anomaly detection và report
+│   │   │   │   ├── incident/     # Incident evidence và AI analysis workflow
+│   │   │   │   ├── analytics/    # Dashboard overview từ ClickHouse
+│   │   │   │   └── retention/    # Retention policy và retention run
+│   │   │   └── shared/           # Security, DTO, exception
+│   │   └── src/main/resources/
+│   │       └── db/migration/     # PostgreSQL Flyway và ClickHouse migration
 │   └── frontend/
-│       ├── features/
-│       │   ├── auth/
-│       │   ├── dashboard/
-│       │   ├── live-logs/
-│       │   ├── incidents/
-│       │   ├── alerts/
-│       │   ├── applications/
-│       │   └── profile/
-│       └── shared/
+│       └── src/features/
+│           ├── alert-rules/
+│           ├── alerts/
+│           ├── anomaly/
+│           ├── application-health/
+│           ├── applications/
+│           ├── auth/
+│           ├── dashboard/
+│           ├── incidents/
+│           ├── live-logs/
+│           ├── log-search/
+│           ├── notification-channels/
+│           ├── profile/
+│           ├── retention/
+│           └── user-access/
 ├── docs/
-├── scripts/
+│   ├── architecture.md
+│   ├── api.md
+│   ├── database.md
+│   └── diagram/
 ├── compose.yml
+├── prometheus.yml
 └── Makefile
 ```
 
 ## 5. Thành phần chính
 
-| Thành phần          | Vai trò                                      |
-| ------------------- | ------------------------------------------- |
-| Backend Spring Boot | API, auth, xử lý log, incident và alerting  |
-| React Dashboard     | Giao diện live log, incident và alert       |
-| Kafka               | Buffer log và xử lý bất đồng bộ             |
-| ClickHouse          | Lưu trữ và truy vấn log số lượng lớn        |
-| PostgreSQL          | Lưu user, application, incident và alert    |
-| Redis               | Dedup cảnh báo bằng TTL                     |
-| WebSocket           | Đẩy live log, incident và alert realtime    |
-| Metrics Store       | Future: Prometheus/Mimir/Thanos hoặc tương đương để đọc metrics |
-| Telegram Bot        | Gửi cảnh báo quan trọng                     |
-| AI Service          | Phân tích nguyên nhân và đề xuất xử lý      |
+| Thành phần          | Vai trò                                                        |
+| ------------------- | -------------------------------------------------------------- |
+| Backend Spring Boot | REST API, WebSocket, worker, auth, processing, alert, anomaly  |
+| React Dashboard     | UI quản trị, live log, alert, anomaly, incident, retention     |
+| Kafka               | Buffer log và truyền event giữa các bước xử lý                 |
+| ClickHouse          | Lưu `processed_logs`, search và analytics theo thời gian       |
+| PostgreSQL          | Lưu identity, alerting, anomaly report, incident, retention    |
+| Redis               | Idempotency, JWT blacklist, cache, dedup và metric snapshot    |
+| Prometheus          | Scrape metric target và cung cấp query API cho anomaly module  |
+| Node Exporter       | Cung cấp CPU, memory, disk, network metrics cho Prometheus     |
+| WebSocket           | Đẩy live log, alert và anomaly notification realtime           |
+| Telegram Bot        | Gửi cảnh báo và anomaly/AI report notification                 |
+| AI Provider         | Phân tích anomaly/incident evidence và đề xuất hướng xử lý     |
 
 ## 6. Công nghệ sử dụng
 
 Backend:
 
-- Java 21, Spring Boot
-- Spring Web, Spring Security, Spring Data JPA
+- Java 21, Spring Boot 3.5
+- Spring Web, Spring Security, Spring Data JPA, Spring WebSocket
 - JWT, Flyway, Springdoc OpenAPI
-- Kafka, Redis, ClickHouse
+- Spring Kafka, Redis, ClickHouse JDBC, PostgreSQL
 
 Frontend:
 
-- React, TypeScript, Vite
+- React 19, TypeScript, Vite
 - React Router, TanStack React Query, Axios
-- Tailwind CSS, ECharts
+- Tailwind CSS, ECharts, Radix UI, lucide-react
+- STOMP/WebSocket client cho realtime
 
 Infrastructure:
 
 - Docker, Docker Compose
-- PostgreSQL, ClickHouse, Redis, Kafka
-- Future metrics: Prometheus/node exporter hoặc OpenTelemetry Collector; khi
-  cần scale dài hạn có thể dùng Mimir/Thanos làm remote storage.
+- PostgreSQL 17, ClickHouse 25.3, Redis 8, Kafka 4
+- Kafka UI, Prometheus, Node Exporter
+- Telegram Bot API
+- Gemini-compatible incident AI provider
 
 ## 7. Ý tưởng thiết kế quan trọng
 
-- Kafka giúp tách bước nhận log khỏi bước xử lý nặng.
-- ClickHouse phù hợp cho dữ liệu log có khối lượng lớn và truy vấn theo thời gian.
-- Incident giúp gom nhiều log lỗi tương tự thành một sự cố có ý nghĩa hơn.
-- Metrics không thay thế log; metrics cung cấp tín hiệu định lượng để phát
-  hiện bất thường và làm giàu ngữ cảnh incident.
-- Redis deduplication giúp giảm alert fatigue.
-- AI chỉ phân tích trên incident đã được gom nhóm và đã redaction để giảm nhiễu,
-  tiết kiệm ngữ cảnh và tránh đưa dữ liệu nhạy cảm vào prompt.
-- Severity được phân loại sau bước correlation: `HIGH` cần xử lý khẩn cấp,
-  `MEDIUM` cần điều tra trong SLA, `LOW` dùng để theo dõi hoặc có thể bỏ qua.
-- Dashboard tập trung vào live log, incident và cảnh báo realtime.
+- Kafka tách bước nhận log khỏi các bước xử lý nặng và cho phép retry/DLT theo
+  từng luồng event.
+- ClickHouse phù hợp cho dữ liệu log lớn, append-heavy và truy vấn theo thời
+  gian.
+- PostgreSQL lưu dữ liệu nghiệp vụ có quan hệ như user, application, alert rule,
+  anomaly report, incident và retention policy.
+- Redis được dùng cho idempotency, token blacklist, cache rule, alert dedup và
+  snapshot metric anomaly có TTL.
+- Prometheus không thay thế log; Prometheus cung cấp metric định lượng để phát
+  hiện bất thường tài nguyên và làm giàu ngữ cảnh anomaly.
+- Alerting không chỉ dựa trên log level mà còn nhận anomaly event từ module
+  anomaly.
+- AI không nằm trong hot path ingestion; AI chạy sau khi đã có anomaly/incident
+  evidence để hỗ trợ RCA, severity và recommended action.
+- Frontend tách feature theo domain để khớp với module backend và workflow vận
+  hành.
 
-## 8. Hướng Mở Rộng Metrics và AI
+## 8. Metrics, Anomaly và AI
 
-Phần mở rộng theo định hướng mentor không đưa AI vào hot path nhận log. Hệ
-thống sẽ tiếp tục nhận log qua Kafka, còn metrics được đọc từ backend thông qua
-metrics store riêng.
+Hệ thống hiện dùng Prometheus theo mô hình HTTP service discovery. Backend expose
+endpoint `/internal/prometheus/targets` dựa trên metric source đã cấu hình cho
+từng application. Prometheus scrape node/application metrics, còn anomaly module
+query Prometheus để lấy CPU, memory, disk và network signal.
 
-Nguồn metrics dự kiến:
+Nguồn anomaly hiện tại:
 
-- Node/service metrics: CPU, RAM, disk, service uptime/restart.
-- Application metrics: request rate, latency, error rate, queue lag.
-- Security/auth signals: login failed spike, login từ nguồn bất thường.
+- Log signal từ processing qua Kafka `logs.anomaly.signals`.
+- Metric snapshot từ Prometheus query, lưu tạm trong Redis.
+- Threshold/dedup state cho anomaly rule trong Redis.
 
-Luồng mở rộng:
+Luồng anomaly:
 
 ```text
-Node exporter / application metrics / OpenTelemetry
-  -> Prometheus-compatible metrics store
-  -> metrics query/correlation component
-  -> incident detection
-  -> AI analysis
-  -> severity classification
-  -> alerting / dashboard
+logs.raw
+  -> processing
+  -> logs.anomaly.signals
+  -> anomaly log detector
+  -> anomaly_reports
+  -> anomaly.detected
+  -> alerting / Telegram / WebSocket / AI workflow
+
+Prometheus targets
+  -> Prometheus scrape
+  -> anomaly metric worker query Prometheus
+  -> Redis metric snapshot
+  -> metric anomaly detector
+  -> anomaly_reports
+  -> anomaly.detected
 ```
 
-Khi cần scale:
-
-- Metrics collection scale bằng nhiều scraper/collector theo service hoặc
-  namespace.
-- Metrics storage scale bằng remote write sang Mimir/Thanos hoặc hệ tương
-  đương.
-- Correlation worker chạy async và scale ngang theo application/time window.
-- AI analysis chạy async qua Kafka `incidents.ai`, không chặn ingestion,
-  processing hoặc alert delivery.
+AI workflow nhận anomaly/incident evidence sau khi anomaly được phát hiện. Kết
+quả AI được lưu lại vào anomaly report hoặc incident analysis để dashboard hiển
+thị tóm tắt, giả thuyết nguyên nhân và hành động đề xuất.
 
 ## 9. Luồng demo mong muốn
 
 ```text
-Generate many logs
-  -> Ingestion API accepts logs
-  -> Kafka buffers logs
-  -> Worker normalizes and stores logs
-  -> Similar errors are grouped into one incident
-  -> Related metrics enrich incident context
-  -> AI analyzes the incident
-  -> Redis prevents duplicate notifications
-  -> Dashboard and Telegram receive one clear alert
+Generate logs and metrics
+  -> Ingestion API accepts single/batch logs
+  -> Kafka buffers raw logs
+  -> Processing worker normalizes and stores logs in ClickHouse
+  -> Realtime module pushes live logs to dashboard
+  -> Alerting evaluates critical/error signals with Redis dedup
+  -> Prometheus scrapes node/application metrics
+  -> Anomaly module detects log/metric anomalies
+  -> Anomaly alert and AI analysis are created
+  -> Dashboard and Telegram receive clear notifications
 ```
 
 Kết quả mong muốn:
 
-- Hệ thống nhận nhiều log liên tục mà không bị quá tải.
-- Dashboard hiển thị live log và incident realtime.
-- Nhiều log lỗi giống nhau được gom thành một incident dễ hiểu.
-- Alert không bị spam khi cùng một lỗi lặp lại.
-- AI đưa ra tóm tắt nguyên nhân và hướng xử lý ban đầu.
+- Hệ thống nhận nhiều log liên tục mà không chặn API ingestion.
+- Dashboard hiển thị live log, alert, anomaly report, incident và health metric.
+- Alert không bị spam khi cùng một lỗi hoặc anomaly lặp lại trong cửa sổ dedup.
+- Prometheus metric giúp phát hiện bất thường tài nguyên bên cạnh log error.
+- AI đưa ra tóm tắt nguyên nhân, mức độ ảnh hưởng và hướng xử lý ban đầu.

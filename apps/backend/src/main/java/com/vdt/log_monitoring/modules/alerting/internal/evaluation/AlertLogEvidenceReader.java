@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import com.vdt.log_monitoring.modules.alerting.internal.alert.AlertLogSample;
+import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertSeverity;
 
 import javax.sql.DataSource;
 
@@ -25,34 +26,43 @@ public class AlertLogEvidenceReader {
 		this.clickHouseDataSource = clickHouseDataSource;
 	}
 
-	public List<AlertLogSample> findTopErrorLogSamples(
+	public List<AlertLogSample> findTopLogSamples(
 		UUID applicationId,
 		Instant windowStart,
-		Instant windowEnd
+		Instant windowEnd,
+		AlertSeverity minSeverity
 	) {
 		if (applicationId == null) {
 			return new ArrayList<>();
 		}
+		List<String> levels = levelsAtOrAbove(minSeverity);
+		String levelPlaceholders = String.join(", ", java.util.Collections.nCopies(levels.size(), "?"));
 		String sql = """
 			SELECT any(level) AS sample_level, any(message) AS sample_message
 			FROM processed_logs
 			WHERE application_id = ?
 			  AND log_timestamp >= ?
 			  AND log_timestamp <= ?
-			  AND level IN ('ERROR', 'CRITICAL')
+			  AND level IN (%s)
 			  AND fingerprint IS NOT NULL
 			  AND fingerprint != ''
 			GROUP BY fingerprint
 			ORDER BY count() DESC, min(log_timestamp) ASC
 			LIMIT %d
-			""".formatted(TOP_FINGERPRINT_LIMIT);
+			""".formatted(
+				levelPlaceholders,
+				TOP_FINGERPRINT_LIMIT);
 		try (
 			var connection = clickHouseDataSource.getConnection();
 			var statement = connection.prepareStatement(sql)
 		) {
-			statement.setObject(1, applicationId);
-			statement.setTimestamp(2, Timestamp.from(windowStart));
-			statement.setTimestamp(3, Timestamp.from(windowEnd));
+			int parameterIndex = 1;
+			statement.setObject(parameterIndex++, applicationId);
+			statement.setTimestamp(parameterIndex++, Timestamp.from(windowStart));
+			statement.setTimestamp(parameterIndex++, Timestamp.from(windowEnd));
+			for (String level : levels) {
+				statement.setString(parameterIndex++, level);
+			}
 			try (var resultSet = statement.executeQuery()) {
 				List<AlertLogSample> samples = new ArrayList<>();
 				while (resultSet.next()) {
@@ -67,8 +77,16 @@ public class AlertLogEvidenceReader {
 				return samples;
 			}
 		} catch (Exception exception) {
-			log.warn("Failed to collect top error log samples for alert rule evaluation", exception);
+			log.warn("Failed to collect alert log samples for alert rule evaluation", exception);
 			return List.of(new AlertLogSample("ERROR", "Failed to fetch log samples due to a ClickHouse error"));
 		}
+	}
+
+	private List<String> levelsAtOrAbove(AlertSeverity minSeverity) {
+		AlertSeverity threshold = minSeverity == null ? AlertSeverity.ERROR : minSeverity;
+		return java.util.Arrays.stream(AlertSeverity.values())
+			.filter(severity -> severity.ordinal() >= threshold.ordinal())
+			.map(AlertSeverity::name)
+			.toList();
 	}
 }
