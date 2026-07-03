@@ -3,10 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { PageHeaderProvider } from "@/shared/layouts/page-header-context";
 import { Component as LogSearchPage } from "./LogSearchPage";
+import type { LogSearchFilters } from "./log-search-types";
 
 vi.mock("@/features/log-search/log-search-adapter", () => {
   return {
-    searchLogs: vi.fn(async (filters: any) => {
+    searchLogs: vi.fn(async (filters: LogSearchFilters) => {
       if (filters.query === "invoice") {
         return {
           applications: [{ id: "billing-worker", name: "Billing Worker" }],

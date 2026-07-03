@@ -10,7 +10,7 @@ export async function searchLogs(
   page?: number,
   pageSize?: number,
 ): Promise<LogSearchSnapshot> {
-  const response = await apiClient.get<LogSearchSnapshot>("/api/v1/logs/search", {
+  const response = await apiClient.get<LogSearchSnapshot>("/logs/search", {
     params: {
       query: filters.query || undefined,
       applicationId: filters.applicationId || undefined,
