@@ -132,7 +132,47 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
     extra_hosts:
-      - "host.docker.internal:${WSL_IP:-${BACKEND_HOST:-host-gateway}}"
+      - "host.docker.internal:host-gateway"
+
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+      - ./apps/backend/.env
+    environment:
+      - POSTGRES_URL=jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CLICKHOUSE_URL=jdbc:clickhouse://clickhouse:8123/${CLICKHOUSE_DB}
+      - BACKEND_HOST=backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=/api/v1
+        - VITE_WS_URL=/ws
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
 
 volumes:
   postgres-data:
