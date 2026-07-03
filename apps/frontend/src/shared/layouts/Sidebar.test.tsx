@@ -1,12 +1,7 @@
 import { createRef, useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {
-  MemoryRouter,
-  Route,
-  Routes,
-  useLocation
-} from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import MobileSidebarDrawer from "@/shared/layouts/MobileSidebarDrawer";
 import Sidebar from "@/shared/layouts/Sidebar";
@@ -18,7 +13,7 @@ function LocationValue() {
 function renderSidebar({
   role = "ADMIN",
   path = "/",
-  badgeCounts
+  badgeCounts,
 }: {
   role?: string;
   path?: string;
@@ -30,7 +25,7 @@ function renderSidebar({
       <Routes>
         <Route path="*" element={<LocationValue />} />
       </Routes>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 }
 
@@ -72,14 +67,14 @@ describe("Sidebar", () => {
     rerender(
       <MemoryRouter>
         <Sidebar role="ENGINEER" />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(screen.queryByText("Administration")).not.toBeInTheDocument();
 
     rerender(
       <MemoryRouter>
         <Sidebar role="UNKNOWN" />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(screen.queryByText("Administration")).not.toBeInTheDocument();
   });
@@ -89,24 +84,39 @@ describe("Sidebar", () => {
 
     expect(screen.getByRole("link", { name: "Live Logs" })).toHaveAttribute(
       "aria-current",
-      "page"
+      "page",
     );
     expect(screen.getByRole("link", { name: "Overview" })).not.toHaveAttribute(
-      "aria-current"
+      "aria-current",
     );
   });
 
-  it("navigates implemented items and keeps unavailable items inert", async () => {
+  it("keeps log search active without also activating live logs", () => {
+    renderSidebar({ path: "/logs/search" });
+
+    expect(screen.getByRole("link", { name: "Log Search" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "Live Logs" })).not.toHaveAttribute(
+      "aria-current",
+    );
+  });
+
+  it("does not render removed placeholder navigation items", () => {
+    renderSidebar();
+
+    expect(screen.queryByText("AI Insights")).not.toBeInTheDocument();
+    expect(screen.queryByText("System Operations")).not.toBeInTheDocument();
+    expect(screen.queryByText("Settings")).not.toBeInTheDocument();
+  });
+
+  it("navigates implemented monitoring items", async () => {
     const user = userEvent.setup();
     renderSidebar({ path: "/logs" });
 
-    await user.click(screen.getByRole("button", { name: /log search/i }));
-    expect(screen.getByTestId("location")).toHaveTextContent("/logs");
-    expect(
-      screen.getByRole("button", {
-        name: "Log Search, currently unavailable"
-      })
-    ).toHaveTextContent("Log Search");
+    await user.click(screen.getByRole("link", { name: "Log Search" }));
+    expect(screen.getByTestId("location")).toHaveTextContent("/logs/search");
 
     await user.click(screen.getByRole("link", { name: "Overview" }));
     expect(screen.getByTestId("location")).toHaveTextContent("/");
@@ -114,21 +124,21 @@ describe("Sidebar", () => {
 
   it("formats alert badges without reserving an empty badge", () => {
     const { rerender } = renderSidebar({
-      badgeCounts: { alerts: 0 }
+      badgeCounts: { alerts: 0 },
     });
     expect(screen.queryByLabelText("0 alerts")).not.toBeInTheDocument();
 
     rerender(
       <MemoryRouter>
         <Sidebar badgeCounts={{ alerts: 4 }} role="ADMIN" />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(screen.getByText("4")).toBeInTheDocument();
 
     rerender(
       <MemoryRouter>
         <Sidebar badgeCounts={{ alerts: 100 }} role="ADMIN" />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(screen.getByText("99+")).toBeInTheDocument();
   });
@@ -155,7 +165,7 @@ describe("MobileSidebarDrawer", () => {
 
     render(<DrawerHarness onClose={onClose} />);
     await userEvent.click(
-      screen.getByRole("button", { name: "Close navigation" })
+      screen.getByRole("button", { name: "Close navigation" }),
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -165,14 +175,18 @@ describe("MobileSidebarDrawer", () => {
     render(<DrawerHarness />);
 
     const closeButton = screen.getByRole("button", {
-      name: "Close navigation"
+      name: "Close navigation",
     });
     expect(closeButton).toHaveFocus();
 
     await user.tab({ shift: true });
-    expect(screen.getByRole("button", { name: /settings/i })).toHaveFocus();
+    expect(
+      screen.getByRole("link", { name: "Retention Policies" }),
+    ).toHaveFocus();
 
     await user.click(closeButton);
-    expect(screen.getByRole("button", { name: "Toggle navigation" })).toHaveFocus();
+    expect(
+      screen.getByRole("button", { name: "Toggle navigation" }),
+    ).toHaveFocus();
   });
 });

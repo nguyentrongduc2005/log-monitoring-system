@@ -44,7 +44,7 @@ export default function ApplicationFormDialog({
       footer={
         <>
           <button
-            className="min-h-11 rounded-xl border border-border px-5 text-sm font-medium text-text transition hover:bg-surface-raised"
+            className="min-h-11 rounded-lg border border-border px-5 text-sm font-medium text-text transition hover:bg-surface-raised"
             disabled={saving}
             onClick={onClose}
             type="button"
@@ -52,7 +52,7 @@ export default function ApplicationFormDialog({
             Cancel
           </button>
           <button
-            className="min-h-11 rounded-xl bg-primary px-5 text-sm font-semibold text-black transition hover:bg-primary-hover disabled:opacity-50"
+            className="min-h-11 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:opacity-50"
             disabled={saving || !name.trim() || !displayName.trim()}
             form="application-form"
             type="submit"
@@ -70,7 +70,7 @@ export default function ApplicationFormDialog({
           <span className="text-sm font-medium text-text">Application name</span>
           <input
             autoFocus
-            className="mt-2 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="mt-2 w-full rounded-lg border border-border bg-background px-4 py-3 text-sm text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             onChange={event => setName(event.target.value)}
             placeholder="billing-service"
             required
@@ -80,7 +80,7 @@ export default function ApplicationFormDialog({
         <label className="block">
           <span className="text-sm font-medium text-text">Display name</span>
           <input
-            className="mt-2 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="mt-2 w-full rounded-lg border border-border bg-background px-4 py-3 text-sm text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             onChange={event => setDisplayName(event.target.value)}
             placeholder="Billing Service"
             required
@@ -90,7 +90,7 @@ export default function ApplicationFormDialog({
         <label className="block">
           <span className="text-sm font-medium text-text">Description</span>
           <textarea
-            className="mt-2 min-h-28 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="mt-2 min-h-28 w-full rounded-lg border border-border bg-background px-4 py-3 text-sm text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             onChange={event => setDescription(event.target.value)}
             placeholder="What does this application do?"
             value={description}

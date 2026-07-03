@@ -207,7 +207,7 @@ export default function UserDetailsDialog({
             Close
           </button>
           <button
-            className="min-h-10 rounded-md bg-primary px-4 text-sm font-semibold text-black transition hover:bg-primary-hover"
+            className="min-h-10 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover"
             disabled={isDeleted}
             onClick={() => onManageAccess(detail)}
             type="button"

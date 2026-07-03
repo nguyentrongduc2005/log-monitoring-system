@@ -3,11 +3,16 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PageHeaderProvider } from "@/shared/layouts/page-header-context";
 import { Component as RetentionPage } from "./RetentionPage";
-import { getRetentionJobs, saveRetentionJobs } from "./retention-adapter";
+import {
+  getRetentionJobs,
+  runRetentionJob,
+  saveRetentionJobs
+} from "./retention-adapter";
 import type { RetentionJob } from "./retention-types";
 
 vi.mock("./retention-adapter", () => ({
   getRetentionJobs: vi.fn(),
+  runRetentionJob: vi.fn(),
   saveRetentionJobs: vi.fn()
 }));
 
@@ -18,18 +23,18 @@ const retentionJobs: RetentionJob[] = [
     label: "INFO logs",
     description: "Routine application logs and request traces.",
     retentionDays: 30,
-    action: "DELETE",
     minDays: 7,
     maxDays: 365,
-    storageTb: 2.1,
-    storagePercent: 45,
-    projectedDeletionTbPerMonth: 0.72,
-    compressionSavingsGbPerMonth: 120,
+    enabled: true,
     nextRunAt: "2026-06-12T04:00:00Z",
     recentOperation: {
+      id: "ret-run-info-existing",
+      policyId: "ret-info",
       status: "SUCCESS",
       message: "Purged 1.1TB of expired INFO logs from production cluster.",
-      occurredAt: "2026-06-11T01:00:00Z"
+      startedAt: "2026-06-11T01:00:00Z",
+      finishedAt: "2026-06-11T01:01:00Z",
+      affectedRows: 1200
     }
   },
   {
@@ -38,18 +43,18 @@ const retentionJobs: RetentionJob[] = [
     label: "WARN logs",
     description: "Potentially degraded behavior.",
     retentionDays: 90,
-    action: "COMPRESS",
     minDays: 14,
     maxDays: 365,
-    storageTb: 1.5,
-    storagePercent: 32,
-    projectedDeletionTbPerMonth: 0.18,
-    compressionSavingsGbPerMonth: 240,
+    enabled: true,
     nextRunAt: "2026-06-12T04:00:00Z",
     recentOperation: {
-      status: "WARNING",
-      message: "Compression ratio fell below 20%.",
-      occurredAt: "2026-06-10T22:00:00Z"
+      id: "ret-run-warn-existing",
+      policyId: "ret-warn",
+      status: "FAILED",
+      message: "Retention delete failed.",
+      startedAt: "2026-06-10T22:00:00Z",
+      finishedAt: "2026-06-10T22:01:00Z",
+      affectedRows: 0
     }
   },
   {
@@ -58,18 +63,18 @@ const retentionJobs: RetentionJob[] = [
     label: "ERROR logs",
     description: "Application errors retained longer.",
     retentionDays: 180,
-    action: "ARCHIVE",
     minDays: 30,
     maxDays: 365,
-    storageTb: 0.6,
-    storagePercent: 16,
-    projectedDeletionTbPerMonth: 0.3,
-    compressionSavingsGbPerMonth: 60,
+    enabled: true,
     nextRunAt: "2026-06-12T04:00:00Z",
     recentOperation: {
+      id: "ret-run-error-existing",
+      policyId: "ret-error",
       status: "SUCCESS",
-      message: "Archived 240GB of ERROR logs.",
-      occurredAt: "2026-06-10T19:00:00Z"
+      message: "Deleted expired ERROR logs.",
+      startedAt: "2026-06-10T19:00:00Z",
+      finishedAt: "2026-06-10T19:01:00Z",
+      affectedRows: 45
     }
   },
   {
@@ -78,19 +83,11 @@ const retentionJobs: RetentionJob[] = [
     label: "CRITICAL logs",
     description: "High-severity failures kept longest.",
     retentionDays: 365,
-    action: "ARCHIVE",
     minDays: 90,
     maxDays: 730,
-    storageTb: 0.3,
-    storagePercent: 7,
-    projectedDeletionTbPerMonth: 0.05,
-    compressionSavingsGbPerMonth: 30,
+    enabled: false,
     nextRunAt: "2026-06-12T04:00:00Z",
-    recentOperation: {
-      status: "SUCCESS",
-      message: "Archived 80GB of CRITICAL logs.",
-      occurredAt: "2026-06-10T18:30:00Z"
-    }
+    recentOperation: null
   }
 ];
 
@@ -106,6 +103,15 @@ describe("RetentionPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getRetentionJobs).mockResolvedValue(retentionJobs);
+    vi.mocked(runRetentionJob).mockResolvedValue({
+      id: "ret-run-info",
+      policyId: "ret-info",
+      status: "SUCCESS",
+      message: "Deleted 42 expired INFO logs.",
+      startedAt: "2026-06-12T04:00:00Z",
+      finishedAt: "2026-06-12T04:00:01Z",
+      affectedRows: 42
+    });
     vi.mocked(saveRetentionJobs).mockResolvedValue(retentionJobs);
   });
 
@@ -116,7 +122,7 @@ describe("RetentionPage", () => {
     expect(screen.getAllByText("WARN logs")).toHaveLength(2);
     expect(screen.getAllByText("ERROR logs")).toHaveLength(2);
     expect(screen.getAllByText("CRITICAL logs")).toHaveLength(2);
-    expect(screen.getByText("Storage Distribution")).toBeInTheDocument();
+    expect(screen.getByText("Policy Windows")).toBeInTheDocument();
   });
 
   it("saves updated retention settings for existing jobs", async () => {
@@ -125,7 +131,7 @@ describe("RetentionPage", () => {
 
     const infoSlider = await screen.findByLabelText("INFO logs retention days");
     fireEvent.change(infoSlider, { target: { value: "21" } });
-    await user.click(screen.getAllByRole("radio", { name: "Compress" })[0]);
+    await user.click(screen.getAllByRole("checkbox", { name: "Enabled" })[0]);
     await user.click(screen.getByRole("button", { name: "Save Changes" }));
 
     await waitFor(() =>
@@ -134,7 +140,7 @@ describe("RetentionPage", () => {
           expect.objectContaining({
             id: "ret-info",
             retentionDays: 21,
-            action: "COMPRESS"
+            enabled: false
           }),
           expect.objectContaining({ id: "ret-warn" }),
           expect.objectContaining({ id: "ret-error" }),
@@ -142,5 +148,16 @@ describe("RetentionPage", () => {
         ])
       )
     );
+  });
+
+  it("runs a saved retention policy immediately", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("Log Aging Controls");
+    await user.click(screen.getAllByRole("button", { name: "Run now" })[0]);
+
+    await waitFor(() => expect(runRetentionJob).toHaveBeenCalledWith("ret-info"));
+    expect(await screen.findByText("Deleted 42 expired INFO logs.")).toBeInTheDocument();
   });
 });

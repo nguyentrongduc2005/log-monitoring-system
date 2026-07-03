@@ -33,7 +33,6 @@ export type LiveLogFilters = {
   applicationId: string;
   level: "ALL" | LogLevel;
   keyword: string;
-  traceId: string;
 };
 
 export type LiveLogSnapshot = {

@@ -15,3 +15,23 @@ export type ApiEnvelope<T> = {
   data?: T;
   timestamp?: string;
 };
+
+export type MetricSource = {
+  id: string;
+  applicationId: string;
+  targetHost: string;
+  targetPort: number;
+  metricsPath: string;
+  scrapeInterval: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MetricSourceRequest = {
+  targetHost: string;
+  targetPort: number;
+  metricsPath: string;
+  scrapeInterval: string;
+  enabled: boolean;
+};

@@ -1,90 +1,122 @@
+import { Client, type StompSubscription } from "@stomp/stompjs";
+import { apiClient } from "@/api/client";
 import type {
+  ApiEnvelope,
+  Application
+} from "@/features/applications/application-types";
+import type {
+  ApplicationOption,
+  LiveConnectionState,
   LiveLogEntry,
   LiveLogFilters,
-  LiveLogSnapshot
+  LiveLogSnapshot,
+  LogLevel
 } from "@/features/live-logs/live-logs-types";
 
 export const MAX_VISIBLE_LOGS = 300;
 
-const snapshot: LiveLogSnapshot = {
-  applications: [
-    { id: "checkout-api", name: "checkout-api" },
-    { id: "billing-worker", name: "billing-worker" },
-    { id: "identity-service", name: "identity-service" }
-  ],
-  entries: [
-    {
-      id: "log-1",
-      timestamp: "2026-06-09T10:15:04Z",
-      applicationId: "checkout-api",
-      applicationName: "checkout-api",
-      level: "CRITICAL",
-      message: "Payment gateway timeout exceeded the critical threshold.",
-      traceId: "trace-checkout-1",
-      eventId: "evt-1001",
-      ingestionId: "ing-9001",
-      source: "api",
-      host: "checkout-01",
-      environment: "production",
-      attributes: {
-        region: "ap-southeast-1",
-        fingerprint: "PAYMENT_GATEWAY_TIMEOUT"
-      }
-    },
-    {
-      id: "log-2",
-      timestamp: "2026-06-09T10:15:01Z",
-      applicationId: "billing-worker",
-      applicationName: "billing-worker",
-      level: "ERROR",
-      message: "Invoice retry queue is growing faster than the worker drain rate.",
-      traceId: "trace-billing-1",
-      eventId: "evt-1002",
-      ingestionId: "ing-9002",
-      source: "worker",
-      host: "billing-02",
-      environment: "production",
-      attributes: {
-        queue: "invoice-retries",
-        shard: "b-02"
-      }
-    },
-    {
-      id: "log-3",
-      timestamp: "2026-06-09T10:14:57Z",
-      applicationId: "identity-service",
-      applicationName: "identity-service",
-      level: "WARN",
-      message: "Refresh token latency exceeded the staging baseline.",
-      traceId: "trace-identity-7",
-      eventId: "evt-1003",
-      ingestionId: "ing-9003",
-      source: "api",
-      host: "identity-03",
-      environment: "staging"
-    },
-    {
-      id: "log-4",
-      timestamp: "2026-06-09T10:14:50Z",
-      applicationId: "checkout-api",
-      applicationName: "checkout-api",
-      level: "INFO",
-      message: "Order checkout completed successfully.",
-      traceId: "trace-checkout-2",
-      eventId: "evt-1004",
-      ingestionId: "ing-9004",
-      source: "api",
-      host: "checkout-01",
-      environment: "production"
-    }
-  ],
-  connectionState: "live",
-  buffered: 4,
-  dropped: 0
+type LiveLogMessage = {
+  eventId: string;
+  ingestionId: string;
+  applicationId: string;
+  applicationName: string;
+  applicationDisplayName?: string | null;
+  level: LogLevel | string;
+  message: string;
+  traceId?: string | null;
+  logTimestamp: string;
+  processedAt: string;
 };
 
+type LiveLogConnectionOptions = {
+  accessToken: string;
+  applications: ApplicationOption[];
+  onLog: (entry: LiveLogEntry) => void;
+  onStateChange: (state: LiveConnectionState) => void;
+};
+
+type LiveLogConnection = {
+  disconnect: () => void;
+};
+
+function requireData<T>(
+  envelope: ApiEnvelope<T>,
+  fallbackMessage: string
+): T {
+  if (envelope.data === undefined || envelope.data === null) {
+    throw new Error(envelope.message || fallbackMessage);
+  }
+
+  return envelope.data;
+}
+
 export async function getInitialLiveLogSnapshot(): Promise<LiveLogSnapshot> {
-  return Promise.resolve(snapshot);
+  const response =
+    await apiClient.get<ApiEnvelope<Application[]>>("/applications/me");
+  const applications = requireData(
+    response.data,
+    "Unable to load authorized applications."
+  )
+    .map(toApplicationOption)
+    .filter((application) => application.id !== "");
+
+  return {
+    applications,
+    entries: [],
+    connectionState: applications.length > 0 ? "connecting" : "disconnected",
+    buffered: 0,
+    dropped: 0
+  };
+}
+
+export function createLiveLogConnection({
+  accessToken,
+  applications,
+  onLog,
+  onStateChange
+}: LiveLogConnectionOptions): LiveLogConnection {
+  const subscriptions: StompSubscription[] = [];
+  const client = new Client({
+    brokerURL: normalizeWebSocketUrl(import.meta.env.VITE_WS_URL),
+    connectHeaders: {
+      Authorization: `Bearer ${accessToken}`
+    },
+    reconnectDelay: 5_000,
+    onConnect: () => {
+      onStateChange("live");
+      applications.forEach((application) => {
+        subscriptions.push(
+          client.subscribe(
+            `/topic/applications/${application.id}/logs`,
+            (message) => {
+              onLog(toLiveLogEntry(JSON.parse(message.body) as LiveLogMessage));
+            }
+          )
+        );
+      });
+    },
+    onWebSocketClose: () => {
+      onStateChange("disconnected");
+    },
+    onStompError: () => {
+      onStateChange("error");
+    },
+    onWebSocketError: () => {
+      onStateChange("error");
+    }
+  });
+
+  onStateChange("connecting");
+  client.activate();
+
+  return {
+    disconnect: () => {
+      subscriptions
+        .splice(0)
+        .forEach((subscription) => subscription.unsubscribe());
+      void client.deactivate();
+    }
+  };
 }
 
 export function filterLiveLogEntries(
@@ -92,7 +124,6 @@ export function filterLiveLogEntries(
   filters: LiveLogFilters
 ): LiveLogEntry[] {
   const keyword = filters.keyword.trim().toLowerCase();
-  const traceId = filters.traceId.trim().toLowerCase();
 
   return entries.filter((entry) => {
     if (filters.applicationId && entry.applicationId !== filters.applicationId) {
@@ -107,10 +138,52 @@ export function filterLiveLogEntries(
       return false;
     }
 
-    if (traceId && !entry.traceId?.toLowerCase().includes(traceId)) {
-      return false;
-    }
-
     return true;
   });
+}
+
+function toApplicationOption(application: Application): ApplicationOption {
+  return {
+    id: application.id ?? "",
+    name: application.displayName || application.name || "Unnamed application"
+  };
+}
+
+function toLiveLogEntry(message: LiveLogMessage): LiveLogEntry {
+  return {
+    id: message.eventId,
+    timestamp: message.logTimestamp,
+    applicationId: message.applicationId,
+    applicationName: message.applicationDisplayName || message.applicationName,
+    level: normalizeLevel(message.level),
+    message: message.message,
+    traceId: message.traceId ?? undefined,
+    eventId: message.eventId,
+    ingestionId: message.ingestionId
+  };
+}
+
+function normalizeLevel(level: string): LogLevel {
+  if (
+    level === "INFO" ||
+    level === "WARN" ||
+    level === "ERROR" ||
+    level === "CRITICAL"
+  ) {
+    return level;
+  }
+
+  return "INFO";
+}
+
+function normalizeWebSocketUrl(value: string): string {
+  if (value.startsWith("http://")) {
+    return value.replace("http://", "ws://");
+  }
+
+  if (value.startsWith("https://")) {
+    return value.replace("https://", "wss://");
+  }
+
+  return value;
 }

@@ -1,112 +1,121 @@
-import type { AlertRule, AlertRuleDraft } from "./alert-rules-types";
+import { isAxiosError } from "axios";
+import { apiClient } from "@/api/client";
+import type {
+  AlertRule,
+  AlertRuleDraft,
+  AlertRuleRequest,
+  AlertRuleStatus,
+  ApiEnvelope,
+  ChatRoom
+} from "./alert-rules-types";
 
-let alertRules: AlertRule[] = [
-  {
-    id: "rule-auth-401-flood",
-    name: "Auth-401-Flood",
-    applicationName: "Payment Gateway",
-    serviceName: "auth-service",
-    severity: "CRITICAL",
-    metric: "LOG_COUNT",
-    operator: ">",
-    threshold: 500,
-    windowSeconds: 30,
-    channelType: "Telegram",
-    channelTarget: "#ops-critical",
-    status: "RUNNING",
-    triggered24h: 14,
-    breached24h: 44,
-    lastTriggeredAt: "2026-06-11T04:40:00Z"
-  },
-  {
-    id: "rule-payment-latency",
-    name: "Payment-Latency-Spike",
-    applicationName: "Payment Gateway",
-    serviceName: "payment-gateway",
-    severity: "ERROR",
-    metric: "LATENCY_P95",
-    operator: ">",
-    threshold: 2500,
-    windowSeconds: 300,
-    channelType: "Email",
-    channelTarget: "payments-oncall@logpulse.local",
-    status: "RUNNING",
-    triggered24h: 8,
-    breached24h: 31,
-    lastTriggeredAt: "2026-06-11T03:20:00Z"
-  },
-  {
-    id: "rule-disk-space",
-    name: "Disk-Space-Warn",
-    applicationName: "Database Node",
-    serviceName: "clickhouse-cluster",
-    severity: "WARN",
-    metric: "DISK_USAGE",
-    operator: ">",
-    threshold: 85,
-    windowSeconds: 600,
-    channelType: "Webhook",
-    channelTarget: "https://hooks.logpulse.local/storage",
-    status: "MUTED",
-    triggered24h: 0,
-    breached24h: 3
+function requireData<T>(envelope: ApiEnvelope<T>, fallbackMessage: string): T {
+  if (envelope.data === undefined || envelope.data === null) {
+    throw new Error(envelope.message || fallbackMessage);
   }
-];
-
-function delay() {
-  return new Promise(resolve => window.setTimeout(resolve, 120));
+  return envelope.data;
 }
 
-export async function getAlertRules() {
-  await delay();
-  return alertRules.map(rule => ({ ...rule }));
+export function getAlertingError(
+  error: unknown,
+  fallbackMessage = "Unable to complete this action."
+) {
+  if (!isAxiosError(error)) {
+    return error instanceof Error ? error.message : fallbackMessage;
+  }
+  if (!error.response) {
+    return "Unable to reach the server. Check your connection.";
+  }
+  const data = error.response.data;
+  if (
+    typeof data === "object" &&
+    data !== null &&
+    "message" in data &&
+    typeof data.message === "string"
+  ) {
+    return data.message;
+  }
+  return fallbackMessage;
 }
 
-export async function saveAlertRule(draft: AlertRuleDraft, id?: string) {
-  await delay();
+function toRequest(draft: AlertRuleDraft, includeApplication: boolean): AlertRuleRequest {
+  const activeStartTime = draft.activeAllDay ? null : draft.activeStartTime;
+  const activeEndTime = draft.activeAllDay ? null : draft.activeEndTime;
+  const deliveryTargets = [
+    ...(draft.websocketEnabled
+      ? [{ channel: "WEBSOCKET" as const, chatRoomId: null }]
+      : []),
+    ...draft.telegramChatRoomIds.map(chatRoomId => ({
+      channel: "TELEGRAM" as const,
+      chatRoomId
+    }))
+  ];
 
-  if (id) {
-    const current = alertRules.find(rule => rule.id === id);
-    const updated: AlertRule = {
-      ...draft,
-      id,
-      status: current?.status ?? "RUNNING",
-      triggered24h: current?.triggered24h ?? 0,
-      breached24h: current?.breached24h ?? 0,
-      lastTriggeredAt: current?.lastTriggeredAt
-    };
-    alertRules = alertRules.map(rule => (rule.id === id ? updated : rule));
-    return { ...updated };
-  }
-
-  const created: AlertRule = {
-    ...draft,
-    id: `rule-${Date.now()}`,
-    status: "RUNNING",
-    triggered24h: 0,
-    breached24h: 0
+  return {
+    ...(includeApplication ? { applicationId: draft.applicationId } : {}),
+    name: draft.name.trim(),
+    description: draft.description.trim() || undefined,
+    minSeverity: draft.minSeverity,
+    severity: draft.severity,
+    keywordPattern: draft.keywordPattern.trim() || undefined,
+    thresholdCount: draft.thresholdCount,
+    thresholdWindowSeconds: draft.thresholdWindowSeconds,
+    cooldownSeconds: draft.cooldownSeconds,
+    activeStartTime,
+    activeEndTime,
+    deliveryTargets
   };
-  alertRules = [created, ...alertRules];
-  return { ...created };
 }
 
-export async function toggleAlertRule(id: string) {
-  await delay();
-  let updated: AlertRule | undefined;
-  alertRules = alertRules.map(rule => {
-    if (rule.id !== id) {
-      return rule;
-    }
-    updated = {
-      ...rule,
-      status: rule.status === "RUNNING" ? "MUTED" : "RUNNING"
-    };
-    return updated;
+export async function getAlertRules(applicationId?: string): Promise<AlertRule[]> {
+  const response = await apiClient.get<ApiEnvelope<AlertRule[]>>("/alert-rules", {
+    params: applicationId ? { applicationId } : undefined
   });
+  return requireData(response.data, "Unable to load alert rules.");
+}
 
-  if (!updated) {
-    throw new Error("Alert rule not found");
-  }
+export async function saveAlertRule(
+  draft: AlertRuleDraft,
+  id?: string
+): Promise<AlertRule> {
+  const response = id
+    ? await apiClient.put<ApiEnvelope<AlertRule>>(
+        `/alert-rules/${id}`,
+        toRequest(draft, false)
+      )
+    : await apiClient.post<ApiEnvelope<AlertRule>>(
+        "/alert-rules",
+        toRequest(draft, true)
+      );
+  return requireData(response.data, "Unable to save alert rule.");
+}
 
-  return { ...updated };
+export async function changeAlertRuleStatus(
+  id: string,
+  status: AlertRuleStatus
+): Promise<AlertRule> {
+  const response = await apiClient.put<ApiEnvelope<AlertRule>>(
+    `/alert-rules/${id}/status`,
+    { status }
+  );
+  return requireData(response.data, "Unable to update alert rule status.");
+}
+
+export async function toggleAlertRule(rule: AlertRule): Promise<AlertRule> {
+  return changeAlertRuleStatus(
+    rule.id,
+    rule.status === "ACTIVE" ? "DISABLED" : "ACTIVE"
+  );
+}
+
+export async function deleteAlertRule(id: string): Promise<void> {
+  await apiClient.delete<ApiEnvelope<void>>(`/alert-rules/${id}`);
+}
+
+export async function getTelegramChatRooms(status?: "ACTIVE" | "DISABLED"): Promise<ChatRoom[]> {
+  const response = await apiClient.get<ApiEnvelope<ChatRoom[]>>(
+    "/alert-chat-rooms",
+    { params: { channel: "TELEGRAM", ...(status ? { status } : {}) } }
+  );
+  return requireData(response.data, "Unable to load Telegram chat rooms.");
 }

@@ -7,7 +7,7 @@ export default function ProtectedRoute() {
 
   if (isInitializing) {
     return (
-      <main className="flex min-h-svh items-center justify-center bg-[#0b0d0f] text-sm text-[#c2c6d6]">
+      <main className="flex min-h-svh items-center justify-center bg-background text-sm text-muted">
         Restoring secure session...
       </main>
     );

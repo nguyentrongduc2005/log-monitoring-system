@@ -4,22 +4,19 @@ import {
   managementPrimaryButtonClass,
   StatusBadge
 } from "@/shared/components/management-ui";
-import type {
-  RetentionAction,
-  RetentionJob,
-  RetentionJobDraft
-} from "../retention-types";
-import { actionLabel, logLevelTone } from "./retention-ui";
-
-const actionOptions: RetentionAction[] = ["DELETE", "COMPRESS", "ARCHIVE"];
+import type { RetentionJob, RetentionJobDraft } from "../retention-types";
+import { logLevelTone } from "./retention-ui";
 
 type RetentionControlsProps = {
   drafts: RetentionJobDraft[];
   error: string | null;
   jobs: RetentionJob[];
+  hasUnsavedChanges: boolean;
   loading: boolean;
+  runningJobId: string | null;
   saving: boolean;
   onReset: () => void;
+  onRunJob: (jobId: string) => void;
   onSave: () => void;
   onUpdateDraft: (draft: RetentionJobDraft) => void;
 };
@@ -27,10 +24,13 @@ type RetentionControlsProps = {
 export default function RetentionControls({
   drafts,
   error,
+  hasUnsavedChanges,
   jobs,
   loading,
+  runningJobId,
   saving,
   onReset,
+  onRunJob,
   onSave,
   onUpdateDraft
 }: RetentionControlsProps) {
@@ -42,7 +42,7 @@ export default function RetentionControls({
         <div>
           <h2 className="text-base font-semibold text-text">Log Aging Controls</h2>
           <p className="mt-1 text-sm text-muted">
-            Configure the three default ClickHouse retention jobs by log level.
+            Update the fixed ClickHouse delete policies by log level.
           </p>
         </div>
         <div className="flex gap-2">
@@ -78,9 +78,10 @@ export default function RetentionControls({
           {jobs.map(job => {
             const draft = draftById.get(job.id) ?? {
               id: job.id,
-              action: job.action,
+              enabled: job.enabled,
               retentionDays: job.retentionDays
             };
+            const running = runningJobId === job.id;
 
             return (
               <div className="p-4" key={job.id}>
@@ -97,6 +98,38 @@ export default function RetentionControls({
                     {draft.retentionDays} Days
                   </span>
                 </div>
+
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <button
+                    className={managementButtonClass}
+                    disabled={
+                      loading ||
+                      saving ||
+                      runningJobId !== null ||
+                      hasUnsavedChanges ||
+                      !draft.enabled
+                    }
+                    onClick={() => onRunJob(job.id)}
+                    type="button"
+                  >
+                    {running ? "Running..." : "Run now"}
+                  </button>
+                </div>
+
+                <label className="mt-4 flex items-center gap-2 text-sm text-text">
+                  <input
+                    checked={draft.enabled}
+                    className="accent-primary"
+                    onChange={event =>
+                      onUpdateDraft({
+                        ...draft,
+                        enabled: event.target.checked
+                      })
+                    }
+                    type="checkbox"
+                  />
+                  Enabled
+                </label>
 
                 <label className="mt-4 block">
                   <span className="sr-only">{job.label} retention days</span>
@@ -119,31 +152,6 @@ export default function RetentionControls({
                   <span>{job.minDays}d</span>
                   <span>{Math.round((job.minDays + job.maxDays) / 2)}d</span>
                   <span>{job.maxDays}d</span>
-                </div>
-
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                  {actionOptions.map(action => {
-                    const selected = draft.action === action;
-                    return (
-                      <label
-                        className={`flex min-h-10 items-center gap-2 rounded-md border px-3 text-sm transition ${
-                          selected
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border bg-background text-text hover:border-primary/60"
-                        }`}
-                        key={action}
-                      >
-                        <input
-                          checked={selected}
-                          className="accent-primary"
-                          name={`${job.id}-action`}
-                          onChange={() => onUpdateDraft({ ...draft, action })}
-                          type="radio"
-                        />
-                        {actionLabel(action)}
-                      </label>
-                    );
-                  })}
                 </div>
               </div>
             );

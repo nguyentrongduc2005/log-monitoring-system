@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/shared/layouts/page-header-context";
-import { getRetentionJobs, saveRetentionJobs } from "./retention-adapter";
+import {
+  getRetentionJobs,
+  runRetentionJob,
+  saveRetentionJobs
+} from "./retention-adapter";
 import type { RetentionJob, RetentionJobDraft } from "./retention-types";
 import RetentionControls from "./components/RetentionControls";
 import RetentionInsights from "./components/RetentionInsights";
@@ -10,7 +14,7 @@ function toDrafts(jobs: RetentionJob[]): RetentionJobDraft[] {
   return jobs.map(job => ({
     id: job.id,
     retentionDays: job.retentionDays,
-    action: job.action
+    enabled: job.enabled
   }));
 }
 
@@ -19,6 +23,7 @@ export function Component() {
   const [drafts, setDrafts] = useState<RetentionJobDraft[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [runningJobId, setRunningJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function loadJobs() {
@@ -50,6 +55,19 @@ export function Component() {
     [drafts, jobs]
   );
 
+  const hasUnsavedChanges = useMemo(
+    () =>
+      jobs.some(job => {
+        const draft = drafts.find(item => item.id === job.id);
+        return (
+          draft &&
+          (draft.retentionDays !== job.retentionDays ||
+            draft.enabled !== job.enabled)
+        );
+      }),
+    [drafts, jobs]
+  );
+
   function updateDraft(nextDraft: RetentionJobDraft) {
     setDrafts(current =>
       current.map(draft => (draft.id === nextDraft.id ? nextDraft : draft))
@@ -70,6 +88,23 @@ export function Component() {
     }
   }
 
+  async function runJob(jobId: string) {
+    setRunningJobId(jobId);
+    setError(null);
+    try {
+      const run = await runRetentionJob(jobId);
+      setJobs(current =>
+        current.map(job =>
+          job.id === run.policyId ? { ...job, recentOperation: run } : job
+        )
+      );
+    } catch {
+      setError("Unable to run retention job.");
+    } finally {
+      setRunningJobId(null);
+    }
+  }
+
   function resetChanges() {
     setDrafts(toDrafts(jobs));
   }
@@ -78,12 +113,9 @@ export function Component() {
     <div className="space-y-5">
       <PageHeader title="Retention Policy" />
 
-      <div>
-        <h1 className="text-2xl font-semibold text-text">Retention Policy</h1>
-        <p className="mt-1 text-sm text-muted">
-          Manage automated log aging, compression, and archival schedules.
-        </p>
-      </div>
+      <p className="text-sm text-muted">
+        Manage fixed log retention policies. Expired logs are deleted from ClickHouse by level.
+      </p>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="space-y-3">
@@ -93,9 +125,12 @@ export function Component() {
             jobs={jobs}
             loading={loading}
             onReset={resetChanges}
+            onRunJob={jobId => void runJob(jobId)}
             onSave={() => void saveChanges()}
             onUpdateDraft={updateDraft}
+            runningJobId={runningJobId}
             saving={saving}
+            hasUnsavedChanges={hasUnsavedChanges}
           />
           <RetentionMetrics jobs={previewJobs} />
         </div>

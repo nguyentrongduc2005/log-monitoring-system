@@ -1,21 +1,35 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: #0b0d0f;
-  --color-sidebar: #0d0e0f;
-  --color-header: #121415;
-  --color-surface: #1a1c1d;
-  --color-surface-raised: #202326;
-  --color-border: #2d3139;
-  --color-primary: #3b82f6;
-  --color-primary-hover: #60a5fa;
-  --color-text: #e5e7eb;
-  --color-muted: #9ca3af;
-  --color-success: #22c55e;
+  --color-background: #010102;
+  --color-foreground: #f7f8f8;
+  --color-sidebar: #0f1011;
+  --color-header: #0f1011;
+  --color-surface: #141516;
+  --color-surface-raised: #18191a;
+  --color-card: #141516;
+  --color-card-foreground: #f7f8f8;
+  --color-popover: #141516;
+  --color-popover-foreground: #f7f8f8;
+  --color-border: #23252a;
+  --color-input: #34343a;
+  --color-ring: #5e6ad2;
+  --color-primary: #5e6ad2;
+  --color-primary-foreground: #ffffff;
+  --color-primary-hover: #828fff;
+  --color-secondary: #18191a;
+  --color-secondary-foreground: #f7f8f8;
+  --color-accent: #18191a;
+  --color-accent-foreground: #f7f8f8;
+  --color-text: #f7f8f8;
+  --color-muted: #8a8f98;
+  --color-muted-foreground: #8a8f98;
+  --color-success: #27a644;
   --color-warning: #f59e0b;
   --color-error: #ef4444;
+  --color-destructive: #ef4444;
 
-  --font-sans: "Inter", "Segoe UI", sans-serif;
+  --font-sans: "Inter", "SF Pro Display", "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", Consolas, monospace;
 }
 
@@ -23,12 +37,13 @@
   *,
   *::before,
   *::after {
+    @apply border-border outline-ring/50;
     box-sizing: border-box;
   }
 
   html {
     min-width: 320px;
-    background: #0b0d0f;
+    background: #010102;
   }
 
   body {
@@ -52,7 +67,7 @@
 
 @layer utilities {
   .shell-scrollbar {
-    scrollbar-color: #3a3f48 transparent;
+    scrollbar-color: #34343a transparent;
     scrollbar-width: thin;
   }
 
@@ -63,7 +78,16 @@
 
   .shell-scrollbar::-webkit-scrollbar-thumb {
     border-radius: 9999px;
-    background: #3a3f48;
+    background: #34343a;
+  }
+
+  @keyframes live-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.9); }
+  }
+
+  .animate-live {
+    animation: live-pulse 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 }
 

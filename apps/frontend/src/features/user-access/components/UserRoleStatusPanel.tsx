@@ -39,7 +39,7 @@ export default function UserRoleStatusPanel({
           </select>
           <button
             aria-label="Save role"
-            className="min-h-10 rounded-md bg-primary px-4 text-sm font-semibold text-black transition hover:bg-primary-hover disabled:opacity-50"
+            className="min-h-10 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:opacity-50"
             disabled={saving || isDeleted || role === user.role}
             onClick={onSaveRole}
             type="button"

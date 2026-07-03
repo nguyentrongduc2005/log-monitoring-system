@@ -24,12 +24,12 @@ export default function Topbar({
   const { setActionsTarget, setTitleTarget } = usePageHeaderSlots();
 
   return (
-    <header className="flex min-h-16 items-center gap-3 border-b border-border bg-header px-3 sm:px-4 lg:px-6">
+    <header className="flex min-h-14 items-center gap-3 border-b border-[#23252a] bg-[#0f1011]/95 px-3 backdrop-blur sm:px-4 lg:px-6">
       <button
         aria-controls="application-sidebar"
         aria-expanded={sidebarOpen}
         aria-label={sidebarOpen ? "Hide navigation" : "Show navigation"}
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-raised hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-transparent text-[#8a8f98] transition-colors hover:border-[#34343a] hover:bg-[#18191a] hover:text-[#f7f8f8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5e6ad2]/70"
         onClick={onToggleSidebar}
         ref={toggleRef}
         type="button"
@@ -39,7 +39,7 @@ export default function Topbar({
 
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
         <h1
-          className="min-w-0 flex-1 truncate text-base font-semibold text-text sm:text-lg"
+          className="min-w-0 flex-1 truncate text-sm font-semibold tracking-[-0.1px] text-[#f7f8f8] sm:text-base"
           ref={setTitleTarget}
         />
         <div

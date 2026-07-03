@@ -1,41 +1,84 @@
-export type AlertRuleStatus = "RUNNING" | "MUTED";
+export type AlertRuleStatus = "ACTIVE" | "DISABLED";
 
-export type AlertSeverity = "CRITICAL" | "ERROR" | "WARN";
+export type AlertSeverity = "INFO" | "WARN" | "ERROR" | "CRITICAL";
 
-export type AlertMetric = "LOG_COUNT" | "LATENCY_P95" | "DISK_USAGE";
+export type AlertChannel = "TELEGRAM" | "WEBSOCKET";
 
-export type AlertOperator = ">" | ">=" | "<";
-
-export type AlertChannelType = "Telegram" | "Email" | "Webhook";
+export type AlertDeliveryTarget = {
+  channel: AlertChannel;
+  chatRoomId?: string | null;
+};
 
 export type AlertRule = {
   id: string;
+  applicationId: string;
   name: string;
-  applicationName: string;
-  serviceName: string;
+  description?: string | null;
+  minSeverity: AlertSeverity;
   severity: AlertSeverity;
-  metric: AlertMetric;
-  operator: AlertOperator;
-  threshold: number;
-  windowSeconds: number;
-  channelType: AlertChannelType;
-  channelTarget: string;
+  keywordPattern?: string | null;
+  thresholdCount: number;
+  thresholdWindowSeconds: number;
+  cooldownSeconds: number;
+  activeStartTime?: string | null;
+  activeEndTime?: string | null;
   status: AlertRuleStatus;
-  triggered24h: number;
-  breached24h: number;
-  lastTriggeredAt?: string;
+  channels: AlertChannel[];
+  deliveryTargets: AlertDeliveryTarget[];
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
-export type AlertRuleDraft = Pick<
-  AlertRule,
-  | "name"
-  | "applicationName"
-  | "serviceName"
-  | "severity"
-  | "metric"
-  | "operator"
-  | "threshold"
-  | "windowSeconds"
-  | "channelType"
-  | "channelTarget"
->;
+export type AlertRuleDraft = {
+  applicationId: string;
+  name: string;
+  description: string;
+  minSeverity: AlertSeverity;
+  severity: AlertSeverity;
+  keywordPattern: string;
+  thresholdCount: number;
+  thresholdWindowSeconds: number;
+  cooldownSeconds: number;
+  activeAllDay: boolean;
+  activeStartTime: string;
+  activeEndTime: string;
+  websocketEnabled: boolean;
+  telegramChatRoomIds: string[];
+};
+
+export type AlertRuleRequest = {
+  applicationId?: string;
+  name: string;
+  description?: string;
+  minSeverity: AlertSeverity;
+  severity: AlertSeverity;
+  keywordPattern?: string;
+  thresholdCount: number;
+  thresholdWindowSeconds: number;
+  cooldownSeconds: number;
+  activeStartTime?: string | null;
+  activeEndTime?: string | null;
+  deliveryTargets: AlertDeliveryTarget[];
+};
+
+export type ChatRoomStatus = "ACTIVE" | "DISABLED";
+
+export type ChatRoom = {
+  id: string;
+  channel: AlertChannel;
+  name: string;
+  chatId: string;
+  description?: string | null;
+  status: ChatRoomStatus;
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ApiEnvelope<T> = {
+  success?: boolean;
+  message?: string;
+  data?: T;
+  timestamp?: string;
+};

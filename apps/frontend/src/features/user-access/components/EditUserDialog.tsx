@@ -51,7 +51,7 @@ export default function EditUserDialog({
       footer={
         <>
           <button
-            className="min-h-11 rounded-xl border border-border px-5 text-sm font-medium text-text transition hover:bg-surface-raised"
+            className="min-h-11 rounded-lg border border-border px-5 text-sm font-medium text-text transition hover:bg-surface-raised"
             disabled={saving}
             onClick={onClose}
             type="button"
@@ -59,7 +59,7 @@ export default function EditUserDialog({
             Cancel
           </button>
           <button
-            className="min-h-11 rounded-xl bg-primary px-5 text-sm font-semibold text-black transition hover:bg-primary-hover disabled:opacity-50"
+            className="min-h-11 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover disabled:opacity-50"
             disabled={saving || !email.trim()}
             form="edit-user-form"
             type="submit"
@@ -77,7 +77,7 @@ export default function EditUserDialog({
           <span className="text-sm font-medium text-text">Display name</span>
           <input
             autoFocus
-            className="mt-2 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="mt-2 w-full rounded-lg border border-border bg-background px-4 py-3 text-sm text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             onChange={event => setDisplayName(event.target.value)}
             value={displayName}
           />
@@ -85,7 +85,7 @@ export default function EditUserDialog({
         <label className="block">
           <span className="text-sm font-medium text-text">Email</span>
           <input
-            className="mt-2 w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+            className="mt-2 w-full rounded-lg border border-border bg-background px-4 py-3 text-sm text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
             onChange={event => setEmail(event.target.value)}
             required
             type="email"

@@ -84,14 +84,14 @@ export default function MobileSidebarDrawer({
   return (
     <div className="fixed inset-0 z-50 md:hidden">
       <div
-        className="absolute inset-0 bg-black/65"
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
         data-testid="sidebar-backdrop"
         onClick={onClose}
       />
       <div
         aria-label="Application navigation"
         aria-modal="true"
-        className="relative h-full w-[min(280px,calc(100vw-32px))] shadow-2xl"
+        className="relative h-full w-[min(288px,calc(100vw-28px))] border-r border-[#23252a] bg-[#0f1011] shadow-[20px_0_70px_rgba(0,0,0,0.45)]"
         id="application-sidebar"
         ref={panelRef}
         role="dialog"

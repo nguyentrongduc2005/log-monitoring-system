@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'log_monitoring_apps'
+    http_sd_configs:
+      - url: 'http://host.docker.internal:8080/internal/prometheus/targets'
+        refresh_interval: 10s

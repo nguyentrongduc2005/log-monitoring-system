@@ -42,7 +42,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			JwtTokenProvider jwtTokenProvider,
 			ObjectMapper objectMapper,
 			ObjectProvider<StringRedisTemplate> redisTemplateProvider,
-			@Value("${app.security.jwt.access-token.blacklist-prefix:identity:access_token:blacklist:}") String accessTokenBlacklistPrefix
+			@Value("${app.security.jwt.access-token.blacklist-prefix}") String accessTokenBlacklistPrefix
 	) {
 		this.jwtTokenProvider = jwtTokenProvider;
 		this.objectMapper = objectMapper;

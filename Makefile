@@ -1,13 +1,18 @@
 .PHONY: infra-up infra-down backend frontend api build test lint clean
 
 infra-up:
-	docker compose up -d postgres clickhouse redis kafka
+	@WSL_IP=$$(hostname -I | awk '{print $$1}'); \
+	export WSL_IP; \
+	docker compose up -d
 
 infra-down:
 	docker compose down
 
 backend:
-	cd apps/backend && ./mvnw spring-boot:run
+	@set -a; \
+	if [ -f apps/backend/.env ]; then . ./apps/backend/.env; fi; \
+	set +a; \
+	cd apps/backend && exec ./mvnw spring-boot:run
 
 frontend:
 	cd apps/frontend && npm run dev

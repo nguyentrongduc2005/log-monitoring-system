@@ -1,4 +1,5 @@
 import { act, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
 import {
   MemoryRouter,
@@ -10,6 +11,13 @@ import { AuthContext } from "@/features/auth/auth-context";
 import type { AuthContextValue } from "@/features/auth/auth-context";
 import AppLayout from "@/shared/layouts/AppLayout";
 import { PageHeader } from "@/shared/layouts/page-header-context";
+
+vi.mock("@/features/alerts/AlertCenterProvider", () => ({
+  default: ({ children }: { children: ReactNode }) => children
+}));
+vi.mock("@/features/alerts/alert-center-context", () => ({
+  useAlertCenter: () => ({ openCount: 0 })
+}));
 
 function createMatchMedia(desktop: boolean) {
   let matches = desktop;
@@ -123,11 +131,11 @@ describe("AppLayout", () => {
     const first = renderLayout();
 
     expect(document.querySelector("#application-sidebar")).toBeInTheDocument();
-    expect(screen.getByTestId("app-content-column")).toHaveClass("md:pl-60");
+    expect(screen.getByTestId("app-content-column")).toHaveClass("md:pl-64");
 
     await user.click(screen.getByRole("button", { name: "Hide navigation" }));
     expect(document.querySelector("#application-sidebar")).not.toBeInTheDocument();
-    expect(screen.getByTestId("app-content-column")).not.toHaveClass("md:pl-60");
+    expect(screen.getByTestId("app-content-column")).not.toHaveClass("md:pl-64");
     first.unmount();
 
     renderLayout();
@@ -145,7 +153,7 @@ describe("AppLayout", () => {
     act(() => media.setDesktop(true));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(document.querySelector("#application-sidebar")).toBeInTheDocument();
-    expect(screen.getByTestId("app-content-column")).toHaveClass("md:pl-60");
+    expect(screen.getByTestId("app-content-column")).toHaveClass("md:pl-64");
   });
 
   it("filters navigation by role and renders routed title, action, and content", () => {

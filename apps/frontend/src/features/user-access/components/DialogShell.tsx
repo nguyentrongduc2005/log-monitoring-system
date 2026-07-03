@@ -96,7 +96,7 @@ export default function DialogShell({
         aria-describedby={description ? descriptionId : undefined}
         aria-labelledby={titleId}
         aria-modal="true"
-        className={`relative flex max-h-[94svh] w-full ${sizeClasses[size]} flex-col overflow-hidden rounded-t-3xl border border-border bg-surface shadow-[0_24px_80px_rgba(0,0,0,0.55)] sm:max-h-[88svh] sm:rounded-2xl`}
+        className={`relative flex max-h-[94svh] w-full ${sizeClasses[size]} flex-col overflow-hidden rounded-t-3xl border border-border bg-surface shadow-[0_24px_80px_rgba(0,0,0,0.55)] sm:max-h-[88svh] sm:rounded-lg`}
         ref={dialogRef}
         role="dialog"
       >
