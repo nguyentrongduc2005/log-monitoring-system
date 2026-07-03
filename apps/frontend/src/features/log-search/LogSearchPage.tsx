@@ -54,6 +54,7 @@ function getEmptySnapshot(): LogSearchSnapshot {
 
 export function Component() {
   const [filters, setFilters] = useState(defaultFilters);
+  const [activeFilters, setActiveFilters] = useState(defaultFilters);
   const [snapshot, setSnapshot] = useState<LogSearchSnapshot>(getEmptySnapshot);
   const [selectedLogId, setSelectedLogId] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
@@ -68,15 +69,17 @@ export function Component() {
 
   const loadLogs = useCallback(
     async (
-      nextSelectedLogId: string | null | undefined = selectedLogId,
-      nextFilters = filters,
+      nextSelectedLogId: string | null | undefined,
+      nextFilters: LogSearchFilters,
+      nextPage: number,
+      nextPageSize: number,
     ) => {
       setLoading(true);
       setError(null);
 
       try {
         const selectedId = nextSelectedLogId ?? undefined;
-        const nextSnapshot = await searchLogs(nextFilters, selectedId);
+        const nextSnapshot = await searchLogs(nextFilters, selectedId, nextPage, nextPageSize);
         const nextSelection =
           nextSnapshot.results.find((log) => log.id === selectedId)?.id ??
           nextSnapshot.results[0]?.id;
@@ -89,23 +92,24 @@ export function Component() {
         setLoading(false);
       }
     },
-    [selectedLogId, filters],
+    [],
   );
 
+  // Load logs when page, pageSize, activeFilters or selectedLogId changes
   useEffect(() => {
     queueMicrotask(() => {
-      void loadLogs();
+      void loadLogs(selectedLogId, activeFilters, page, pageSize);
     });
-  }, [loadLogs]);
+  }, [page, pageSize, activeFilters, selectedLogId, loadLogs]);
 
   // Live tail interval
   useEffect(() => {
     if (!liveTail) return;
     const interval = setInterval(() => {
-      void loadLogs(selectedLogId, filters);
+      void loadLogs(selectedLogId, activeFilters, page, pageSize);
     }, 5000);
     return () => clearInterval(interval);
-  }, [liveTail, filters, selectedLogId, loadLogs]);
+  }, [liveTail, activeFilters, selectedLogId, page, pageSize, loadLogs]);
 
   const selectedLog =
     selectedLogId === "closed"
@@ -116,39 +120,45 @@ export function Component() {
 
   function updateFilters(nextFilters: Partial<LogSearchFilters>) {
     setFilters((current) => ({ ...current, ...nextFilters }));
-    setPage(1);
   }
 
-
+  function handleFilterChange(nextFilters: Partial<LogSearchFilters>) {
+    const updated = { ...filters, ...nextFilters };
+    setFilters(updated);
+    setActiveFilters(updated);
+    setPage(1);
+    void loadLogs(selectedLogId, updated, 1, pageSize);
+  }
 
   function runSearch() {
     setPage(1);
-    void loadLogs();
+    setActiveFilters(filters);
+    void loadLogs(selectedLogId, filters, 1, pageSize);
   }
 
   function resetFilters() {
     setFilters(defaultFilters);
+    setActiveFilters(defaultFilters);
     setSelectedLogId(undefined);
     setPage(1);
-    void loadLogs(null, defaultFilters);
+    void loadLogs(null, defaultFilters, 1, pageSize);
   }
 
   function applyQuickQuery(query: string) {
     const nextFilters = { ...filters, query };
     setFilters(nextFilters);
+    setActiveFilters(nextFilters);
     setSelectedLogId(undefined);
     setPage(1);
-    void loadLogs(null, nextFilters);
+    void loadLogs(null, nextFilters, 1, pageSize);
   }
 
   function copyToClipboard(text: string) {
     void navigator.clipboard.writeText(text);
   }
 
-  // Sliced results for pagination
-  const startIndex = (page - 1) * pageSize;
-  const endIndex = page * pageSize;
-  const paginatedResults = snapshot.results.slice(startIndex, endIndex);
+  // Backend returns the paginated slice directly
+  const paginatedResults = snapshot.results;
 
   return (
     <div className="space-y-5">
@@ -223,7 +233,7 @@ export function Component() {
               aria-label="Filter by application"
               className="rounded-md border border-border bg-background px-2 py-1 text-xs text-text outline-none focus:border-primary cursor-pointer"
               onChange={(event) =>
-                updateFilters({ applicationId: event.target.value })
+                handleFilterChange({ applicationId: event.target.value })
               }
               value={filters.applicationId}
             >
@@ -243,7 +253,7 @@ export function Component() {
               aria-label="Filter by level"
               className="rounded-md border border-border bg-background px-2 py-1 text-xs text-text outline-none focus:border-primary cursor-pointer"
               onChange={(event) =>
-                updateFilters({
+                handleFilterChange({
                   level: event.target.value as LogSearchFilters["level"],
                 })
               }
@@ -264,7 +274,7 @@ export function Component() {
               aria-label="Filter by time range"
               className="rounded-md border border-border bg-background px-2 py-1 text-xs text-text outline-none focus:border-primary cursor-pointer"
               onChange={(event) =>
-                updateFilters({ range: event.target.value as LogSearchFilters["range"] })
+                handleFilterChange({ range: event.target.value as LogSearchFilters["range"] })
               }
               value={filters.range}
             >
