@@ -184,163 +184,152 @@ export function Component() {
         </div>
       </div>
 
-      <section className="rounded-lg border border-border bg-surface p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-sm text-muted">
-              Find exact log events and inspect the trace context around a
-              failure.
-            </p>
-          </div>
-          <div className="flex items-center gap-4 flex-wrap">
-            {/* Live Tail Switch */}
-            <label className="inline-flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={liveTail}
-                onChange={(e) => setLiveTail(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="relative w-9 h-5 bg-input peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
-              <span className="text-sm font-medium text-muted peer-checked:text-text flex items-center gap-1.5">
-                Live Tail
-                {liveTail && <span className="h-2 w-2 rounded-full bg-success animate-live"></span>}
-              </span>
-            </label>
-            <div className="flex gap-2">
-              <button
-                className="inline-flex min-h-9 items-center justify-center rounded-md border border-border bg-surface-raised px-3 text-sm font-medium text-text transition hover:border-primary hover:text-primary"
-                onClick={resetFilters}
-                type="button"
-              >
-                Reset
-              </button>
-              <button
-                className="inline-flex min-h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover"
-                onClick={runSearch}
-                type="button"
-              >
-                Search
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
-          <div>
-            <label className="block">
-              <span className="text-xs font-semibold uppercase text-muted">
-                Query
-              </span>
-              <input
-                aria-label="Search query"
-                className="mt-2 w-full rounded-md border border-border bg-background px-4 py-3 font-mono text-sm text-text outline-none placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/20"
-                onChange={(event) =>
-                  updateFilters({ query: event.target.value })
+      <section className="rounded-lg border border-border bg-surface p-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Query input (flex-1) */}
+          <div className="flex-1 min-w-[240px] relative">
+            <input
+              aria-label="Search query"
+              className="w-full rounded-md border border-border bg-background pl-3 pr-8 py-1.5 font-mono text-xs text-text outline-none placeholder:text-muted focus:border-primary focus:ring-2 focus:ring-primary/20"
+              onChange={(event) =>
+                updateFilters({ query: event.target.value })
+              }
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  runSearch();
                 }
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    runSearch();
-                  }
-                }}
-                placeholder="timeout OR traceId:trc-pay-8842 OR orderId:ORD-8842"
-                value={filters.query}
-              />
-            </label>
+              }}
+              placeholder="Filter logs (e.g. timeout, traceId:trc-pay...)"
+              value={filters.query}
+            />
+            {filters.query && (
+              <button
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-text text-xs font-mono"
+                onClick={() => updateFilters({ query: "" })}
+                type="button"
+                title="Clear query"
+              >
+                ×
+              </button>
+            )}
+          </div>
 
-            <div className="mt-3 flex flex-wrap gap-2">
-              {quickQueries.map((query) => (
-                <button
-                  className="rounded-md border border-border bg-background px-2.5 py-1.5 font-mono text-xs text-muted transition hover:border-primary hover:text-primary"
-                  key={query}
-                  onClick={() => applyQuickQuery(query)}
-                  type="button"
-                >
-                  {query}
-                </button>
+          {/* Application Selector */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[10px] font-semibold uppercase text-muted">App</span>
+            <select
+              aria-label="Filter by application"
+              className="rounded-md border border-border bg-background px-2 py-1 text-xs text-text outline-none focus:border-primary cursor-pointer"
+              onChange={(event) =>
+                updateFilters({ applicationId: event.target.value })
+              }
+              value={filters.applicationId}
+            >
+              <option value="">All apps</option>
+              {snapshot.applications.map((application) => (
+                <option key={application.id} value={application.id}>
+                  {application.name}
+                </option>
               ))}
-            </div>
+            </select>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
-            <label className="block">
-              <span className="text-xs font-semibold uppercase text-muted">
-                Application
-              </span>
-              <select
-                aria-label="Filter by application"
-                className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                onChange={(event) =>
-                  updateFilters({ applicationId: event.target.value })
-                }
-                value={filters.applicationId}
-              >
-                <option value="">All apps</option>
-                {snapshot.applications.map((application) => (
-                  <option key={application.id} value={application.id}>
-                    {application.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+          {/* Level Selector */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[10px] font-semibold uppercase text-muted">Level</span>
+            <select
+              aria-label="Filter by level"
+              className="rounded-md border border-border bg-background px-2 py-1 text-xs text-text outline-none focus:border-primary cursor-pointer"
+              onChange={(event) =>
+                updateFilters({
+                  level: event.target.value as LogSearchFilters["level"],
+                })
+              }
+              value={filters.level}
+            >
+              <option value="ALL">ALL</option>
+              <option value="INFO">INFO</option>
+              <option value="WARN">WARN</option>
+              <option value="ERROR">ERROR</option>
+              <option value="CRITICAL">CRITICAL</option>
+            </select>
+          </div>
 
-            <label className="block">
-              <span className="text-xs font-semibold uppercase text-muted">
-                Level
-              </span>
-              <select
-                aria-label="Filter by level"
-                className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-text outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                onChange={(event) =>
-                  updateFilters({
-                    level: event.target.value as LogSearchFilters["level"],
-                  })
-                }
-                value={filters.level}
-              >
-                <option value="ALL">All levels</option>
-                <option value="INFO">INFO</option>
-                <option value="WARN">WARN</option>
-                <option value="ERROR">ERROR</option>
-                <option value="CRITICAL">CRITICAL</option>
-              </select>
-            </label>
+          {/* Time range selector dropdown */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[10px] font-semibold uppercase text-muted">Time</span>
+            <select
+              aria-label="Filter by time range"
+              className="rounded-md border border-border bg-background px-2 py-1 text-xs text-text outline-none focus:border-primary cursor-pointer"
+              onChange={(event) =>
+                updateFilters({ range: event.target.value as LogSearchFilters["range"] })
+              }
+              value={filters.range}
+            >
+              <option value="15m">15m</option>
+              <option value="1h">1h</option>
+              <option value="6h">6h</option>
+              <option value="24h">24h</option>
+            </select>
+          </div>
 
-            <div>
-              <span className="text-xs font-semibold uppercase text-muted">
-                Time range
-              </span>
-              <div className="mt-2 grid grid-cols-4 rounded-lg border border-border bg-background p-1">
-                {(["15m", "1h", "6h", "24h"] as const).map((range) => (
-                  <button
-                    aria-pressed={filters.range === range}
-                    className={`min-h-8 rounded-md text-sm font-medium transition ${
-                      filters.range === range
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted hover:text-text"
-                    }`}
-                    key={range}
-                    onClick={() => updateFilters({ range })}
-                    type="button"
-                  >
-                    {range}
-                  </button>
-                ))}
-              </div>
-            </div>
+          {/* Live Tail toggle */}
+          <label className="inline-flex items-center gap-1.5 cursor-pointer select-none shrink-0 border border-border bg-background rounded-md px-2.5 py-1 transition hover:bg-surface-raised">
+            <input
+              type="checkbox"
+              checked={liveTail}
+              onChange={(e) => setLiveTail(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className={`h-2 w-2 rounded-full ${liveTail ? "bg-success animate-live" : "bg-muted"}`}></div>
+            <span className="text-xs font-medium text-muted peer-checked:text-text">
+              Live Tail
+            </span>
+          </label>
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              className="inline-flex h-8 items-center justify-center rounded-md border border-border bg-background px-2.5 text-xs font-medium text-text transition hover:bg-surface-raised cursor-pointer"
+              onClick={resetFilters}
+              type="button"
+            >
+              Reset
+            </button>
+            <button
+              className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground transition hover:bg-primary-hover cursor-pointer"
+              onClick={runSearch}
+              type="button"
+            >
+              Search
+            </button>
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4 text-sm">
-          <div className="flex flex-wrap gap-2 text-muted">
-            <span className="rounded-md border border-border bg-background px-2 py-1">
-              Search in message, traceId, eventId, source, host, attributes
-            </span>
-            <span className="rounded-md border border-border bg-background px-2 py-1">
-              {snapshot.results.length} results
-            </span>
+        {/* Quick queries & result status row */}
+        <div className="mt-2.5 pt-2 border-t border-border/40 flex flex-wrap items-center justify-between gap-3 text-[10px]">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-muted">Quick queries:</span>
+            {quickQueries.map((query) => (
+              <button
+                className="rounded border border-border/65 bg-background px-1.5 py-0.5 font-mono text-muted transition hover:border-primary hover:text-primary cursor-pointer"
+                key={query}
+                onClick={() => applyQuickQuery(query)}
+                type="button"
+              >
+                {query}
+              </button>
+            ))}
           </div>
-          {loading ? <span className="text-muted">Searching...</span> : null}
+          <div className="text-muted flex items-center gap-3">
+            <span>Search in message, traceId, eventId, source, host, attributes</span>
+            <span className="h-3 w-[1px] bg-border/80"></span>
+            {loading ? (
+              <span className="text-primary font-semibold animate-pulse">Searching...</span>
+            ) : (
+              <span className="font-mono">{snapshot.results.length} results</span>
+            )}
+          </div>
         </div>
       </section>
 
