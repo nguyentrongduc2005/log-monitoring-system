@@ -375,7 +375,7 @@ export function Component() {
                   type="button"
                   aria-label={`Filter logs by bucket ${bucket.time}`}
                 >
-                  <div className="flex flex-col w-full rounded-t overflow-hidden">
+                  <div className="flex flex-col justify-end w-full h-full rounded-t overflow-hidden">
                     {criticalHeight > 0 && <div className="bg-destructive animate-live w-full" style={{ height: `${criticalHeight}%` }}></div>}
                     {errorHeight > 0 && <div className="bg-[#ef4444] w-full" style={{ height: `${errorHeight}%` }}></div>}
                     {warnHeight > 0 && <div className="bg-[#f59e0b] w-full" style={{ height: `${warnHeight}%` }}></div>}
