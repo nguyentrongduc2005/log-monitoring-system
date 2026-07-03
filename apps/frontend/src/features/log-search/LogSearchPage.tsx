@@ -153,34 +153,34 @@ export function Component() {
       <PageHeader title="Log Search" />
 
       {/* Summary Statistics Dashboard */}
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
-        <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="text-xs font-semibold uppercase text-muted">Total Logs</div>
-          <div className="mt-2 text-2xl font-bold font-mono">{snapshot.summary.totalMatches}</div>
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-5">
+        <div className="rounded-lg border border-border bg-surface p-2.5">
+          <div className="text-[10px] font-semibold uppercase text-muted">Total Logs</div>
+          <div className="mt-1 text-lg font-bold font-mono">{snapshot.summary.totalMatches}</div>
         </div>
-        <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="text-xs font-semibold uppercase text-muted">Errors</div>
-          <div className="mt-2 text-2xl font-bold font-mono text-error">{snapshot.summary.errorMatches}</div>
+        <div className="rounded-lg border border-border bg-surface p-2.5">
+          <div className="text-[10px] font-semibold uppercase text-muted">Errors</div>
+          <div className="mt-1 text-lg font-bold font-mono text-error">{snapshot.summary.errorMatches}</div>
         </div>
-        <div className="rounded-lg border border-border bg-surface p-4 flex items-center justify-between">
+        <div className="rounded-lg border border-border bg-surface p-2.5 flex items-center justify-between">
           <div>
-            <div className="text-xs font-semibold uppercase text-muted">Criticals</div>
-            <div className="mt-2 text-2xl font-bold font-mono text-[#ef4444]">{snapshot.summary.criticalMatches}</div>
+            <div className="text-[10px] font-semibold uppercase text-muted">Criticals</div>
+            <div className="mt-1 text-lg font-bold font-mono text-[#ef4444]">{snapshot.summary.criticalMatches}</div>
           </div>
           {snapshot.summary.criticalMatches > 0 && (
-            <span className="relative flex h-3.5 w-3.5">
+            <span className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-error opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-error"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-error"></span>
             </span>
           )}
         </div>
-        <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="text-xs font-semibold uppercase text-muted">Unique Traces</div>
-          <div className="mt-2 text-2xl font-bold font-mono text-[#5e6ad2]">{snapshot.summary.uniqueTraces}</div>
+        <div className="rounded-lg border border-border bg-surface p-2.5">
+          <div className="text-[10px] font-semibold uppercase text-muted">Unique Traces</div>
+          <div className="mt-1 text-lg font-bold font-mono text-[#5e6ad2]">{snapshot.summary.uniqueTraces}</div>
         </div>
-        <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="text-xs font-semibold uppercase text-muted">Slowest Latency</div>
-          <div className="mt-2 text-2xl font-bold font-mono text-warning">{snapshot.summary.slowestDurationMs}ms</div>
+        <div className="rounded-lg border border-border bg-surface p-2.5">
+          <div className="text-[10px] font-semibold uppercase text-muted">Slowest Latency</div>
+          <div className="mt-1 text-lg font-bold font-mono text-warning">{snapshot.summary.slowestDurationMs}ms</div>
         </div>
       </div>
 
@@ -346,20 +346,19 @@ export function Component() {
 
       {/* Visual Histogram / Log Volume Distribution */}
       {snapshot.buckets && snapshot.buckets.length > 0 && (
-        <section className="rounded-lg border border-border bg-surface p-5">
+        <section className="rounded-lg border border-border bg-surface p-3.5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="text-sm font-semibold uppercase text-muted">Log Volume Distribution</h3>
-              <p className="text-xs text-muted mt-1">Select a time bucket to filter log events.</p>
+              <h3 className="text-xs font-semibold uppercase text-muted">Log Volume Distribution</h3>
             </div>
-            <div className="flex flex-wrap gap-3 text-xs">
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded bg-[#5e6ad2]"></span> INFO</span>
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded bg-[#f59e0b]"></span> WARN</span>
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded bg-[#ef4444]"></span> ERROR</span>
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded bg-destructive animate-live"></span> CRITICAL</span>
+            <div className="flex flex-wrap gap-3 text-[10px]">
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded bg-[#5e6ad2]"></span> INFO</span>
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded bg-[#f59e0b]"></span> WARN</span>
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded bg-[#ef4444]"></span> ERROR</span>
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded bg-destructive animate-live"></span> CRITICAL</span>
             </div>
           </div>
-          <div className="mt-5 flex h-24 items-end gap-2 border-b border-border pb-1">
+          <div className="mt-3 flex h-14 items-end gap-1.5 border-b border-border pb-1">
             {snapshot.buckets.map((bucket, index) => {
               const maxTotal = Math.max(1, ...snapshot.buckets.map(b => b.total));
               const infoHeight = (bucket.info / maxTotal) * 100;
@@ -479,7 +478,7 @@ function LogResults({
           <div className="max-h-[640px] overflow-auto">
             {results.map((log) => (
               <button
-                className={`grid w-full gap-2 border-b border-border px-4 py-3 text-left transition last:border-0 hover:bg-surface-raised ${
+                className={`flex items-center gap-3 w-full border-b border-border/40 px-3 py-1.5 text-left transition last:border-0 hover:bg-surface-raised font-mono text-[11px] ${
                   selectedLogId === log.id
                     ? "border-l-[3px] border-l-primary bg-primary/10"
                     : `border-l-[3px] ${severityRowStyles[log.level]} odd:bg-surface/5`
@@ -488,29 +487,32 @@ function LogResults({
                 onClick={() => onSelect(log)}
                 type="button"
               >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-xs text-[#62666d]">
-                    {log.timestamp}
-                  </span>
-                  <span className="text-xs font-semibold text-[#8a8f98]">
-                    {log.applicationName}
-                  </span>
-                </div>
-                <p className="font-mono text-sm leading-6 text-[#f7f8f8] flex items-start gap-1.5 min-w-0">
-                  <span
-                    className={`inline-flex shrink-0 items-center justify-center rounded border px-1 py-0.5 text-[9px] font-bold tracking-wider uppercase leading-none ${levelClasses[log.level]}`}
-                  >
-                    {log.level}
-                  </span>
-                  <span className="break-words">
-                    {log.message}
-                  </span>
-                </p>
-                <div className="flex flex-wrap gap-3 font-mono text-xs text-[#62666d]">
-                  <span>trace={log.traceId}</span>
-                  <span>event={log.eventId}</span>
-                  <span>host={log.host}</span>
-                </div>
+                {/* Time part of timestamp (HH:MM:SS.mmm) */}
+                <span className="shrink-0 text-[#62666d] w-20">
+                  {log.timestamp.split(" ")[1] || log.timestamp}
+                </span>
+
+                {/* Level Badge */}
+                <span
+                  className={`inline-flex shrink-0 w-14 items-center justify-center rounded border px-1 py-0.5 text-[9px] font-bold tracking-wider uppercase leading-none ${levelClasses[log.level]}`}
+                >
+                  {log.level}
+                </span>
+
+                {/* App Name */}
+                <span className="shrink-0 text-[#8a8f98] w-24 truncate font-semibold">
+                  {log.applicationName}
+                </span>
+
+                {/* Message */}
+                <span className="flex-1 text-[#f7f8f8] truncate" title={log.message}>
+                  {log.message}
+                </span>
+
+                {/* Trace ID */}
+                <span className="shrink-0 text-[#62666d] w-24 truncate text-right" title={log.traceId}>
+                  {log.traceId ? `trc:${log.traceId}` : ""}
+                </span>
               </button>
             ))}
           </div>
