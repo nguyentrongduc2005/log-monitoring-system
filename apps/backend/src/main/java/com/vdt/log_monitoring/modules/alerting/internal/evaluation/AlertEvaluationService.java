@@ -54,11 +54,29 @@ public class AlertEvaluationService {
 
 		return switch (decision.type()) {
 			case TRIGGERED -> {
-				List<AlertLogSample> logSamples = evidenceReader.findTopLogSamples(
+				List<AlertLogSample> dbSamples = evidenceReader.findTopLogSamples(
 					candidate.applicationId(),
 					decision.firstSeenAt(),
 					candidate.logTimestamp(),
 					rule.minSeverity());
+
+				List<AlertLogSample> logSamples = new java.util.ArrayList<>();
+				logSamples.add(new AlertLogSample(candidate.severity(), candidate.message()));
+
+				if (dbSamples != null) {
+					for (AlertLogSample dbSample : dbSamples) {
+						if (!"No representative log samples available in ClickHouse at trigger time".equals(dbSample.message())) {
+							if (!dbSample.message().equals(candidate.message())) {
+								logSamples.add(dbSample);
+							}
+						}
+					}
+				}
+
+				if (logSamples.size() > 5) {
+					logSamples = logSamples.subList(0, 5);
+				}
+
 				yield List.of(trigger(rule, candidate, decision, logSamples));
 			}
 			case COOLDOWN -> {
