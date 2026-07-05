@@ -1,5 +1,6 @@
 package com.vdt.log_monitoring.modules.alerting.internal;
 
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
@@ -20,7 +21,9 @@ import com.vdt.log_monitoring.modules.alerting.internal.notification.telegram.Te
 import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertChannel;
 import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertDeliveryTarget;
 import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertRuleEntity;
+import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertRuleMatcher;
 import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertRuleService;
+import com.vdt.log_monitoring.modules.alerting.internal.rule.AlertSeverity;
 
 @Component
 @RequiredArgsConstructor
@@ -31,6 +34,7 @@ public class AlertingFacadeImpl implements AlertingFacade {
 	private final AlertEvaluationService alertEvaluationService;
 	private final ChatRoomService chatRoomService;
 	private final TelegramChatDiscoveryService telegramChatDiscoveryService;
+	private final AlertRuleMatcher alertRuleMatcher;
 
 	@Override
 	public AlertRuleDto createRule(CreateAlertRuleCommand command) {
@@ -99,6 +103,18 @@ public class AlertingFacadeImpl implements AlertingFacade {
 						rule.minSeverity().name(),
 						rule.keywordPattern()))
 				.toList();
+	}
+
+	@Override
+	public boolean hasMatchingActiveRuleCandidate(UUID applicationId, String severity, String message, Instant timestamp) {
+		AlertSeverity parsedSeverity;
+		try {
+			parsedSeverity = AlertSeverity.from(severity);
+		} catch (IllegalArgumentException exception) {
+			return false;
+		}
+		return alertRuleService.findActiveRules(applicationId).stream()
+			.anyMatch(rule -> alertRuleMatcher.matches(rule, parsedSeverity, message, timestamp));
 	}
 
 	@Override

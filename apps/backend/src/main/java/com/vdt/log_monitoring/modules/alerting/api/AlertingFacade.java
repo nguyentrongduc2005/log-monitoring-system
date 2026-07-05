@@ -20,6 +20,8 @@ public interface AlertingFacade {
 
 	List<ActiveAlertRuleCandidateDto> findActiveRuleCandidates(UUID applicationId);
 
+	boolean hasMatchingActiveRuleCandidate(UUID applicationId, String severity, String message, Instant timestamp);
+
 	List<AlertDto> evaluate(AlertCandidate candidate);
 
 	List<AlertDto> findAlerts(List<UUID> applicationIds, String status, String severity);

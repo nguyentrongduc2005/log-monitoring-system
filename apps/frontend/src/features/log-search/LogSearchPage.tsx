@@ -415,7 +415,7 @@ export function Component() {
           selectedLogId={selectedLog?.id}
           onSelect={(log) => {
             setSelectedLogId(log.id);
-            void loadLogs(log.id);
+            void loadLogs(log.id, activeFilters, page, pageSize);
           }}
           page={page}
           pageSize={pageSize}

@@ -1,5 +1,7 @@
 package com.vdt.log_monitoring.modules.anomaly.internal.metric;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -19,6 +21,8 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @RequiredArgsConstructor
 public class AnomalyMetricRuleHandler {
+
+	private static final int MAX_RECENT_VALUES = 6;
 
 	private final StringRedisTemplate redisTemplate;
 	private final ObjectMapper objectMapper;
@@ -55,6 +59,7 @@ public class AnomalyMetricRuleHandler {
 				"avg", snapshot.avg(),
 				"max", snapshot.max(),
 				"samples", snapshot.samples(),
+				"recentValues", snapshot.recentValues(),
 				"lastSeen", snapshot.lastSeen().toString()));
 		} catch (JsonProcessingException exception) {
 			throw new AnomalyException(
@@ -66,9 +71,16 @@ public class AnomalyMetricRuleHandler {
 
 	private AnomalyMetricSnapshot updateState(AnomalyMetricSnapshot current, String previousJson) {
 		PreviousSnapshot previous = parsePrevious(previousJson);
-		long samples = previous.samples() + 1;
-		double avg = ((previous.avg() * previous.samples()) + current.current()) / samples;
-		double max = Math.max(previous.max(), current.current());
+		List<Double> recentValues = appendRecentValue(previous.recentValues(), current.current());
+		long samples = recentValues.size();
+		double avg = recentValues.stream()
+			.mapToDouble(Double::doubleValue)
+			.average()
+			.orElse(current.current());
+		double max = recentValues.stream()
+			.mapToDouble(Double::doubleValue)
+			.max()
+			.orElse(current.current());
 
 		return new AnomalyMetricSnapshot(
 			current.rule(),
@@ -77,7 +89,15 @@ public class AnomalyMetricRuleHandler {
 			avg,
 			max,
 			samples,
+			recentValues,
 			current.lastSeen());
+	}
+
+	private List<Double> appendRecentValue(List<Double> previousValues, double current) {
+		List<Double> values = new ArrayList<>(previousValues);
+		values.add(current);
+		int fromIndex = Math.max(0, values.size() - MAX_RECENT_VALUES);
+		return List.copyOf(values.subList(fromIndex, values.size()));
 	}
 
 	private PreviousSnapshot parsePrevious(String previousJson) {
@@ -86,23 +106,39 @@ public class AnomalyMetricRuleHandler {
 		}
 		try {
 			JsonNode json = objectMapper.readTree(previousJson);
-			long samples = Math.max(0, json.path("samples").asLong(0));
-			double avg = samples == 0 ? 0 : json.path("avg").asDouble(0);
-			double max = samples == 0 ? Double.NEGATIVE_INFINITY : json.path("max").asDouble(Double.NEGATIVE_INFINITY);
-			return new PreviousSnapshot(avg, max, samples);
+			List<Double> recentValues = parseRecentValues(json);
+			return new PreviousSnapshot(recentValues);
 		} catch (Exception exception) {
 			log.debug("Ignoring malformed anomaly metric snapshot state", exception);
 			return PreviousSnapshot.empty();
 		}
 	}
 
+	private List<Double> parseRecentValues(JsonNode json) {
+		JsonNode valuesNode = json.path("recentValues");
+		if (valuesNode.isArray() && !valuesNode.isEmpty()) {
+			List<Double> values = new ArrayList<>();
+			for (JsonNode valueNode : valuesNode) {
+				if (valueNode.isNumber()) {
+					values.add(valueNode.asDouble());
+				}
+			}
+			if (!values.isEmpty()) {
+				int fromIndex = Math.max(0, values.size() - MAX_RECENT_VALUES);
+				return List.copyOf(values.subList(fromIndex, values.size()));
+			}
+		}
+		if (json.path("current").isNumber()) {
+			return List.of(json.path("current").asDouble());
+		}
+		return List.of();
+	}
+
 	private record PreviousSnapshot(
-		double avg,
-		double max,
-		long samples
+		List<Double> recentValues
 	) {
 		private static PreviousSnapshot empty() {
-			return new PreviousSnapshot(0, Double.NEGATIVE_INFINITY, 0);
+			return new PreviousSnapshot(List.of());
 		}
 	}
 }

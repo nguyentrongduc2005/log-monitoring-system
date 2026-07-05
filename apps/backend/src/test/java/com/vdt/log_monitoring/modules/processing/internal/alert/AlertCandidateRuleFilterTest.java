@@ -1,20 +1,16 @@
 package com.vdt.log_monitoring.modules.processing.internal.alert;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
-import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
-import org.springframework.test.util.ReflectionTestUtils;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vdt.log_monitoring.modules.alerting.api.AlertingFacade;
 import com.vdt.log_monitoring.modules.processing.internal.model.LogFingerprint;
 import com.vdt.log_monitoring.modules.processing.internal.model.LogLevel;
 import com.vdt.log_monitoring.modules.processing.internal.model.LogMetadata;
@@ -25,45 +21,49 @@ class AlertCandidateRuleFilterTest {
 
 	private static final UUID APPLICATION_ID = UUID.fromString("00000000-0000-0000-0000-000000000101");
 
-	private final StringRedisTemplate redisTemplate = org.mockito.Mockito.mock();
-	private final ValueOperations<String, String> valueOperations = org.mockito.Mockito.mock();
-	private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
-	private final AlertCandidateRuleFilter filter = new AlertCandidateRuleFilter(redisTemplate, objectMapper);
+	private final AlertingFacade alertingFacade = org.mockito.Mockito.mock();
+	private final AlertCandidateRuleFilter filter = new AlertCandidateRuleFilter(alertingFacade);
 
-	@BeforeEach
-	void setUp() {
-		ReflectionTestUtils.setField(filter, "keyPrefix", "alerting:rules:active:");
-		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+	@Test
+	void matchesWarnLogWhenAlertingFacadeFindsMatchingRule() {
+		Instant timestamp = Instant.parse("2026-06-18T03:00:00Z");
+		when(alertingFacade.hasMatchingActiveRuleCandidate(
+			APPLICATION_ID,
+			"WARN",
+			"payment_failed from gateway",
+			timestamp))
+			.thenReturn(true);
+
+		assertThat(filter.matches(log(LogLevel.WARN, "payment_failed from gateway", timestamp)))
+			.isTrue();
 	}
 
 	@Test
-	void matchesWarnLogWhenCachedRuleMatchesKeywordAndTimeWindow() throws Exception {
-		when(valueOperations.get("alerting:rules:active:" + APPLICATION_ID))
-			.thenReturn(objectMapper.writeValueAsString(List.of(Map.of(
-				"minSeverity", "WARN",
-				"keywordPattern", "payment_failed",
-				"activeStartTime", "00:00",
-				"activeEndTime", "06:00"
-			))));
+	void returnsFalseWhenAlertingFacadeFindsNoMatchingRule() {
+		Instant timestamp = Instant.parse("2026-06-18T03:00:00Z");
+		when(alertingFacade.hasMatchingActiveRuleCandidate(
+			APPLICATION_ID,
+			"INFO",
+			"payment_failed from gateway",
+			timestamp))
+			.thenReturn(false);
 
-		assertThat(filter.matches(log(LogLevel.WARN, "payment_failed from gateway", "2026-06-18T03:00:00Z")))
-			.isTrue();
-		assertThat(filter.matches(log(LogLevel.WARN, "payment_failed from gateway", "2026-06-18T10:00:00Z")))
+		assertThat(filter.matches(log(LogLevel.INFO, "payment_failed from gateway", timestamp)))
 			.isFalse();
 	}
 
 	@Test
-	void fallsBackToCriticalLevelsWhenCacheMisses() {
-		when(valueOperations.get("alerting:rules:active:" + APPLICATION_ID)).thenReturn(null);
-
-		assertThat(filter.matches(log(LogLevel.INFO, "payment_failed from gateway", "2026-06-18T03:00:00Z")))
-			.isFalse();
-		assertThat(filter.matches(log(LogLevel.ERROR, "payment_failed from gateway", "2026-06-18T03:00:00Z")))
+	void fallsBackToCriticalLevelsWithoutReadingRules() {
+		assertThat(filter.matches(log(LogLevel.ERROR, "payment_failed from gateway", Instant.parse("2026-06-18T03:00:00Z"))))
 			.isTrue();
+		verify(alertingFacade, never()).hasMatchingActiveRuleCandidate(
+			org.mockito.ArgumentMatchers.any(),
+			org.mockito.ArgumentMatchers.any(),
+			org.mockito.ArgumentMatchers.any(),
+			org.mockito.ArgumentMatchers.any());
 	}
 
-	private ProcessedLog log(LogLevel level, String message, String timestamp) {
-		Instant instant = Instant.parse(timestamp);
+	private ProcessedLog log(LogLevel level, String message, Instant instant) {
 		return new ProcessedLog(
 			UUID.randomUUID(),
 			UUID.randomUUID(),

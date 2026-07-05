@@ -7,6 +7,8 @@ import static org.mockito.Mockito.when;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -71,6 +73,7 @@ class AnomalyMetricRuleHandlerTest {
 		assertThat(json.path("avg").asDouble()).isEqualTo(91.2);
 		assertThat(json.path("max").asDouble()).isEqualTo(91.2);
 		assertThat(json.path("samples").asLong()).isEqualTo(1);
+		assertThat(recentValues(json)).containsExactly(91.2);
 		assertThat(json.has("durationAboveThresholdSeconds")).isFalse();
 		assertThat(json.has("score")).isFalse();
 		assertThat(json.path("lastSeen").asText()).isEqualTo("2026-06-28T00:00:00Z");
@@ -93,6 +96,7 @@ class AnomalyMetricRuleHandlerTest {
 			  "avg": 85.0,
 			  "max": 94.5,
 			  "samples": 4,
+			  "recentValues": [80.0, 84.0, 87.0, 90.0],
 			  "durationAboveThresholdSeconds": 120,
 			  "score": 30,
 			  "lastSeen": "2026-06-28T00:00:00Z"
@@ -108,11 +112,44 @@ class AnomalyMetricRuleHandlerTest {
 			org.mockito.Mockito.eq(Duration.ofSeconds(180)));
 		JsonNode json = objectMapper.readTree(jsonCaptor.getValue());
 		assertThat(json.path("current").asDouble()).isEqualTo(91.2);
-		assertThat(json.path("avg").asDouble()).isEqualTo(86.24);
-		assertThat(json.path("max").asDouble()).isEqualTo(94.5);
+		assertThat(json.path("avg").asDouble()).isEqualTo(86.44);
+		assertThat(json.path("max").asDouble()).isEqualTo(91.2);
 		assertThat(json.path("samples").asLong()).isEqualTo(5);
+		assertThat(recentValues(json)).containsExactly(80.0, 84.0, 87.0, 90.0, 91.2);
 		assertThat(json.has("durationAboveThresholdSeconds")).isFalse();
 		assertThat(json.has("score")).isFalse();
+	}
+
+	@Test
+	void keepsOnlySixMostRecentValues() throws Exception {
+		AnomalyMetricSnapshot snapshot = AnomalyMetricSnapshot.from(
+			AnomalyMetricRule.CPU_USAGE,
+			APP_ID,
+			91.2,
+			LAST_SEEN);
+		String snapshotKey = keys.metricSnapshot(APP_ID, AnomalyMetricRule.CPU_USAGE);
+		when(valueOperations.get(snapshotKey)).thenReturn("""
+			{
+			  "ruleId": "CPU_USAGE",
+			  "current": 89.0,
+			  "avg": 84.0,
+			  "max": 90.0,
+			  "samples": 6,
+			  "recentValues": [70.0, 75.0, 80.0, 85.0, 88.0, 89.0],
+			  "lastSeen": "2026-06-28T00:00:00Z"
+			}
+			""");
+
+		handler.save(snapshot);
+
+		ArgumentCaptor<String> jsonCaptor = ArgumentCaptor.forClass(String.class);
+		verify(valueOperations).set(
+			org.mockito.Mockito.eq(snapshotKey),
+			jsonCaptor.capture(),
+			org.mockito.Mockito.eq(Duration.ofSeconds(180)));
+		JsonNode json = objectMapper.readTree(jsonCaptor.getValue());
+		assertThat(json.path("samples").asLong()).isEqualTo(6);
+		assertThat(recentValues(json)).containsExactly(75.0, 80.0, 85.0, 88.0, 89.0, 91.2);
 	}
 
 	@Test
@@ -127,5 +164,11 @@ class AnomalyMetricRuleHandlerTest {
 
 		verify(redisTemplate, never()).opsForValue();
 		verify(redisTemplate, never()).opsForSet();
+	}
+
+	private List<Double> recentValues(JsonNode json) {
+		List<Double> values = new ArrayList<>();
+		json.path("recentValues").forEach(value -> values.add(value.asDouble()));
+		return values;
 	}
 }

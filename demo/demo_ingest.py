@@ -43,6 +43,9 @@ SCENARIO_FILES = {
     "invoice": {
         "order-service": LOG_ROOT / "business" / "order-invoice-generation.log",
     },
+    "inventory-mismatch": {
+        "order-service": LOG_ROOT / "business" / "order-inventory-reservation.log",
+    },
 }
 
 API_KEY_ENV = {
@@ -51,8 +54,8 @@ API_KEY_ENV = {
 }
 
 DEFAULT_API_KEYS = {
-    "payment-service": "lms_live_42aors41c3.ZbIsJtFQj-3uwKj-blS-iLlRraQtP5VbwwZG2QN7_eU",
-    "order-service": "lms_live_4w535ep9w0.oLNMpHN4oXFYHiOyrHYfXAxLHiaNMZ3vvOIDTEL6fZw",
+    "payment-service": "lms_live_5pco54uva7.z_reT4WBUmZLWkJlHDytnh08AOCbwOuINPR7fbVOVA8",
+    "order-service": "lms_live_nt8bjnd035.Wsf_0Bv-mz6l5eQ8wy78VxeNKQX9sq3NjrVUF3-3xxk",
 }
 
 
