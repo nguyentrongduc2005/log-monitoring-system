@@ -1,5 +1,7 @@
 package com.vdt.log_monitoring.modules.anomaly.internal.rule;
 
+import java.util.List;
+
 public enum AnomalyMetricRule {
 	CPU_USAGE,
 	MEMORY_USAGE,
@@ -37,8 +39,34 @@ public enum AnomalyMetricRule {
 		return current >= warningThreshold();
 	}
 
+	public boolean isBreached(List<Double> recentValues) {
+		return isCriticalBreached(recentValues) || isWarningBreached(recentValues);
+	}
+
+	public boolean isWarningBreached(List<Double> recentValues) {
+		return recentValues != null
+			&& recentValues.size() >= 6
+			&& recentValues.stream()
+				.filter(value -> value >= warningThreshold())
+				.count() >= 4;
+	}
+
+	public boolean isCriticalBreached(List<Double> recentValues) {
+		if (recentValues == null || recentValues.size() < 3) {
+			return false;
+		}
+		List<Double> lastThree = recentValues.subList(recentValues.size() - 3, recentValues.size());
+		return lastThree.stream()
+			.filter(value -> value >= criticalThreshold())
+			.count() >= 2;
+	}
+
 	public double thresholdFor(double current) {
 		return current >= criticalThreshold() ? criticalThreshold() : warningThreshold();
+	}
+
+	public double thresholdFor(List<Double> recentValues) {
+		return isCriticalBreached(recentValues) ? criticalThreshold() : warningThreshold();
 	}
 
 	public String severityFor(double current) {
@@ -46,6 +74,19 @@ public enum AnomalyMetricRule {
 			return "CRITICAL";
 		}
 		if (current >= warningThreshold()) {
+			return switch (this) {
+				case CPU_USAGE, MEMORY_USAGE, DISK_USAGE -> "ERROR";
+				default -> "WARN";
+			};
+		}
+		return "INFO";
+	}
+
+	public String severityFor(List<Double> recentValues) {
+		if (isCriticalBreached(recentValues)) {
+			return "CRITICAL";
+		}
+		if (isWarningBreached(recentValues)) {
 			return switch (this) {
 				case CPU_USAGE, MEMORY_USAGE, DISK_USAGE -> "ERROR";
 				default -> "WARN";

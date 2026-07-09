@@ -16,13 +16,13 @@ describe("navigation", () => {
     ]);
   });
 
-  it("hides administration from an engineer or unknown role", () => {
+  it("hides admin-only groups from an engineer or unknown role", () => {
     expect(getNavigationGroups("ENGINEER").map((group) => group.label)).toEqual(
-      ["Monitoring", "Analytics", "Resources"],
+      ["Monitoring", "Analytics"],
     );
     expect(
       getNavigationGroups(undefined).some(
-        (group) => group.label === "Administration",
+        (group) => group.label === "Resources" || group.label === "Administration",
       ),
     ).toBe(false);
   });

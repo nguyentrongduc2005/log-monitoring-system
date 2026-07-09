@@ -1,10 +1,11 @@
 package com.vdt.log_monitoring.modules.processing.internal.alert;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -24,44 +25,60 @@ class AlertCandidateRuleFilterTest {
 	private final AlertCandidateRuleFilter filter = new AlertCandidateRuleFilter(alertingFacade);
 
 	@Test
-	void matchesWarnLogWhenActiveRuleCandidateMatchesSeverityAndKeyword() {
-		when(alertingFacade.findActiveRuleCandidates(APPLICATION_ID))
-				.thenReturn(List.of(new AlertingFacade.ActiveAlertRuleCandidateDto(
-						"WARN",
-						"payment_failed")));
+	void matchesWarnLogWhenAlertingFacadeFindsMatchingRule() {
+		Instant timestamp = Instant.parse("2026-06-18T03:00:00Z");
+		when(alertingFacade.hasMatchingActiveRuleCandidate(
+			APPLICATION_ID,
+			"WARN",
+			"payment_failed from gateway",
+			timestamp))
+			.thenReturn(true);
 
-		assertThat(filter.matches(log(LogLevel.WARN, "payment_failed from gateway", "2026-06-18T03:00:00Z")))
-				.isTrue();
-		assertThat(filter.matches(log(LogLevel.WARN, "payment_failed from gateway", "2026-06-18T10:00:00Z")))
-				.isTrue();
+		assertThat(filter.matches(log(LogLevel.WARN, "payment_failed from gateway", timestamp)))
+			.isTrue();
 	}
 
 	@Test
-	void fallsBackToCriticalLevelsWhenNoActiveRuleCandidatesExist() {
-		when(alertingFacade.findActiveRuleCandidates(APPLICATION_ID)).thenReturn(List.of());
+	void returnsFalseWhenAlertingFacadeFindsNoMatchingRule() {
+		Instant timestamp = Instant.parse("2026-06-18T03:00:00Z");
+		when(alertingFacade.hasMatchingActiveRuleCandidate(
+			APPLICATION_ID,
+			"INFO",
+			"payment_failed from gateway",
+			timestamp))
+			.thenReturn(false);
 
-		assertThat(filter.matches(log(LogLevel.INFO, "payment_failed from gateway", "2026-06-18T03:00:00Z")))
-				.isFalse();
-		assertThat(filter.matches(log(LogLevel.ERROR, "payment_failed from gateway", "2026-06-18T03:00:00Z")))
-				.isTrue();
+		assertThat(filter.matches(log(LogLevel.INFO, "payment_failed from gateway", timestamp)))
+			.isFalse();
 	}
 
-	private ProcessedLog log(LogLevel level, String message, String timestamp) {
-		Instant instant = Instant.parse(timestamp);
+	@Test
+	void fallsBackToCriticalLevelsWithoutReadingRules() {
+		assertThat(filter.matches(log(LogLevel.ERROR, "payment_failed from gateway", Instant.parse("2026-06-18T03:00:00Z"))))
+			.isTrue();
+		verify(alertingFacade, never()).hasMatchingActiveRuleCandidate(
+			org.mockito.ArgumentMatchers.any(),
+			org.mockito.ArgumentMatchers.any(),
+			org.mockito.ArgumentMatchers.any(),
+			org.mockito.ArgumentMatchers.any());
+	}
+
+	private ProcessedLog log(LogLevel level, String message, Instant instant) {
 		return new ProcessedLog(
-				UUID.randomUUID(),
-				UUID.randomUUID(),
-				APPLICATION_ID,
-				"checkout-api",
-				"Checkout API",
-				level,
-				message,
-				null,
-				instant,
-				instant,
-				instant,
-				new LogFingerprint("checkout-payment"),
-				LogProcessingStatus.STORED,
-				LogMetadata.empty());
+			UUID.randomUUID(),
+			UUID.randomUUID(),
+			APPLICATION_ID,
+			"checkout-api",
+			"Checkout API",
+			level,
+			message,
+			null,
+			instant,
+			instant,
+			instant,
+			new LogFingerprint("checkout-payment"),
+			LogProcessingStatus.STORED,
+			LogMetadata.empty()
+		);
 	}
 }

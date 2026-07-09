@@ -58,9 +58,11 @@ function DrawerHarness({ onClose = vi.fn() }: { onClose?: () => void }) {
 }
 
 describe("Sidebar", () => {
-  it("shows all groups to Admin and hides Administration from other roles", () => {
+  it("shows all groups to Admin and hides admin-only groups from other roles", () => {
     const { rerender } = renderSidebar();
 
+    expect(screen.getByText("Resources")).toBeInTheDocument();
+    expect(screen.getByText("Applications")).toBeInTheDocument();
     expect(screen.getByText("Administration")).toBeInTheDocument();
     expect(screen.getByText("Users & Access")).toBeInTheDocument();
 
@@ -69,6 +71,8 @@ describe("Sidebar", () => {
         <Sidebar role="ENGINEER" />
       </MemoryRouter>,
     );
+    expect(screen.queryByText("Resources")).not.toBeInTheDocument();
+    expect(screen.queryByText("Applications")).not.toBeInTheDocument();
     expect(screen.queryByText("Administration")).not.toBeInTheDocument();
 
     rerender(
@@ -76,6 +80,8 @@ describe("Sidebar", () => {
         <Sidebar role="UNKNOWN" />
       </MemoryRouter>,
     );
+    expect(screen.queryByText("Resources")).not.toBeInTheDocument();
+    expect(screen.queryByText("Applications")).not.toBeInTheDocument();
     expect(screen.queryByText("Administration")).not.toBeInTheDocument();
   });
 

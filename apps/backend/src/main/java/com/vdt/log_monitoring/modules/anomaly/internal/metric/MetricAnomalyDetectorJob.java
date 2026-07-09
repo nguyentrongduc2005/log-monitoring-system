@@ -55,7 +55,7 @@ public class MetricAnomalyDetectorJob {
 	private void detectApplication(UUID applicationId) {
 		List<MetricState> states = readStates(applicationId);
 		List<MetricState> breached = states.stream()
-			.filter(state -> state.rule().isBreached(state.current()))
+			.filter(state -> state.rule().isBreached(state.recentValues()))
 			.toList();
 		if (breached.isEmpty()) {
 			return;
@@ -149,11 +149,31 @@ public class MetricAnomalyDetectorJob {
 				root.path("avg").asDouble(),
 				root.path("max").asDouble(),
 				root.path("samples").asLong(),
+				parseRecentValues(root),
 				Instant.parse(root.path("lastSeen").asText())));
 		} catch (Exception exception) {
 			log.debug("Ignoring malformed metric anomaly snapshot", exception);
 			return java.util.Optional.empty();
 		}
+	}
+
+	private List<Double> parseRecentValues(JsonNode root) {
+		JsonNode valuesNode = root.path("recentValues");
+		if (valuesNode.isArray() && !valuesNode.isEmpty()) {
+			List<Double> values = new ArrayList<>();
+			for (JsonNode valueNode : valuesNode) {
+				if (valueNode.isNumber()) {
+					values.add(valueNode.asDouble());
+				}
+			}
+			if (!values.isEmpty()) {
+				return List.copyOf(values);
+			}
+		}
+		if (root.path("current").isNumber()) {
+			return List.of(root.path("current").asDouble());
+		}
+		return List.of();
 	}
 
 	private String evidencePayload(
@@ -176,7 +196,7 @@ public class MetricAnomalyDetectorJob {
 			"Compare with application error logs in the same window."));
 		evidence.put("breachedMetrics", breached.stream().map(this::metricEvidence).toList());
 		evidence.put("normalMetrics", states.stream()
-			.filter(state -> !state.rule().isBreached(state.current()))
+			.filter(state -> !state.rule().isBreached(state.recentValues()))
 			.map(this::normalMetricEvidence)
 			.toList());
 		return toJson(evidence);
@@ -192,8 +212,11 @@ public class MetricAnomalyDetectorJob {
 		metric.put("avg", state.avg());
 		metric.put("max", state.max());
 		metric.put("samples", state.samples());
+		metric.put("recentValues", state.recentValues());
+		metric.put("warningBreachCount", breachCount(state.recentValues(), state.rule().warningThreshold()));
+		metric.put("criticalBreachCount", breachCount(lastValues(state.recentValues(), 3), state.rule().criticalThreshold()));
 		metric.put("lastSeenAt", state.lastSeen().toString());
-		metric.put("severity", state.rule().severityFor(state.current()));
+		metric.put("severity", state.rule().severityFor(state.recentValues()));
 		return metric;
 	}
 
@@ -202,14 +225,16 @@ public class MetricAnomalyDetectorJob {
 		metric.put("metricName", state.rule().name());
 		metric.put("currentValue", state.current());
 		metric.put("unit", state.rule().unit());
+		metric.put("samples", state.samples());
+		metric.put("recentValues", state.recentValues());
 		return metric;
 	}
 
 	private String aggregateSeverity(List<MetricState> breached) {
-		if (breached.stream().anyMatch(state -> "CRITICAL".equals(state.rule().severityFor(state.current())))) {
+		if (breached.stream().anyMatch(state -> "CRITICAL".equals(state.rule().severityFor(state.recentValues())))) {
 			return "CRITICAL";
 		}
-		if (breached.stream().anyMatch(state -> "ERROR".equals(state.rule().severityFor(state.current())))) {
+		if (breached.stream().anyMatch(state -> "ERROR".equals(state.rule().severityFor(state.recentValues())))) {
 			return "ERROR";
 		}
 		return "WARN";
@@ -218,9 +243,31 @@ public class MetricAnomalyDetectorJob {
 	private String metricSummary(List<MetricState> breached) {
 		return breached.stream()
 			.map(state -> state.rule().name() + " " + format(state.current()) + state.rule().unit()
-				+ " >= " + format(state.rule().thresholdFor(state.current())) + state.rule().unit())
+				+ " breached " + breachSummary(state))
 			.reduce((left, right) -> left + ", " + right)
 			.orElse("Metric threshold breached");
+	}
+
+	private String breachSummary(MetricState state) {
+		if (state.rule().isCriticalBreached(state.recentValues())) {
+			return breachCount(lastValues(state.recentValues(), 3), state.rule().criticalThreshold())
+				+ "/3 recent samples >= " + format(state.rule().criticalThreshold()) + state.rule().unit();
+		}
+		return breachCount(state.recentValues(), state.rule().warningThreshold())
+			+ "/6 recent samples >= " + format(state.rule().warningThreshold()) + state.rule().unit();
+	}
+
+	private long breachCount(List<Double> values, double threshold) {
+		return values.stream()
+			.filter(value -> value >= threshold)
+			.count();
+	}
+
+	private List<Double> lastValues(List<Double> values, int count) {
+		if (values.size() <= count) {
+			return values;
+		}
+		return values.subList(values.size() - count, values.size());
 	}
 
 	private String format(double value) {
@@ -257,6 +304,7 @@ public class MetricAnomalyDetectorJob {
 		double avg,
 		double max,
 		long samples,
+		List<Double> recentValues,
 		Instant lastSeen
 	) {}
 }

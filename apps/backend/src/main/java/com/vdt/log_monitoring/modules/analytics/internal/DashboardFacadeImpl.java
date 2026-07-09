@@ -16,4 +16,9 @@ public class DashboardFacadeImpl implements DashboardFacade {
 	public OverviewSnapshotDto getOverviewSnapshot(String window, java.util.List<java.util.UUID> visibleApplicationIds) {
 		return analyticsService.getDashboardOverview(window, visibleApplicationIds);
 	}
+
+	@Override
+	public LogSearchResponseDto searchLogs(LogSearchRequestDto request, java.util.List<java.util.UUID> visibleApplicationIds) {
+		return analyticsService.searchLogs(request, visibleApplicationIds);
+	}
 }

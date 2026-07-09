@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 
 import com.vdt.log_monitoring.modules.alerting.internal.alert.AlertEntity;
 import com.vdt.log_monitoring.modules.alerting.internal.alert.AlertService;
+import com.vdt.log_monitoring.modules.alerting.internal.alert.AlertLogSample;
 import com.vdt.log_monitoring.modules.alerting.internal.cache.AlertThresholdCache;
 import com.vdt.log_monitoring.modules.alerting.internal.cache.AlertThresholdCache.DecisionType;
 import com.vdt.log_monitoring.modules.alerting.internal.cache.AlertThresholdCache.ThresholdDecision;
@@ -71,6 +72,43 @@ class AlertEvaluationServiceTest {
 			candidate.logTimestamp(),
 			rule.minSeverity());
 		verify(dispatcher).dispatch(alert, rule);
+	}
+
+	@Test
+	void triggerPrependCandidateSampleAndSkipsPlaceholderAndDuplicates() {
+		AlertRuleDefinition rule = rule();
+		AlertEvaluationCandidate candidate = candidate();
+		AlertEntity alert = mock();
+		when(ruleService.findActiveRules(candidate.applicationId())).thenReturn(List.of(rule));
+		when(ruleMatcher.matches(rule, AlertSeverity.ERROR, candidate.message(), candidate.logTimestamp())).thenReturn(true);
+		when(thresholdCache.evaluate(rule, candidate.applicationId(), candidate.eventId(), candidate.logTimestamp()))
+			.thenReturn(new ThresholdDecision(
+				DecisionType.TRIGGERED, 3, Instant.parse("2026-06-18T03:59:00Z")));
+
+		when(logEvidenceReader.findTopLogSamples(
+			candidate.applicationId(),
+			Instant.parse("2026-06-18T03:59:00Z"),
+			candidate.logTimestamp(),
+			rule.minSeverity()))
+			.thenReturn(List.of(
+				new AlertLogSample("INFO", "No representative log samples available in ClickHouse at trigger time"),
+				new AlertLogSample("ERROR", "Payment failed"),
+				new AlertLogSample("WARN", "Database connection lost")
+			));
+
+		@SuppressWarnings("unchecked")
+		org.mockito.ArgumentCaptor<List<AlertLogSample>> samplesCaptor = org.mockito.ArgumentCaptor.forClass(List.class);
+		when(alertService.trigger(any(), any(), any(Long.class), any(), samplesCaptor.capture()))
+			.thenReturn(alert);
+
+		service.evaluate(candidate);
+
+		List<AlertLogSample> resolvedSamples = samplesCaptor.getValue();
+		assertThat(resolvedSamples).hasSize(2);
+		assertThat(resolvedSamples.get(0).message()).isEqualTo("Payment failed");
+		assertThat(resolvedSamples.get(0).level()).isEqualTo("ERROR");
+		assertThat(resolvedSamples.get(1).message()).isEqualTo("Database connection lost");
+		assertThat(resolvedSamples.get(1).level()).isEqualTo("WARN");
 	}
 
 	@Test

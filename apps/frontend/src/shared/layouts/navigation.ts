@@ -67,6 +67,7 @@ export const navigationGroups = [
   },
   {
     label: "Resources",
+    roles: ["ADMIN"],
     items: [
       {
         id: "applications",

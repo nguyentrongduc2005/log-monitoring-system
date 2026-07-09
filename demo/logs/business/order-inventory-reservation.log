@@ -1,0 +1,3 @@
+WARN inventory_reservation_mismatch orderId=ORD-BIZ-9001 sku=SKU-SSD-1TB requested=2 reserved=1 warehouse=HCM-01 service=order-service traceId=demo-inventory-001
+WARN inventory_reservation_mismatch orderId=ORD-BIZ-9002 sku=SKU-RAM-32GB requested=4 reserved=2 warehouse=HCM-01 service=order-service traceId=demo-inventory-002
+WARN inventory_reservation_mismatch orderId=ORD-BIZ-9003 sku=SKU-MONITOR-27 requested=1 reserved=0 warehouse=HN-02 service=order-service traceId=demo-inventory-003

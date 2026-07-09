@@ -6,6 +6,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -15,6 +16,12 @@ import com.vdt.log_monitoring.modules.analytics.api.DashboardFacade.LogSampleDto
 import com.vdt.log_monitoring.modules.analytics.api.DashboardFacade.LogVolumePointDto;
 import com.vdt.log_monitoring.modules.analytics.api.DashboardFacade.OverviewMetricDto;
 import com.vdt.log_monitoring.modules.analytics.api.DashboardFacade.OverviewSnapshotDto;
+import com.vdt.log_monitoring.modules.analytics.api.DashboardFacade.LogSearchRequestDto;
+import com.vdt.log_monitoring.modules.analytics.api.DashboardFacade.LogSearchResponseDto;
+import com.vdt.log_monitoring.modules.analytics.api.DashboardFacade.LogSearchSummaryDto;
+import com.vdt.log_monitoring.modules.analytics.api.DashboardFacade.LogSearchEntryDto;
+import com.vdt.log_monitoring.modules.analytics.api.DashboardFacade.ApplicationDto;
+import com.vdt.log_monitoring.modules.identity.api.ApplicationAccessFacade;
 import com.vdt.log_monitoring.modules.anomaly.api.AnomalyFacade;
 import com.vdt.log_monitoring.modules.anomaly.api.AnomalyFacade.AnomalyReportDto;
 
@@ -28,6 +35,7 @@ public class AnalyticsService {
 	private final ClickHouseAnalyticsRepository clickHouseRepository;
 	private final AnomalyFacade anomalyFacade;
 	private final LogIngestionFacade logIngestionFacade;
+	private final ApplicationAccessFacade applicationAccessFacade;
 
 	private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneOffset.UTC);
 
@@ -149,6 +157,70 @@ public class AnalyticsService {
 			),
 			List.of(),
 			List.of()
+		);
+	}
+
+	public LogSearchResponseDto searchLogs(LogSearchRequestDto request, List<UUID> visibleApplicationIds) {
+		Instant end = Instant.now();
+		Instant start = switch (request.range() == null ? "24h" : request.range()) {
+			case "15m" -> end.minus(15, ChronoUnit.MINUTES);
+			case "1h" -> end.minus(1, ChronoUnit.HOURS);
+			case "6h" -> end.minus(6, ChronoUnit.HOURS);
+			default -> end.minus(24, ChronoUnit.HOURS);
+		};
+
+		List<ApplicationDto> applications = visibleApplicationIds.stream()
+			.map(id -> {
+				try {
+					var app = applicationAccessFacade.findApplicationById(id);
+					return new ApplicationDto(app.id(), app.displayName() != null ? app.displayName() : app.name());
+				} catch (Exception e) {
+					return new ApplicationDto(id, "Application (" + id + ")");
+				}
+			})
+			.toList();
+
+		LogSearchSummaryDto summary = clickHouseRepository.getLogSearchSummary(
+			start, end, visibleApplicationIds, request.query(), request.applicationId(), request.level()
+		);
+
+		List<LogVolumePointDto> buckets = clickHouseRepository.getLogSearchVolume(
+			start, end, visibleApplicationIds, request.query(), request.applicationId(), request.level(), request.range()
+		);
+
+		int limit = request.pageSize() <= 0 ? 20 : request.pageSize();
+		int offset = Math.max(0, (request.page() - 1) * limit);
+		List<LogSearchEntryDto> results = clickHouseRepository.searchLogs(
+			start, end, visibleApplicationIds, request.query(), request.applicationId(), request.level(), limit, offset
+		);
+
+		List<LogSearchEntryDto> relatedTrace = new ArrayList<>();
+		if (request.selectedLogId() != null && !request.selectedLogId().isBlank()) {
+			String traceId = results.stream()
+				.filter(log -> log.id().equals(request.selectedLogId()))
+				.map(LogSearchEntryDto::traceId)
+				.findFirst()
+				.orElse(null);
+
+			if (traceId != null && !traceId.isBlank()) {
+				relatedTrace = clickHouseRepository.getRelatedTraceLogs(traceId, visibleApplicationIds);
+			}
+		}
+
+		long totalResults = summary.totalMatches();
+		int totalPages = (int) Math.ceil((double) totalResults / limit);
+		int currentPage = request.page() <= 0 ? 1 : request.page();
+
+		return new LogSearchResponseDto(
+			applications,
+			summary,
+			buckets,
+			results,
+			relatedTrace,
+			totalPages,
+			currentPage,
+			limit,
+			totalResults
 		);
 	}
 }
