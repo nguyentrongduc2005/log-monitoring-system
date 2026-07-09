@@ -150,6 +150,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - CLICKHOUSE_URL=jdbc:clickhouse://clickhouse:8123/${CLICKHOUSE_DB}
+      - PROMETHEUS_API_URL=http://prometheus:9090
       - BACKEND_HOST=backend
     depends_on:
       postgres:
@@ -162,6 +163,8 @@ services:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
+      prometheus:
+        condition: service_started
 
   frontend:
     build:

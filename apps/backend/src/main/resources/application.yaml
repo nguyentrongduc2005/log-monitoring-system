@@ -49,6 +49,9 @@ springdoc:
   swagger-ui:
     path: /swagger-ui
 
+prometheus:
+  api-url: ${PROMETHEUS_API_URL:http://localhost:9090}
+
 app:
   security:
     cors:

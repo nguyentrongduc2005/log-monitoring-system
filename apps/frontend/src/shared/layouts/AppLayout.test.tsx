@@ -159,6 +159,8 @@ describe("AppLayout", () => {
   it("filters navigation by role and renders routed title, action, and content", () => {
     renderLayout({ role: "ENGINEER" });
 
+    expect(screen.queryByText("Resources")).not.toBeInTheDocument();
+    expect(screen.queryByText("Applications")).not.toBeInTheDocument();
     expect(screen.queryByText("Administration")).not.toBeInTheDocument();
     expect(screen.getByTitle("Overview")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Page action" })).toBeInTheDocument();
